@@ -18,17 +18,21 @@
 
   <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md text-center">
 
+    <!-- قسم توليد رمز QR (للابتوب) -->
     <div id="qrSection">
       <h1 class="text-2xl font-bold mb-4 text-gray-800">تسجيل الحضور</h1>
       <p class="text-gray-600 mb-2">امسح رمز الـ QR المتغير أدناه ليتم نقلك لنموذج التسجيل.</p>
       <p class="text-sm text-red-600 mb-4">الرمز يتغير ويتجدد كل <span id="timer">20</span> ثانية.</p>
       <div id="qrcode" class="w-64 h-64 mx-auto"></div>
       <p id="qrError" class="text-red-500 mt-2" style="display: none;">حدث خطأ أثناء توليد رمز الـ QR.</p>
-      <div id="invalidQrMessage" class="mt-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg">
-        رمز الـ QR لم يعد صالحًا، يرجى مسحه مرة أخرى.
-      </div>
     </div>
 
+    <!-- قسم عرض رسالة الخطأ عند انتهاء صلاحية الرمز (للجوال) -->
+    <div id="invalidQrMessage" class="mt-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg">
+      رمز الـ QR لم يعد صالحًا، يرجى مسحه مرة أخرى.
+    </div>
+
+    <!-- قسم نموذج التسجيل (للجوال إذا كان الرمز ساري) -->
     <div id="attendanceFormSection">
       <h2 class="text-xl font-semibold mb-6 text-gray-800">إدخال البيانات</h2>
       <form id="attendanceForm">
@@ -64,7 +68,6 @@
     const attendanceForm = document.getElementById('attendanceForm');
     const successMessage = document.getElementById('successMessage');
     const errorMessage = document.getElementById('errorMessage');
-    const qrErrorMessage = document.getElementById('qrError');
     const invalidQrMessage = document.getElementById('invalidQrMessage');
 
     // --- الإعدادات ---
@@ -73,16 +76,14 @@
     const updateInterval = 20000; // 20 ثانية بالميلي ثانية
     const pageBaseUrl = 'https://diaaashraf2004.github.io/drashraf/scan.html'; // عنوان الصفحة الأساسي
 
-    // --- الدوال ---
-
     // دالة توليد رمز QR مع إضافة الطابع الزمني
     function generateQRCode() {
       try {
         const currentTimestamp = Date.now();
-        const qrData = `${pageBaseUrl}?ts=${currentTimestamp}`; // URL مع الطابع الزمني
+        const qrData = `${pageBaseUrl}?ts=${currentTimestamp}`; // الرابط مع معامل ts
 
         qrCodeElement.innerHTML = '';
-        qrErrorMessage.style.display = 'none';
+        // إخفاء رسالة الخطأ (إذا كانت ظاهرة)
         invalidQrMessage.style.display = 'none';
 
         qrCodeInstance = new QRCode(qrCodeElement, {
@@ -97,12 +98,10 @@
         startCountdown();
       } catch (error) {
         console.error("حدث خطأ أثناء توليد رمز الـ QR:", error);
-        qrErrorMessage.style.display = 'block';
-        if (countdownIntervalId) clearInterval(countdownIntervalId);
       }
     }
 
-    // دالة بدء العد التنازلي وعرضه
+    // دالة بدء العد التنازلي وعرضه (للعرض على اللابتوب)
     function startCountdown() {
       if (countdownIntervalId) clearInterval(countdownIntervalId);
       let timeLeft = updateInterval / 1000;
@@ -112,26 +111,20 @@
         if (timeLeft >= 0) {
           timerElement.textContent = timeLeft;
         }
-        // عند انتهاء الوقت، يتم عرض رسالة الخطأ وإيقاف العد
-        if (timeLeft <= 0) {
-          clearInterval(countdownIntervalId);
-          invalidQrMessage.style.display = 'block';
-        }
       }, 1000);
     }
 
-    // دالة عرض نموذج التسجيل
+    // دالة عرض نموذج التسجيل (للهاتف إذا كان الرمز ساري)
     function showAttendanceForm() {
       console.log('يتم عرض نموذج التسجيل...');
       qrSection.style.display = 'none';
       attendanceFormSection.style.display = 'block';
       successMessage.style.display = 'none';
       errorMessage.style.display = 'none';
-      if (countdownIntervalId) clearInterval(countdownIntervalId);
-      console.log('تم التبديل إلى نموذج التسجيل، وتوقفت عملية تحديث رمز QR.');
+      console.log('تم التبديل إلى نموذج التسجيل.');
     }
 
-    // دالة التحقق من صلاحية رمز QR
+    // دالة التحقق من صلاحية رمز QR (تُستخدم عند المسح من الجوال)
     function validateQRCode() {
       const urlParams = new URLSearchParams(window.location.search);
       const scannedTimestamp = urlParams.get('ts');
@@ -139,85 +132,67 @@
         const currentTimestamp = Date.now();
         const timeDifference = currentTimestamp - parseInt(scannedTimestamp, 10);
         console.log('الفارق الزمني (بالميلي ثانية):', timeDifference);
-        if (timeDifference >= updateInterval || timeDifference < 0) {
-          return false;
+        // إذا كان الفارق أقل من 20 ثانية يكون الرمز صالح
+        if (timeDifference < updateInterval && timeDifference >= 0) {
+          return true;
         }
-        return true;
       }
       return false;
     }
 
-    // دالة معالجة إرسال النموذج مع التحقق من صلاحية رمز QR
+    // دالة معالجة إرسال النموذج (تُستخدم على الجوال)
     function handleFormSubmit(event) {
       event.preventDefault();
-      
       if (!validateQRCode()) {
         alert("رمز الـ QR لم يعد صالحًا، يرجى مسحه مرة أخرى.");
         return;
       }
-      
       try {
         const studentName = document.getElementById('studentName').value;
         const studentId = document.getElementById('studentId').value;
         if (!studentName || !studentId) {
-          console.error('التحقق فشل: الاسم أو الكود فارغ.');
           errorMessage.textContent = 'يرجى إدخال الاسم والكود.';
           errorMessage.style.display = 'block';
-          successMessage.style.display = 'none';
           return;
         }
         console.log("--- محاكاة إرسال بيانات الحضور ---");
         console.log("الاسم:", studentName);
         console.log("الكود:", studentId);
-        console.log("---------------------------------");
         attendanceFormSection.style.display = 'none';
         successMessage.style.display = 'block';
-        errorMessage.style.display = 'none';
       } catch (error) {
         console.error("حدث خطأ أثناء إرسال النموذج:", error);
         errorMessage.textContent = 'حدث خطأ غير متوقع أثناء تسجيل الحضور.';
         errorMessage.style.display = 'block';
-        successMessage.style.display = 'none';
-        attendanceFormSection.style.display = 'block';
       }
     }
 
     // --- تهيئة الصفحة ---
     document.addEventListener('DOMContentLoaded', () => {
-      console.log('تم تحميل الـ DOM بالكامل.');
-
-      // التأكد من وجود العناصر الأساسية
-      if (!qrCodeElement || !timerElement || !qrSection || !attendanceFormSection || !attendanceForm) {
-        console.error('عنصر أو أكثر من العناصر الأساسية غير موجود!');
-        document.body.innerHTML = '<p class="text-red-600 text-center p-8">حدث خطأ حرج في تحميل الصفحة. العناصر الأساسية مفقودة.</p>';
-        return;
-      }
-
       // إرفاق حدث إرسال النموذج
       attendanceForm.addEventListener('submit', handleFormSubmit);
-      console.log('تم إرفاق حدث إرسال النموذج.');
 
-      // عند تحميل الصفحة، إذا كان عنوان URL يحتوي على معامل ts نقوم بالتحقق منه
+      // التمييز بين وضع التوليد (اللابتوب) ووضع المسح (الجوال)
       const urlParams = new URLSearchParams(window.location.search);
       const scannedTimestamp = urlParams.get('ts');
+
       if (scannedTimestamp) {
+        // وضع الجوال: يتم التحقق من صلاحية الرمز
         const currentTimestamp = Date.now();
         const timeDifference = currentTimestamp - parseInt(scannedTimestamp, 10);
-        console.log('Current Timestamp:', currentTimestamp);
-        console.log('Time Difference (ms):', timeDifference);
-        if (!isNaN(timeDifference) && timeDifference >= 0 && timeDifference < updateInterval) {
-          console.log('رمز QR صالح، يتم عرض نموذج التسجيل.');
+        console.log('وقت المسح: ', timeDifference, 'ملّي ثانية');
+        if (timeDifference < updateInterval && timeDifference >= 0) {
+          console.log('الرمز صالح، عرض نموذج التسجيل.');
           showAttendanceForm();
         } else {
-          console.log('رمز QR لم يعد صالحًا أو منتهي الصلاحية.');
+          console.log('الرمز منتهي الصلاحية.');
           invalidQrMessage.style.display = 'block';
         }
       } else {
-        // إذا لم يوجد ts في URL يتم توليد رمز QR جديد
-        console.log('لم يتم العثور على ts في URL. يتم توليد رمز QR جديد.');
+        // وضع اللابتوب: يتم توليد رمز QR جديد بشكل متواصل
         generateQRCode();
+        setInterval(generateQRCode, updateInterval);
       }
-      console.log('تهيئة الصفحة اكتملت.');
     });
   </script>
 
