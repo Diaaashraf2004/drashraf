@@ -3,32 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام تسجيل الحضور بالـ QR</title>
+    <title>نظام تسجيل الحضور بالـ QR المتغير زمنيًا</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <style>
-        /* تخصيص خط Inter (اختياري) */
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            /* font-family: 'Cairo', sans-serif; */
-        }
-        /* إخفاء العناصر مبدئيًا */
-        #attendanceFormSection, #successMessage, #errorMessage {
-            display: none;
-        }
-        /* توسيط محتوى الـ QR */
-        #qrcode {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-top: 1rem;
-            margin-bottom: 1rem;
-        }
-        #qrcode img {
-             border-radius: 0.5rem;
-             border: 1px solid #e5e7eb;
-        }
+        body { font-family: 'Inter', sans-serif; }
+        #attendanceFormSection, #successMessage, #errorMessage, #invalidQrMessage { display: none; }
+        #qrcode { display: flex; justify-content: center; align-items: center; margin-top: 1rem; margin-bottom: 1rem; }
+        #qrcode img { border-radius: 0.5rem; border: 1px solid #e5e7eb; }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
@@ -37,31 +20,28 @@
 
         <div id="qrSection">
             <h1 class="text-2xl font-bold mb-4 text-gray-800">تسجيل الحضور</h1>
-            <p class="text-gray-600 mb-4">امسح رمز الـ QR التالي للانتقال إلى نموذج تسجيل الحضور.</p>
+            <p class="text-gray-600 mb-2">امسح رمز الـ QR المتغير أدناه ليتم نقلك لنموذج التسجيل.</p>
+            <p class="text-sm text-red-600 mb-4">الرمز يتغير ويتجدد كل <span id="timer">20</span> ثانية.</p>
             <div id="qrcode" class="w-64 h-64 mx-auto"></div>
             <p id="qrError" class="text-red-500 mt-2" style="display: none;">حدث خطأ أثناء توليد رمز الـ QR.</p>
-            <button id="scanButton" class="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300">
-                الانتقال إلى النموذج (محاكاة)
-            </button>
-        </div>
+             <div id="invalidQrMessage" class="mt-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg">
+                رمز الـ QR الذي تم مسحه غير صالح أو انتهت صلاحيته. يرجى مسح الرمز الحالي.
+            </div>
+            </div>
 
         <div id="attendanceFormSection">
             <h2 class="text-xl font-semibold mb-6 text-gray-800">إدخال البيانات</h2>
             <form id="attendanceForm">
                 <div class="mb-4 text-right">
                     <label for="studentName" class="block text-gray-700 text-sm font-bold mb-2">الاسم:</label>
-                    <input type="text" id="studentName" name="studentName" required
-                           class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <input type="text" id="studentName" name="studentName" required class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                 </div>
                 <div class="mb-6 text-right">
                     <label for="studentId" class="block text-gray-700 text-sm font-bold mb-2">الكود الخاص بك:</label>
-                    <input type="text" id="studentId" name="studentId" required
-                           class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <input type="text" id="studentId" name="studentId" required class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                 </div>
                 <div class="flex items-center justify-center">
-                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300">
-                        تسجيل الحضور
-                    </button>
+                    <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300">تسجيل الحضور</button>
                 </div>
             </form>
         </div>
@@ -76,25 +56,35 @@
     </div>
 
     <script>
-        // Define elements in the global scope
+        // --- Elements ---
         const qrCodeElement = document.getElementById('qrcode');
+        const timerElement = document.getElementById('timer');
         const qrSection = document.getElementById('qrSection');
         const attendanceFormSection = document.getElementById('attendanceFormSection');
         const attendanceForm = document.getElementById('attendanceForm');
         const successMessage = document.getElementById('successMessage');
         const errorMessage = document.getElementById('errorMessage');
         const qrErrorMessage = document.getElementById('qrError');
-        const scanButton = document.getElementById('scanButton');
+        const invalidQrMessage = document.getElementById('invalidQrMessage'); // Message for invalid QR
+        // const scanButton = document.getElementById('scanButton'); // Optional
 
+        // --- Config ---
         let qrCodeInstance = null;
+        let intervalId = null;
+        let countdownIntervalId = null;
+        const updateInterval = 20000; // 20 seconds in milliseconds
+        const gracePeriod = 5000; // 5 seconds grace period for clock skew / scan time
+        const pageBaseUrl = 'https://diaaashraf2004.github.io/drashraf/scan.html'; // Base URL of the page
 
-        // --- الرابط الفعلي لصفحتك على GitHub Pages ---
-        const attendancePageUrl = 'https://diaaashraf2004.github.io/drashraf/scan.html#showForm';
+        // --- Functions ---
 
-        // Function to generate the QR code using the static URL
+        // Function to generate the QR code with timestamp URL
         function generateQRCode() {
             try {
-                const qrData = attendancePageUrl;
+                const currentTimestamp = Date.now();
+                // Construct URL with timestamp parameter
+                const qrData = `${pageBaseUrl}?ts=${currentTimestamp}`;
+
                 qrCodeElement.innerHTML = ''; // Clear previous QR code
                 qrErrorMessage.style.display = 'none';
 
@@ -107,27 +97,45 @@
                     correctLevel: QRCode.CorrectLevel.H
                 });
                 console.log("QR Code Generated with URL:", qrData);
+                startCountdown(); // Start visual countdown
 
             } catch (error) {
                 console.error("Error generating QR Code:", error);
                 qrErrorMessage.style.display = 'block';
+                if (intervalId) clearInterval(intervalId);
+                if (countdownIntervalId) clearInterval(countdownIntervalId);
             }
+        }
+
+        // Function to start and display the countdown
+        function startCountdown() {
+            if (countdownIntervalId) clearInterval(countdownIntervalId);
+            let timeLeft = updateInterval / 1000;
+            timerElement.textContent = timeLeft;
+            countdownIntervalId = setInterval(() => {
+                timeLeft--;
+                if (timeLeft >= 0) { timerElement.textContent = timeLeft; }
+            }, 1000);
         }
 
         // Function to switch view to the attendance form
         function showAttendanceForm() {
-            console.log('Attempting to show attendance form...'); // تسجيل إضافي
+            console.log('Attempting to show attendance form...');
             qrSection.style.display = 'none';
             attendanceFormSection.style.display = 'block';
             successMessage.style.display = 'none';
             errorMessage.style.display = 'none';
-            console.log('Switched to attendance form view.');
+            // Stop QR updates when form is shown
+            if (intervalId) clearInterval(intervalId);
+            if (countdownIntervalId) clearInterval(countdownIntervalId);
+            console.log('Switched to attendance form view. QR update stopped.');
         }
 
-        // Form submission handler (remains the same)
+        // Form submission handler
         function handleFormSubmit(event) {
             event.preventDefault();
-            console.log('Attendance form submit event triggered.');
+            // ... (rest of the form submission logic remains the same) ...
+             console.log('Attendance form submit event triggered.');
             try {
                 const studentName = document.getElementById('studentName').value;
                 const studentId = document.getElementById('studentId').value;
@@ -159,40 +167,77 @@
         document.addEventListener('DOMContentLoaded', () => {
              console.log('DOM fully loaded and parsed.');
 
-             // Check if critical elements exist
-             if (!scanButton || !attendanceForm || !qrCodeElement || !qrSection || !attendanceFormSection) {
+             // Check for critical elements
+             if (!qrCodeElement || !timerElement || !qrSection || !attendanceFormSection || !attendanceForm || !invalidQrMessage) {
                  console.error('One or more essential elements not found!');
-                 const body = document.querySelector('body');
-                 if (body) {
-                     body.innerHTML = '<p class="text-red-600 text-center p-8">حدث خطأ حرج في تحميل الصفحة. العناصر الأساسية مفقودة.</p>';
-                 }
-                 return; // Stop execution if elements are missing
+                 document.body.innerHTML = '<p class="text-red-600 text-center p-8">حدث خطأ حرج في تحميل الصفحة. العناصر الأساسية مفقودة.</p>';
+                 return;
              }
 
-             // Attach event listeners
-             scanButton.addEventListener('click', showAttendanceForm);
-             console.log('Scan button event listener attached.');
-
+             // Attach form submit listener
              attendanceForm.addEventListener('submit', handleFormSubmit);
              console.log('Attendance form submit event listener attached.');
+             // Optional: Attach listener for test button if kept
+             // scanButton.addEventListener('click', showAttendanceForm);
 
-             // --- التحقق من الرابط عند التحميل ---
-             const currentHash = window.location.hash;
-             console.log('Current window.location.hash:', currentHash); // تسجيل قيمة الـ hash الحالية
+             // --- Check URL for Timestamp on Load ---
+             const urlParams = new URLSearchParams(window.location.search);
+             const scannedTimestamp = urlParams.get('ts'); // Get timestamp from URL
+             console.log('Scanned Timestamp from URL (ts):', scannedTimestamp);
 
-             if (currentHash === '#showForm') {
-                 console.log('URL hash #showForm detected. Calling showAttendanceForm().');
-                 showAttendanceForm(); // Show the form directly if hash is present
+             if (scannedTimestamp) {
+                 const currentTimestamp = Date.now();
+                 const timeDifference = currentTimestamp - parseInt(scannedTimestamp, 10);
+                 console.log('Current Timestamp:', currentTimestamp);
+                 console.log('Time Difference (ms):', timeDifference);
+                 console.log('Valid Time Window (ms):', updateInterval + gracePeriod);
+
+                 // Validate the timestamp (within interval + grace period)
+                 if (!isNaN(timeDifference) && timeDifference >= 0 && timeDifference <= (updateInterval + gracePeriod)) {
+                     // Timestamp is valid, show the form
+                     console.log('Scanned timestamp is VALID. Showing form.');
+                     showAttendanceForm();
+                 } else {
+                     // Timestamp is invalid (too old or future date)
+                     console.log('Scanned timestamp is INVALID or expired.');
+                     // Show the QR section with an error message and generate a new QR
+                     invalidQrMessage.style.display = 'block'; // Show invalid message
+                     generateQRCode(); // Generate a new QR code
+                     intervalId = setInterval(generateQRCode, updateInterval); // Start updates
+                 }
              } else {
-                 console.log('URL hash #showForm not detected or different. Generating QR code.');
-                 // Generate the QR code only if not showing the form immediately
-                 generateQRCode();
+                 // No timestamp in URL, load normally (show QR)
+                 console.log('No timestamp found in URL. Generating initial QR code.');
+                 generateQRCode(); // Generate the first QR code
+                 intervalId = setInterval(generateQRCode, updateInterval); // Start updates
              }
-             console.log('Initialization complete.'); // تسجيل إضافي
-        });
 
+             console.log('Initialization complete.');
+        });
     </script>
 
 </body>
 </html>
+```
 
+**التغييرات الرئيسية:**
+
+1.  **محتوى الـ QR:** أصبح الآن رابطًا يحتوي على طابع زمني يتغير كل 20 ثانية (`?ts=...`).
+2.  **التحقق عند التحميل:** عند فتح الصفحة، يتم قراءة الطابع الزمني `ts` من الرابط.
+3.  **المقارنة الزمنية:** يتم مقارنة الطابع الزمني المقروء بالوقت الحالي على جهاز المستخدم.
+4.  **هامش الخطأ:** تم إضافة `gracePeriod` (5 ثوانٍ) للسماح بفارق بسيط في التوقيت أو وقت المسح.
+5.  **عرض النموذج أو الخطأ:** إذا كان الفارق الزمني مقبولاً، يتم عرض النموذج. إذا لم يكن كذلك، يتم عرض رسالة خطأ (`invalidQrMessage`) ورمز QR جديد.
+6.  **المؤقت:** تم إعادة المؤقت البصري وتحديث الـ QR كل 20 ثانية.
+
+**تعليمات الاستخدام:**
+
+1.  **استخدم هذا الكود:** انسخه بالكامل واحفظه كملف `scan.html`.
+2.  **أعد الرفع إلى GitHub:** ارفع الملف المعدل إلى مستودع `drashraf` ليحل محل القديم، ثم اضغط "Commit changes".
+3.  **انتظر 5 دقائق:** أعطِ GitHub Pages وقتًا كافيًا جدًا للتحديث.
+4.  **امسح الـ Cache:** امسح ذاكرة التخزين المؤقت للمتصفح على جوالك **جيدًا**.
+5.  **الاختبار:**
+    * افتح الرابط الأساسي `https://diaaashraf2004.github.io/drashraf/scan.html` على الكمبيوتر لترى الـ QR المتغير.
+    * امسح الـ QR **بسرعة** باستخدام جوالك (الذي مسحت الـ Cache منه).
+    * **راقب:** هل تم نقلك إلى نموذج الإدخال؟ إذا تأخرت كثيرًا في المسح، قد ترى رسالة الخطأ بدلًا من النموذج.
+
+تذكر **محدودية فرق التوقيت**: نجاح هذه الطريقة يعتمد على تقارب ساعة جهازك مع ساعة الجو
