@@ -25,7 +25,7 @@
       <div id="qrcode" class="w-64 h-64 mx-auto"></div>
       <p id="qrError" class="text-red-500 mt-2" style="display: none;">حدث خطأ أثناء توليد رمز الـ QR.</p>
       <div id="invalidQrMessage" class="mt-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg">
-        رمز الـ QR لم يعد صالحًا، يرجى مسح الرمز الحالي.
+        رمز الـ QR لم يعد صالحًا، يرجى مسحه مرة أخرى.
       </div>
     </div>
 
@@ -69,7 +69,6 @@
 
     // --- الإعدادات ---
     let qrCodeInstance = null;
-    let intervalId = null;
     let countdownIntervalId = null;
     const updateInterval = 20000; // 20 ثانية بالميلي ثانية
     const pageBaseUrl = 'https://diaaashraf2004.github.io/drashraf/scan.html'; // عنوان الصفحة الأساسي
@@ -99,7 +98,6 @@
       } catch (error) {
         console.error("حدث خطأ أثناء توليد رمز الـ QR:", error);
         qrErrorMessage.style.display = 'block';
-        if (intervalId) clearInterval(intervalId);
         if (countdownIntervalId) clearInterval(countdownIntervalId);
       }
     }
@@ -114,6 +112,11 @@
         if (timeLeft >= 0) {
           timerElement.textContent = timeLeft;
         }
+        // عند انتهاء الوقت، يتم عرض رسالة الخطأ وإيقاف العد
+        if (timeLeft <= 0) {
+          clearInterval(countdownIntervalId);
+          invalidQrMessage.style.display = 'block';
+        }
       }, 1000);
     }
 
@@ -124,12 +127,11 @@
       attendanceFormSection.style.display = 'block';
       successMessage.style.display = 'none';
       errorMessage.style.display = 'none';
-      if (intervalId) clearInterval(intervalId);
       if (countdownIntervalId) clearInterval(countdownIntervalId);
       console.log('تم التبديل إلى نموذج التسجيل، وتوقفت عملية تحديث رمز QR.');
     }
 
-    // دالة التحقق عند تحميل الصفحة أو عند تقديم النموذج
+    // دالة التحقق من صلاحية رمز QR
     function validateQRCode() {
       const urlParams = new URLSearchParams(window.location.search);
       const scannedTimestamp = urlParams.get('ts');
@@ -138,7 +140,6 @@
         const timeDifference = currentTimestamp - parseInt(scannedTimestamp, 10);
         console.log('الفارق الزمني (بالميلي ثانية):', timeDifference);
         if (timeDifference >= updateInterval || timeDifference < 0) {
-          // إذا تجاوز الوقت أو كان هناك خطأ في التوقيت
           return false;
         }
         return true;
@@ -196,18 +197,26 @@
       attendanceForm.addEventListener('submit', handleFormSubmit);
       console.log('تم إرفاق حدث إرسال النموذج.');
 
-      // التحقق من صلاحية رمز الـ QR عند تحميل الصفحة
-      if (validateQRCode()) {
-        console.log('رمز QR صالح، يتم عرض نموذج التسجيل.');
-        showAttendanceForm();
+      // عند تحميل الصفحة، إذا كان عنوان URL يحتوي على معامل ts نقوم بالتحقق منه
+      const urlParams = new URLSearchParams(window.location.search);
+      const scannedTimestamp = urlParams.get('ts');
+      if (scannedTimestamp) {
+        const currentTimestamp = Date.now();
+        const timeDifference = currentTimestamp - parseInt(scannedTimestamp, 10);
+        console.log('Current Timestamp:', currentTimestamp);
+        console.log('Time Difference (ms):', timeDifference);
+        if (!isNaN(timeDifference) && timeDifference >= 0 && timeDifference < updateInterval) {
+          console.log('رمز QR صالح، يتم عرض نموذج التسجيل.');
+          showAttendanceForm();
+        } else {
+          console.log('رمز QR لم يعد صالحًا أو منتهي الصلاحية.');
+          invalidQrMessage.style.display = 'block';
+        }
       } else {
-        console.log('رمز QR لم يعد صالحًا أو منتهي الصلاحية.');
-        invalidQrMessage.style.display = 'block';
-        // توليد رمز QR جديد تلقائيًا بعد انتهاء الصلاحية
+        // إذا لم يوجد ts في URL يتم توليد رمز QR جديد
+        console.log('لم يتم العثور على ts في URL. يتم توليد رمز QR جديد.');
         generateQRCode();
-        intervalId = setInterval(generateQRCode, updateInterval);
       }
-
       console.log('تهيئة الصفحة اكتملت.');
     });
   </script>
