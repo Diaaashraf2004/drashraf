@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>نظام تسجيل الحضور بالـ QR</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <style>
+    /* تخصيص خط Inter (اختياري) */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    /* إخفاء العناصر مبدئيًا */
+    #attendanceFormSection, #successMessage, #errorMessage {
+      display: none;
+    }
+    /* توسيط محتوى الـ QR */
+    #qrcode {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 1rem;
+      margin-bottom: 1rem;
+    }
+    #qrcode img {
+      border-radius: 0.5rem;
+      border: 1px solid #e5e7eb;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+  <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md text-center">
+
+    <div id="qrSection">
+      <h1 class="text-2xl font-bold mb-4 text-gray-800">تسجيل الحضور</h1>
+      <p class="text-gray-600 mb-2">امسح رمز الـ QR التالي لتسجيل حضورك.</p>
+      <p class="text-sm text-red-600 mb-4">الرمز يتغير كل <span id="timer">50</span> ثانية.</p>
+      <div id="qrcode" class="w-64 h-64 mx-auto"></div>
+      <p id="qrError" class="text-red-500 mt-2" style="display: none;">حدث خطأ أثناء توليد رمز الـ QR.</p>
+      <button id="scanButton" class="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300">
+        محاكاة مسح الرمز
+      </button>
+    </div>
+
+    <div id="attendanceFormSection">
+      <h2 class="text-xl font-semibold mb-6 text-gray-800">إدخال البيانات</h2>
+      <form id="attendanceForm">
+        <div class="mb-4 text-right">
+          <label for="studentName" class="block text-gray-700 text-sm font-bold mb-2">الاسم:</label>
+          <input type="text" id="studentName" name="studentName" required
+            class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+        </div>
+        <div class="mb-6 text-right">
+          <label for="studentId" class="block text-gray-700 text-sm font-bold mb-2">الكود الخاص بك:</label>
+          <input type="text" id="studentId" name="studentId" required
+            class="shadow appearance-none border rounded-lg w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+        </div>
+        <div class="flex items-center justify-center">
+          <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300">
+            تسجيل الحضور
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <div id="successMessage" class="mt-6 p-4 bg-green-100 text-green-800 rounded-lg">
+      تم تسجيل حضورك بنجاح! (محاكاة)
+    </div>
+    <div id="errorMessage" class="mt-6 p-4 bg-red-100 text-red-800 rounded-lg">
+      حدث خطأ ما. يرجى المحاولة مرة أخرى.
+    </div>
+
+  </div>
+
+  <script>
+    // تعريف المتغيرات في النطاق العام للوصول إليها من الدوال المختلفة
+    const qrCodeElement = document.getElementById('qrcode');
+    const timerElement = document.getElementById('timer');
+    const qrSection = document.getElementById('qrSection');
+    const attendanceFormSection = document.getElementById('attendanceFormSection');
+    const attendanceForm = document.getElementById('attendanceForm');
+    const successMessage = document.getElementById('successMessage');
+    const errorMessage = document.getElementById('errorMessage');
+    const qrErrorMessage = document.getElementById('qrError');
+    const scanButton = document.getElementById('scanButton');
+
+    let qrCodeInstance = null;
+    let intervalId = null;
+    let countdownIntervalId = null;
+    const updateInterval = 50000; // 50 ثانية بوحدة الميلي ثانية
+
+    // دالة لتوليد رابط يحتوي على معلمة scan=true باستخدام الرابط الكامل للصفحة
+    function generateQRData() {
+      // الحصول على الرابط الكامل بدون المعلمات
+      let baseUrl = window.location.href.split('?')[0];
+      // إذا كانت الصفحة تعمل محليًا باستخدام file://، ينصح بتشغيل الصفحة على خادم ويب
+      if (window.location.protocol === "file:") {
+        // يمكنك استبدال هذا الرابط برابط حقيقي إذا كان لديك نطاق أو استخدام http://localhost
+        baseUrl = "http://localhost/yourpage.html";
+      }
+      return `${baseUrl}?scan=true`;
+    }
+
+    // دالة توليد أو تحديث رمز الـ QR
+    function generateQRCode() {
+      try {
+        const qrData = generateQRData();
+        qrCodeElement.innerHTML = ''; // مسح الرمز السابق
+        qrErrorMessage.style.display = 'none'; // إخفاء رسالة الخطأ
+
+        qrCodeInstance = new QRCode(qrCodeElement, {
+          text: qrData,
+          width: 256,
+          height: 256,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.H
+        });
+
+        console.log("تم توليد/تحديث رمز الـ QR بالبيانات:", qrData);
+        startCountdown(); // بدء العد التنازلي بعد التوليد
+      } catch (error) {
+        console.error("خطأ أثناء توليد رمز الـ QR:", error);
+        qrErrorMessage.style.display = 'block';
+        if (intervalId) clearInterval(intervalId);
+        if (countdownIntervalId) clearInterval(countdownIntervalId);
+      }
+    }
+
+    // دالة بدء العد التنازلي وعرضه
+    function startCountdown() {
+      if (countdownIntervalId) clearInterval(countdownIntervalId);
+      let timeLeft = updateInterval / 1000;
+      timerElement.textContent = timeLeft;
+
+      countdownIntervalId = setInterval(() => {
+        timeLeft--;
+        if (timeLeft >= 0) {
+          timerElement.textContent = timeLeft;
+        }
+      }, 1000);
+    }
+
+    // --- معالجات الأحداث ---
+    function handleScanButtonClick() {
+      qrSection.style.display = 'none';
+      attendanceFormSection.style.display = 'block';
+      successMessage.style.display = 'none';
+      errorMessage.style.display = 'none';
+      if (intervalId) clearInterval(intervalId);
+      if (countdownIntervalId) clearInterval(countdownIntervalId);
+      console.log('تمت محاكاة المسح. تم عرض نموذج الإدخال.');
+    }
+
+    function handleFormSubmit(event) {
+      event.preventDefault();
+      console.log('تم تفعيل حدث إرسال نموذج التسجيل.');
+
+      try {
+        const studentName = document.getElementById('studentName').value;
+        const studentId = document.getElementById('studentId').value;
+        console.log('تم استرجاع الاسم:', studentName, 'والكود:', studentId);
+
+        if (!studentName || !studentId) {
+          console.error('فشل التحقق: الاسم أو الكود فارغ.');
+          errorMessage.textContent = 'يرجى إدخال الاسم والكود.';
+          errorMessage.style.display = 'block';
+          successMessage.style.display = 'none';
