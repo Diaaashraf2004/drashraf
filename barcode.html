@@ -3,106 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مثال ماسح الباركود (EAN-13 فقط)</title>
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" type="text/javascript"></script>
+    <title>مثال ماسح الباركود (ZXing-JS)</title>
+    <script type="text/javascript" src="https://unpkg.com/@zxing/library@latest/umd/library.min.js"></script>
     <style>
         body { font-family: sans-serif; padding: 20px; text-align: center; }
-        #qr-reader { width: 90%; max-width: 500px; margin: 20px auto; border: 1px solid #ccc; }
-        #qr-reader-results { margin-top: 20px; font-size: 1.2em; font-weight: bold; color: green; }
+        #video-container { position: relative; width: 90%; max-width: 500px; margin: 20px auto; border: 1px solid #ccc; }
+        /* عنصر الفيديو لعرض بث الكاميرا */
+        #video { width: 100%; height: auto; display: block; }
+        #results { margin-top: 20px; font-size: 1.2em; font-weight: bold; color: green; }
         button { padding: 10px 15px; margin: 5px; cursor: pointer; font-size: 1em; border-radius: 5px; border: none; color: white; }
-        #startScanBtn { background-color: #28a745; }
-        #stopScanBtn { background-color: #dc3545; display: none; }
-        #cameraPermissionStatus { font-size: 0.9em; color: #6c757d; margin-top: 10px; }
+        #startScanBtn { background-color: #28a745; } /* Green */
+        #stopScanBtn { background-color: #dc3545; display: none; } /* Red, hidden initially */
+        #status { font-size: 0.9em; color: #6c757d; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-    <h1>مثال لمسح الباركود (EAN-13 فقط)</h1>
-    <div id="qr-reader"></div>
-    <div id="qr-reader-results">لم يتم مسح أي كود بعد.</div>
-    <div id="cameraPermissionStatus"></div>
+    <h1>مثال لمسح الباركود باستخدام ZXing-JS</h1>
+
+    <div id="video-container">
+        <video id="video" playsinline></video> </div>
+    <div id="results">لم يتم مسح أي كود بعد.</div>
+    <div id="status"></div>
+
     <button id="startScanBtn">بدء المسح بالكاميرا</button>
     <button id="stopScanBtn">إيقاف المسح</button>
 
-    <script>
-        const resultContainer = document.getElementById('qr-reader-results');
+    <script type="text/javascript">
+        const videoElement = document.getElementById('video');
+        const resultContainer = document.getElementById('results');
         const startScanBtn = document.getElementById('startScanBtn');
         const stopScanBtn = document.getElementById('stopScanBtn');
-        const permissionStatusDiv = document.getElementById('cameraPermissionStatus');
-        let html5QrCode = null;
+        const statusDiv = document.getElementById('status');
 
-        function onScanSuccess(decodedText, decodedResult) {
-            console.log(`Code matched = ${decodedText}`, decodedResult);
-            resultContainer.textContent = `تم المسح بنجاح: ${decodedText}`;
-            // يمكنك إيقاف المسح تلقائياً إذا أردت
-            // stopScanning();
-        }
+        // إعداد قارئ ZXing-JS
+        const hints = new Map();
+        // تحديد أنواع الباركود المتوقعة (مهم لتحسين الأداء)
+        const formats = [
+            ZXing.BarcodeFormat.QR_CODE,
+            ZXing.BarcodeFormat.EAN_13,
+            ZXing.BarcodeFormat.CODE_128,
+            ZXing.BarcodeFormat.UPC_A,
+            ZXing.BarcodeFormat.DATA_MATRIX, // مثال لنوع آخر قد يكون مفيداً
+            ZXing.BarcodeFormat.CODE_39      // مثال لنوع آخر قد يكون مفيداً
+        ];
+        hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
+        // يمكنك تجربة تفعيل TRY_HARDER لكن قد يؤثر على الأداء
+        // hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
 
-        function onScanFailure(error) {
-            // لا يزال من المفيد رؤية الأخطاء في الكونسول
-            console.warn(`Code scan error = ${error}`);
-        }
+        const codeReader = new ZXing.BrowserMultiFormatReader(hints);
+        let selectedDeviceId = null; // لتخزين معرف الكاميرا المختارة
+        let isScanning = false;     // لتتبع حالة المسح
 
-        function startScanning() {
-            permissionStatusDiv.textContent = 'جاري طلب إذن الكاميرا...';
-            html5QrCode = new Html5Qrcode("qr-reader");
+        // دالة لبدء عملية المسح
+        async function startScanning() {
+            if (isScanning) return;
+            statusDiv.textContent = 'جاري طلب إذن الكاميرا واختيار الكاميرا...';
+            resultContainer.textContent = 'لم يتم مسح أي كود بعد.';
 
-            // *** تعديل: تحديد نوع EAN-13 فقط ***
-            const formatsToSupport = [
-                Html5QrcodeSupportedFormats.EAN_13
-            ];
-
-            const config = {
-                fps: 10,
-                // تم إزالة qrbox سابقاً
-                formatsToSupport: formatsToSupport // يبحث عن EAN-13 فقط
-            };
-
-            Html5Qrcode.getCameras().then(devices => {
-                permissionStatusDiv.textContent = 'تم الحصول على إذن الكاميرا.';
-                if (devices && devices.length) {
-                    const cameraId = devices.find(d => d.label.toLowerCase().includes('back'))?.id || devices[0].id;
-                    console.log("Using camera:", cameraId);
-
-                    html5QrCode.start(
-                        cameraId, config, onScanSuccess, onScanFailure
-                    ).then(() => {
-                        console.log("Barcode (EAN-13 only) scanning started.");
-                        startScanBtn.style.display = 'none';
-                        stopScanBtn.style.display = 'inline-block';
-                        permissionStatusDiv.textContent = 'الكاميرا تعمل. وجهها نحو باركود EAN-13.';
-                    }).catch(err => {
-                        console.error("Error starting scanning.", err);
-                        permissionStatusDiv.textContent = `خطأ في تشغيل الكاميرا: ${err}`;
-                        alert(`خطأ في تشغيل الكاميرا: ${err}`);
-                    });
-                } else {
-                     permissionStatusDiv.textContent = 'لم يتم العثور على كاميرات.';
-                     alert("لم يتم العثور على كاميرات.");
+            try {
+                // الحصول على قائمة الكاميرات المتاحة
+                const videoInputDevices = await codeReader.listVideoInputDevices();
+                if (videoInputDevices.length <= 0) {
+                    throw new Error('لم يتم العثور على كاميرات.');
                 }
-            }).catch(err => {
-                console.error("Error getting camera permissions.", err);
-                permissionStatusDiv.textContent = `خطأ في الحصول على إذن الكاميرا: ${err}`;
-                alert(`خطأ في الحصول على إذن الكاميرا: ${err}. تأكد من السماح للمتصفح باستخدام الكاميرا وأن الموقع يعمل على HTTPS إذا لم يكن ملفاً محلياً.`);
-            });
-        }
 
-        function stopScanning() {
-            if (html5QrCode && html5QrCode.isScanning) {
-                html5QrCode.stop().then((ignore) => {
-                    console.log("Scanning stopped.");
-                    startScanBtn.style.display = 'inline-block';
-                    stopScanBtn.style.display = 'none';
-                    permissionStatusDiv.textContent = '';
-                }).catch((err) => {
-                    console.error("Error stopping scanning.", err);
+                // محاولة اختيار الكاميرا الخلفية، وإلا استخدام أول كاميرا
+                const backCamera = videoInputDevices.find(device => device.label.toLowerCase().includes('back'));
+                selectedDeviceId = backCamera ? backCamera.deviceId : videoInputDevices[0].deviceId;
+                console.log(`Using video device: ${selectedDeviceId}`);
+                statusDiv.textContent = `تم اختيار الكاميرا (${backCamera ? 'الخلفية غالباً' : 'الأمامية غالباً'}). جاري بدء المسح...`;
+
+                // بدء عملية فك التشفير من جهاز الفيديو المحدد وعرضه في عنصر الفيديو
+                // هذه الدالة تتعامل مع تشغيل الفيديو وتحليل الإطارات بشكل مستمر
+                codeReader.decodeFromVideoDevice(selectedDeviceId, 'video', (result, err) => {
+                    // يتم استدعاء هذه الدالة لكل إطار
+                    if (result) {
+                        // تم العثور على نتيجة
+                        console.log('Scan successful:', result);
+                        resultContainer.textContent = `تم المسح بنجاح: ${result.getText()}`;
+                        // اختياري: إيقاف المسح بعد أول نجاح لتجنب القراءات المتعددة
+                        // stopScanning();
+                    }
+                    if (err) {
+                        // حدث خطأ أو لم يتم العثور على كود
+                        // نتجاهل أخطاء "NotFoundException" لأنها تحدث في كل إطار لا يحتوي على كود
+                        if (!(err instanceof ZXing.NotFoundException)) {
+                            // تسجيل الأخطاء الأخرى التي قد تكون مهمة
+                            console.error('Scan error:', err);
+                            // يمكنك عرض رسالة خطأ مؤقتة إذا أردت
+                            // statusDiv.textContent = `خطأ أثناء المسح: ${err.message}`;
+                        }
+                        // إذا كان الخطأ NotFoundException، نستمر في المسح بهدوء
+                    }
                 });
+
+                isScanning = true;
+                startScanBtn.style.display = 'none';
+                stopScanBtn.style.display = 'inline-block';
+                statusDiv.textContent = 'الكاميرا تعمل. وجهها نحو الباركود.';
+
+            } catch (error) {
+                // التعامل مع الأخطاء عند تهيئة الماسح (مثل رفض الإذن)
+                console.error('Error initializing scanner:', error);
+                statusDiv.textContent = `خطأ في تهيئة الماسح: ${error.message}`;
+                alert(`خطأ في تهيئة الماسح: ${error.message}. تأكد من السماح بإذن الكاميرا وأن الصفحة تعمل عبر HTTPS.`);
+                isScanning = false;
+                 startScanBtn.style.display = 'inline-block';
+                 stopScanBtn.style.display = 'none';
             }
         }
 
+        // دالة لإيقاف عملية المسح
+        function stopScanning() {
+            if (!isScanning) return;
+            codeReader.reset(); // هذا يوقف المسح ويحرر الكاميرا
+            resultContainer.textContent = 'تم إيقاف المسح.';
+            statusDiv.textContent = '';
+            selectedDeviceId = null;
+            isScanning = false;
+            startScanBtn.style.display = 'inline-block';
+            stopScanBtn.style.display = 'none';
+            // إيقاف عرض الفيديو أيضاً
+            videoElement.srcObject = null;
+            videoElement.load(); // لضمان إيقاف التحميل
+            console.log('Scanning stopped.');
+        }
+
+        // ربط الأزرار بالدوال
         startScanBtn.addEventListener('click', startScanning);
         stopScanBtn.addEventListener('click', stopScanning);
-    </script>
 
+        // فحص بسيط للتأكد من أن الصفحة تعمل عبر HTTPS (مهم للوصول للكاميرا)
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost' && !location.hostname.startsWith('127.')) {
+            statusDiv.textContent = 'تحذير: يجب تشغيل هذه الصفحة عبر HTTPS أو على localhost للوصول الآمن للكاميرا.';
+            // قد ترغب في تعطيل زر البدء في هذه الحالة
+            // startScanBtn.disabled = true;
+        }
+
+    </script>
 </body>
 </html>
