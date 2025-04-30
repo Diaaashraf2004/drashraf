@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مثال ماسح الباركود</title>
+    <title>مثال ماسح الباركود (مُعدّل)</title>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" type="text/javascript"></script>
     <style>
         body { font-family: sans-serif; padding: 20px; text-align: center; }
-        #qr-reader { width: 90%; max-width: 400px; margin: 20px auto; border: 1px solid #ccc; }
+        #qr-reader { width: 90%; max-width: 500px; /* يمكن زيادة العرض قليلاً */ margin: 20px auto; border: 1px solid #ccc; }
         #qr-reader-results { margin-top: 20px; font-size: 1.2em; font-weight: bold; color: green; }
         button { padding: 10px 15px; margin: 5px; cursor: pointer; font-size: 1em; border-radius: 5px; border: none; color: white; }
         #startScanBtn { background-color: #28a745; } /* Green */
@@ -17,7 +17,7 @@
 </head>
 <body>
 
-    <h1>مثال بسيط لمسح الباركود/QR Code</h1>
+    <h1>مثال لمسح الباركود/QR Code (مُعدّل)</h1>
 
     <div id="qr-reader"></div>
     <div id="qr-reader-results">لم يتم مسح أي كود بعد.</div>
@@ -33,6 +33,7 @@
         const permissionStatusDiv = document.getElementById('cameraPermissionStatus');
         let html5QrCode = null; // سيتم تهيئته لاحقاً
 
+        // دالة تทำงาน عند نجاح المسح
         function onScanSuccess(decodedText, decodedResult) {
             // التعامل مع النتيجة هنا
             console.log(`Code matched = ${decodedText}`, decodedResult);
@@ -42,46 +43,65 @@
             // stopScanning();
         }
 
+        // دالة تทำงาน عند فشل المسح أو عدم العثور على كود
         function onScanFailure(error) {
-            // يمكنك تجاهل أخطاء عدم العثور على كود
-            // console.warn(`Code scan error = ${error}`);
+            // **تم تفعيل هذا السطر:** لعرض رسائل الفشل في الكونسول للمساعدة في التشخيص
+            console.warn(`Code scan error = ${error}`);
+            // يمكنك تجاهل أخطاء عدم العثور على كود إذا أردت، لكن رؤيتها مفيدة الآن
         }
 
+        // دالة لبدء عملية المسح
         function startScanning() {
             permissionStatusDiv.textContent = 'جاري طلب إذن الكاميرا...';
             // تهيئة الماسح
             html5QrCode = new Html5Qrcode("qr-reader"); // استخدم معرف الـ div
 
+            // *** تعديل: تحديد أنواع الباركود المطلوب البحث عنها ***
+            const formatsToSupport = [
+                Html5QrcodeSupportedFormats.QR_CODE,
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.UPC_A,
+                Html5QrcodeSupportedFormats.UPC_E,
+                Html5QrcodeSupportedFormats.CODE_39 // إضافة نوع شائع آخر
+                // يمكنك إضافة أو إزالة أنواع أخرى حسب الحاجة من توثيق المكتبة
+            ];
+
+            // إعدادات المسح
+            // *** تعديل: إزالة qrbox وإضافة formatsToSupport ***
+            const config = {
+                fps: 10,    // إطارات في الثانية للمسح (اختياري)
+                // لا يوجد qrbox هنا للسماح بالمسح الكامل
+                formatsToSupport: formatsToSupport // تحديد الأنواع لزيادة الكفاءة
+            };
+
             // طلب قائمة الكاميرات والحصول على الإذن
             Html5Qrcode.getCameras().then(devices => {
                 permissionStatusDiv.textContent = 'تم الحصول على إذن الكاميرا.';
                 if (devices && devices.length) {
-                    // يمكنك اختيار كاميرا معينة إذا أردت، هنا نستخدم الكاميرا الخلفية افتراضياً (environment)
+                    // محاولة اختيار الكاميرا الخلفية
                     const cameraId = devices.find(d => d.label.toLowerCase().includes('back'))?.id || devices[0].id;
                     console.log("Using camera:", cameraId);
 
-                    // بدء المسح
+                    // بدء المسح بالإعدادات الجديدة
                     html5QrCode.start(
-                        cameraId, // أو { facingMode: "environment" }
-                        {
-                            fps: 10,    // إطارات في الثانية للمسح (اختياري)
-                            qrbox: { width: 250, height: 250 }  // حجم مربع المسح (اختياري)
-                        },
-                        onScanSuccess, // دالة عند النجاح
-                        onScanFailure  // دالة عند الفشل (أو عدم العثور على كود)
+                        cameraId,       // معرف الكاميرا
+                        config,         // إعدادات المسح المعدلة
+                        onScanSuccess,  // دالة عند النجاح
+                        onScanFailure   // دالة عند الفشل
                     ).then(() => {
-                        console.log("QR Code scanning started.");
+                        console.log("QR Code / Barcode scanning started.");
                         startScanBtn.style.display = 'none';
                         stopScanBtn.style.display = 'inline-block';
-                        permissionStatusDiv.textContent = 'الكاميرا تعمل. وجهها نحو الباركود.';
+                        permissionStatusDiv.textContent = 'الكاميرا تعمل. وجهها نحو الباركود أو QR Code.';
                     }).catch(err => {
-                        console.error("Error starting QR Code scanning.", err);
+                        console.error("Error starting scanning.", err);
                         permissionStatusDiv.textContent = `خطأ في تشغيل الكاميرا: ${err}`;
                         alert(`خطأ في تشغيل الكاميرا: ${err}`);
                     });
                 } else {
-                     permissionStatusDiv.textContent = 'لم يتم العثور على كاميرات.';
-                     alert("لم يتم العثور على كاميرات.");
+                    permissionStatusDiv.textContent = 'لم يتم العثور على كاميرات.';
+                    alert("لم يتم العثور على كاميرات.");
                 }
             }).catch(err => {
                 console.error("Error getting camera permissions.", err);
@@ -90,21 +110,25 @@
             });
         }
 
+        // دالة لإيقاف عملية المسح
         function stopScanning() {
             if (html5QrCode && html5QrCode.isScanning) {
                 html5QrCode.stop().then((ignore) => {
-                    console.log("QR Code scanning stopped.");
+                    console.log("Scanning stopped.");
                     startScanBtn.style.display = 'inline-block';
                     stopScanBtn.style.display = 'none';
                     permissionStatusDiv.textContent = '';
                     // يمكنك مسح منطقة عرض الكاميرا إذا أردت
                     // document.getElementById('qr-reader').innerHTML = '';
+                    // يمكنك أيضاً مسح النتيجة السابقة
+                    // resultContainer.textContent = 'لم يتم مسح أي كود بعد.';
                 }).catch((err) => {
-                    console.error("Error stopping QR Code scanning.", err);
+                    console.error("Error stopping scanning.", err);
                 });
             }
         }
 
+        // ربط الأزرار بالدوال
         startScanBtn.addEventListener('click', startScanning);
         stopScanBtn.addEventListener('click', stopScanning);
 
