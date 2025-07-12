@@ -1342,7 +1342,7 @@ let fc_main_tabs, fc_tab_buttons, fc_tab_contents, fc_month_select, fc_expenses_
     fc_products_list, fc_total_expenses_display, fc_preview_container, fc_preview_results,
     fc_manual_container, fc_manual_list, fc_percentage_feedback, fc_percentage_total,
     fc_expenses_wrapper, fc_manual_cost_wrapper, fc_manual_cost_input,
-    fc_debt_select, fc_execute_dist_btn, fc_execute_debt_btn;
+    fc_debt_select, fc_execute_dist_btn, fc_execute_debt_btn;    
 
         // --- الدوال المساعدة (Helper Functions) ---
 
@@ -1351,6 +1351,21 @@ let fc_main_tabs, fc_tab_buttons, fc_tab_contents, fc_month_select, fc_expenses_
         function getTodayDateString() { const today = new Date(); const year = today.getFullYear(); const month = String(today.getMonth() + 1).padStart(2, '0'); const day = String(today.getDate()).padStart(2, '0'); return `${year}-${month}-${day}`; }
         function formatDateForDisplay(dateString) { if (!dateString || typeof dateString !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return 'غير محدد'; try { const date = new Date(dateString + 'T00:00:00'); const options = { timeZone: 'Africa/Cairo', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }; return date.toLocaleDateString('ar-EG', options); } catch (e) { console.error("Error formatting date:", dateString, e); return dateString; } }
         function fetchData(key, defaultValue){ const data = localStorage.getItem(key); try { if(data === null || data === undefined) return defaultValue; const parsed = JSON.parse(data); return parsed } catch(e) { console.error(`Error parsing data for key "${key}":`, e); localStorage.removeItem(key); return defaultValue } }
+        // دالة جديدة لجلب بيانات يوم واحد من Firebase
+async function fetchOnlineDataForDate(dateString) {
+    try {
+        const docRef = window.doc(window.db, "days", dateString);
+        const docSnap = await window.getDoc(docRef);
+        if (docSnap.exists()) {
+            console.log(`Report: Found online data for ${dateString}`);
+            return docSnap.data(); // إرجاع البيانات إذا وجدت
+        }
+        return null; // إرجاع null إذا لم يتم العثور على المستند
+    } catch (error) {
+        console.error("Error fetching online report data for", dateString, error);
+        return null; // إرجاع null في حالة حدوث خطأ
+    }
+}
         function saveData(key, data){ console.log(`saveData: Saving data for key: ${key}`); try { localStorage.setItem(key, JSON.stringify(data)) } catch(e) { console.error(`Error saving data for key "${key}":`, e); showGlobalMessage("حدث خطأ أثناء حفظ البيانات. قد يكون التخزين ممتلئًا.", true) } }
         function formatCurrency(amount){ const numAmount = Number(amount); return isNaN(numAmount) ? '0.00 جنيه' : `${numAmount.toFixed(2)} جنيه` }
         function formatDateTime(isoString){ if(!isoString) return ''; try { return new Date(isoString).toLocaleString('ar-EG', {timeZone: 'Africa/Cairo', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true}) } catch(e) { return isoString } }
@@ -1889,6 +1904,7 @@ async function saveCurrentStateByDate(dateString) {
         // يقوم بإنشاء "مستند" داخل "مجموعة" اسمها "days" ويستخدم التاريخ كاسم للمستند
         const docRef = window.doc(window.db, "days", dateString);
         await window.setDoc(docRef, stateToSave);
+        saveData(lsPrefix + dateString, stateToSave);
 
         // لم نعد بحاجة لحفظ آخر تاريخ في localStorage، ولكن يمكن إبقاؤه مؤقتًا
         // saveData(lsLastSaveKey, dateString); 
@@ -3182,102 +3198,110 @@ function printPendingSaleAsInvoice(pendingId) {
             }
 
              // --- دالة إنشاء تقرير المبيعات الشهري (نسخة مصححة للتأكد من استخدام Backticks) ---
-            function generateMonthlySalesReport() {
-                if (!reportMonthYearInput || !reportMessage || !salesReportTableBody || !reportTotalSales || !reportTotalCost || !reportTotalProfit) return;
-                const yearMonth = reportMonthYearInput.value; // Should be assessor-MM format
-                if (!yearMonth) {
-                    showMessage(reportMessage, "يرجى اختيار الشهر والسنة لعرض التقرير.", true);
-                    return;
-                }
+           // --- دالة إنشاء تقرير المبيعات الشهري (نسخة معدلة للعمل مع Firebase) ---
+// --- دالة إنشاء تقرير المبيعات الشهرية (النسخة النهائية والمحصّنة) ---
+async function generateMonthlySalesReport() {
+    if (!reportMonthYearInput || !reportMessage || !salesReportTableBody || !reportTotalSales || !reportTotalCost || !reportTotalProfit) return;
 
-                const datesInMonth = getMonthStartDateEndDate(yearMonth);
-                let monthlySales = [];
-                let foundData = false;
+    const yearMonth = reportMonthYearInput.value;
+    if (!yearMonth) {
+        showMessage(reportMessage, "يرجى اختيار الشهر والسنة لعرض التقرير.", true);
+        return;
+    }
 
-                datesInMonth.forEach(dateStr => {
-                    const storageKey = lsPrefix + dateStr;
-                    const dayData = fetchData(storageKey, null);
-                    if (dayData && dayData.salesToday && dayData.salesToday.length > 0) {
-                        foundData = true;
-                        // Add date to each sale record for sorting/display
-                        dayData.salesToday.forEach(sale => {
-                            sale.saleDate = dateStr; // Store the date of the sale
-                            monthlySales.push(sale);
-                        });
-                    }
-                });
+    showMessage(reportMessage, `جاري تحميل بيانات المبيعات لشهر ${yearMonth} من الإنترنت...`, false, true);
 
-                if (!foundData) {
-                    showMessage(reportMessage, `لا توجد بيانات مبيعات محفوظة للشهر المحدد (${yearMonth}).`, false, true); // Use info style
-                    salesReportTableBody.innerHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-4">لا توجد بيانات مبيعات محفوظة للشهر المحدد.</td></tr>`;
-                    reportTotalSales.textContent = formatCurrency(0);
-                    reportTotalCost.textContent = formatCurrency(0);
-                    reportTotalProfit.textContent = formatCurrency(0);
-                    return;
-                }
+    const datesInMonth = getMonthStartDateEndDate(yearMonth);
+    let monthlySales = [];
+    let foundData = false;
 
-                // Sort sales by date/timestamp
-                monthlySales.sort((a, b) => {
-                    const dateComparison = a.saleDate.localeCompare(b.saleDate);
-                    if (dateComparison !== 0) return dateComparison;
-                    // If dates are same, sort by timestamp within the day
-                    return new Date(a.timestamp) - new Date(b.timestamp);
-                });
+    for (const dateStr of datesInMonth) {
+        const dayData = await fetchOnlineDataForDate(dateStr); // هذه الدالة بها كود التشخيص
 
-
-                let totalMonthSales = 0;
-                let totalMonthCost = 0;
-                let totalMonthProfit = 0;
-                let tableHTML = ''; // Initialize empty string
-
-                monthlySales.forEach(sale => {
-                    const saleDateDisplay = formatDateForDisplay(sale.saleDate); // Format date nicely
-                    const customer = sale.customerName || '-';
-                    let itemsDesc = '';
-                    if (sale.items && sale.items.length > 0) {
-                        // تعديل لعرض السيريال في التقرير
-                        itemsDesc = sale.items.map(item => `${item.quantity}x ${item.name} ${item.serial ? '(S/N: '+item.serial+')' : ''}`).join('<br>');
-                    } // Simplified item description for report
-
-                    const saleAmount = Number(sale.grandTotal ?? sale.totalSellPrice) || 0;
-                    const costAmount = Number(sale.totalCost) || 0;
-                    const profitAmount = Number(sale.profit) || 0;
-
-                    totalMonthSales += saleAmount;
-                    totalMonthCost += costAmount;
-                    totalMonthProfit += profitAmount;
-
-                    let saleTypeDesc = sale.type === 'invoice' ? 'فاتورة' :
-                                       sale.type === 'quick' ? 'بيع سريع' :
-                                       sale.type === 'pending-confirmed' ? 'مؤكد (بدون فاتورة)' :
-                                       sale.type === 'invoice-from-pending' ? 'فاتورة (من مؤكد)' : 'غير محدد';
-
-                    // **** تأكد من استخدام (`) في بداية ونهاية هذا القالب ****
-                    tableHTML += `
-                        <tr>
-                            <td>${saleDateDisplay}<br><small>${formatDateTime(sale.timestamp)}</small></td>
-                            <td>${customer}</td>
-                            <td>${itemsDesc}</td>
-                            <td class="text-center font-mono">${formatCurrency(saleAmount)}</td>
-                            <td class="text-center font-mono">${formatCurrency(costAmount)}</td>
-                            <td class="text-center font-mono">${formatCurrency(profitAmount)}</td>
-                            <td class="text-center">${saleTypeDesc}</td>
-                        </tr>
-                    `; // **** تأكد من استخدام (`) في بداية ونهاية هذا القالب ****
-                });
-
-                if (!tableHTML) {
-                    tableHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-4">لا توجد عمليات بيع مسجلة لهذا الشهر.</td></tr>`;
-                }
-
-                salesReportTableBody.innerHTML = tableHTML; // هنا يتم إدخال الـ HTML إلى الجدول
-                reportTotalSales.textContent = formatCurrency(totalMonthSales);
-                reportTotalCost.textContent = formatCurrency(totalMonthCost);
-                reportTotalProfit.textContent = formatCurrency(totalMonthProfit);
-                showMessage(reportMessage, `تم عرض تقرير المبيعات لشهر ${yearMonth}.`, false);
+        // --- بداية الكود الجديد المحصّن ---
+        // سيقوم هذا الكود بالبحث عن بيانات المبيعات بمرونة
+        let salesForThisDay = null;
+        if (dayData) {
+            // جرب البحث عن "salesToday" بالضبط
+            if (Array.isArray(dayData.salesToday)) {
+                salesForThisDay = dayData.salesToday;
             }
+            // إذا فشل، جرب البحث عن "salestoday" (حالة أحرف صغيرة)
+            else if (Array.isArray(dayData.salestoday)) {
+                console.log(`[تنبيه] تم العثور على حقل "salestoday" بدلاً من "salesToday" للتاريخ ${dateStr}.`);
+                salesForThisDay = dayData.salestoday;
+            }
+        }
+        // --- نهاية الكود الجديد المحصّن ---
 
+        if (salesForThisDay && salesForThisDay.length > 0) {
+            foundData = true;
+            salesForThisDay.forEach(sale => {
+                sale.saleDate = dateStr;
+                monthlySales.push(sale);
+            });
+        }
+    }
 
+    if (!foundData) {
+        showMessage(reportMessage, `لا توجد بيانات مبيعات محفوظة على الإنترنت للشهر المحدد (${yearMonth}).`, false, true);
+        salesReportTableBody.innerHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-4">لا توجد بيانات مبيعات محفوظة للشهر المحدد.</td></tr>`;
+        reportTotalSales.textContent = formatCurrency(0);
+        reportTotalCost.textContent = formatCurrency(0);
+        reportTotalProfit.textContent = formatCurrency(0);
+        return;
+    }
+
+    // باقي الكود يبقى كما هو بدون أي تغيير
+    monthlySales.sort((a, b) => {
+        const dateComparison = a.saleDate.localeCompare(b.saleDate);
+        if (dateComparison !== 0) return dateComparison;
+        return new Date(a.timestamp) - new Date(b.timestamp);
+    });
+
+    let totalMonthSales = 0, totalMonthCost = 0, totalMonthProfit = 0;
+    let tableHTML = '';
+
+    monthlySales.forEach(sale => {
+        const saleDateDisplay = formatDateForDisplay(sale.saleDate);
+        const customer = sale.customerName || '-';
+        let itemsDesc = '';
+        if (sale.items && sale.items.length > 0) {
+            itemsDesc = sale.items.map(item => `${item.quantity}x ${item.name} ${item.serial ? '(S/N: '+item.serial+')' : ''}`).join('<br>');
+        }
+        const saleAmount = Number(sale.grandTotal ?? sale.totalSellPrice) || 0;
+        const costAmount = Number(sale.totalCost) || 0;
+        const profitAmount = Number(sale.profit) || 0;
+        totalMonthSales += saleAmount;
+        totalMonthCost += costAmount;
+        totalMonthProfit += profitAmount;
+        let saleTypeDesc = sale.type === 'invoice' ? 'فاتورة' :
+                           sale.type === 'quick' ? 'بيع سريع' :
+                           sale.type === 'pending-confirmed' ? 'مؤكد (بدون فاتورة)' :
+                           sale.type === 'invoice-from-pending' ? 'فاتورة (من مؤكد)' : 'غير محدد';
+        tableHTML += `
+            <tr>
+                <td>${saleDateDisplay}<br><small>${formatDateTime(sale.timestamp)}</small></td>
+                <td>${customer}</td>
+                <td>${itemsDesc}</td>
+                <td class="text-center font-mono">${formatCurrency(saleAmount)}</td>
+                <td class="text-center font-mono">${formatCurrency(costAmount)}</td>
+                <td class="text-center font-mono">${formatCurrency(profitAmount)}</td>
+                <td class="text-center">${saleTypeDesc}</td>
+            </tr>
+        `;
+    });
+
+    if (!tableHTML) {
+        tableHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-4">لا توجد عمليات بيع مسجلة لهذا الشهر.</td></tr>`;
+    }
+
+    salesReportTableBody.innerHTML = tableHTML;
+    reportTotalSales.textContent = formatCurrency(totalMonthSales);
+    reportTotalCost.textContent = formatCurrency(totalMonthCost);
+    reportTotalProfit.textContent = formatCurrency(totalMonthProfit);
+    showMessage(reportMessage, `تم عرض تقرير المبيعات لشهر ${yearMonth} بنجاح.`, false);
+}
             function handlePendingSaleActions(event) {
             saveStateToHistory();
                 console.log("handlePendingSaleActions called");
@@ -4183,6 +4207,26 @@ monthlyLiabilityFormTitle = d('monthly-liability-form-title');
                   searchByNameBtn = d('search-by-name-btn');
                   searchMessageContainer = d('search-message');
                   searchResultsListContainer = d('search-results-list');
+                  // --- Financial Center (FC) Elements ---
+fc_main_tabs = d('fc-main-tabs');
+fc_tab_buttons = document.querySelectorAll('.fc-tab-button');
+fc_tab_contents = document.querySelectorAll('.fc-tab-content');
+fc_month_select = d('fc-distribution-month');
+fc_expenses_list = d('fc-expenses-to-distribute-list');
+fc_products_list = d('fc-products-to-load-list');
+fc_total_expenses_display = d('fc-total-selected-expenses');
+fc_preview_container = d('fc-cost-preview-container');
+fc_preview_results = d('fc-cost-preview-results');
+fc_manual_container = d('fc-manual-distribution-container');
+fc_manual_list = d('fc-manual-percentage-list');
+fc_percentage_feedback = d('fc-percentage-total-feedback');
+fc_percentage_total = d('fc-percentage-total');
+fc_expenses_wrapper = d('fc-expenses-selection-wrapper');
+fc_manual_cost_wrapper = d('fc-manual-cost-input-wrapper');
+fc_manual_cost_input = d('fc-manual-cost-input');
+fc_debt_select = d('fc-debt-to-process');
+fc_execute_dist_btn = d('fc-execute-distribution-btn');
+fc_execute_debt_btn = d('fc-execute-debt-treatment-btn');
 
     // ربط مستمعات الأحداث (event listeners)
     // ... ضع كل addEventListener هنا ...
@@ -4224,6 +4268,36 @@ if (monthlyLiabilitiesList) {
     });
 }
                  if (mainNav) { mainNav.addEventListener('click', (e) => { if (e.target.tagName === 'BUTTON' && e.target.classList.contains('nav-button')) { const targetId = e.target.dataset.target; contentSections.forEach(section => { section.classList.add('hidden'); }); const targetSection = d(targetId); if (targetSection) { targetSection.classList.remove('hidden'); } navButtons.forEach(button => { button.classList.remove('active'); }); e.target.classList.add('active'); } }); }
+                 // --- Financial Center Tabs Listener ---
+if (fc_main_tabs) {
+    fc_main_tabs.addEventListener('click', (e) => {
+        const button = e.target.closest('.fc-tab-button');
+        if (!button) return; // إذا لم يتم الضغط على زر، لا تفعل شيئاً
+
+        // 1. أزل علامة "نشط" من كل الأزرار
+        fc_tab_buttons.forEach(btn => btn.classList.remove('active'));
+        // 2. أضف علامة "نشط" للزر الذي تم الضغط عليه
+        button.classList.add('active');
+
+        // 3. أخفِ جميع أقسام المحتوى
+        fc_tab_contents.forEach(content => content.classList.add('hidden'));
+        
+        // 4. أظهر القسم المرتبط بالزر الذي تم الضغط عليه
+        const targetId = button.dataset.target;
+        const targetContent = d(targetId);
+        if (targetContent) {
+            targetContent.classList.remove('hidden');
+        }
+
+        // 5. قم بتعبئة بيانات القسم الذي تم إظهاره (مهم جداً)
+        if (targetId === 'fc-tab-distribution') {
+            fc_populate_month_select(); // تعبئة قائمة الشهور
+        } else if (targetId === 'fc-tab-debt-treatment') {
+            fc_populate_debt_treatment(); // تعبئة قائمة الديون
+        }
+    });
+}
+
                  // ... داخل دالة initializeApp() مع باقي الـ event listeners
 
 if (d('undo-button')) { d('undo-button').addEventListener('click', undo); }
@@ -4662,6 +4736,20 @@ additionalCheckboxes.forEach(checkbox => {
         saveStateToHistory(); // <-- أضف هذا السطر
         performTwoPartyOffset()
     }); 
+}
+// --- Financial Center Buttons Listener ---
+if (fc_execute_debt_btn) {
+    fc_execute_debt_btn.addEventListener('click', () => {
+        saveStateToHistory(); // لحفظ الحالة قبل التنفيذ
+        fc_execute_debt_treatment();
+    });
+}
+
+if (fc_execute_dist_btn) {
+    fc_execute_dist_btn.addEventListener('click', () => {
+        saveStateToHistory(); // لحفظ الحالة قبل التنفيذ
+        fc_execute_cost_distribution();
+    });
 }
                  if (generateReportButton) { generateReportButton.addEventListener("click", generateMonthlySalesReport); }
                  if (addSupplierButton) { 
