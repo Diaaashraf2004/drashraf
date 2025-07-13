@@ -3278,12 +3278,15 @@ function displaySalesReport(salesToDisplay) {
     reportTotalProfit.textContent = formatCurrency(totalMonthProfit);
 }
 
-// الدالة الجديدة الثانية: مسؤولة عن جلب البيانات والتحكم في البحث
+// =====================================================================
+// == بداية الكود الجديد والمحسّن لتقرير المبيعات (نسخة ضد التكرار) ==
+// =====================================================================
+
+// دالة جلب كل بيانات الشهر (الطريقة الأولى) - نسخة محدثة
 async function generateMonthlySalesReport() {
     if (!reportMonthYearInput || !reportMessage) return;
 
     currentMonthlySalesData = [];
-    
     if (reportSearchInput) reportSearchInput.value = '';
     
     const yearMonth = reportMonthYearInput.value;
@@ -3291,7 +3294,7 @@ async function generateMonthlySalesReport() {
         showMessage(reportMessage, "يرجى اختيار الشهر والسنة لعرض التقرير.", true); return;
     }
 
-    showMessage(reportMessage, `جاري تحميل كل مبيعات شهر ${yearMonth} من الإنترنت...`, false, true);
+    showMessage(reportMessage, `جاري تحميل كل مبيعات شهر ${yearMonth} وتنظيف البيانات...`, false, true);
 
     const datesInMonth = getMonthStartDateEndDate(yearMonth);
     let fetchedSales = [];
@@ -3308,24 +3311,98 @@ async function generateMonthlySalesReport() {
     }
 
     if (fetchedSales.length === 0) {
-        showMessage(reportMessage, `لا توجد بيانات مبيعات محفوظة على الإنترنت للشهر المحدد.`, false, true);
-        salesReportTableBody.innerHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-4">لا توجد بيانات.</td></tr>`;
-        reportTotalSales.textContent = "0.00 جنيه"; reportTotalCost.textContent = "0.00 جنيه"; reportTotalProfit.textContent = "0.00 جنيه";
+        showMessage(reportMessage, `لا توجد بيانات مبيعات محفوظة للشهر المحدد.`, false, true);
+        displaySalesReport([]); // اعرض جدول فارغ
         return;
     }
 
-    fetchedSales.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    currentMonthlySalesData = fetchedSales;
+    // --- التحسينات الجديدة ---
+    // 1. إزالة التكرار من البيانات
+    const uniqueSales = [];
+    const seen = new Set(); // لتتبع السجلات التي تمت رؤيتها
+    fetchedSales.forEach(sale => {
+        // نُنشئ مفتاحًا فريدًا لكل عملية بيع بناءً على التوقيت والمحتوى
+        const saleKey = `${sale.timestamp}-${sale.customerName}-${sale.grandTotal}`;
+        if (!seen.has(saleKey)) {
+            seen.add(saleKey);
+            uniqueSales.push(sale);
+        }
+    });
 
-    // بعد جلب البيانات، قم بعرضها مباشرة
+    // 2. فرز دقيق للبيانات النظيفة بناءً على التوقيت الأصلي
+    uniqueSales.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
+    // 3. تخزين وعرض البيانات النظيفة
+    currentMonthlySalesData = uniqueSales;
     displaySalesReport(currentMonthlySalesData); 
     
-    if (salesReportSearchContainer) salesReportSearchContainer.classList.remove('hidden');
-    showMessage(reportMessage, `تم عرض ${currentMonthlySalesData.length} عملية بيع. يمكنك الآن التصفية في الحقل أدناه.`, false);
+    showMessage(reportMessage, `تم عرض ${currentMonthlySalesData.length} عملية بيع فريدة لشهر ${yearMonth}.`, false);
 }
 
 
-// الدالة الجديدة الثالثة: للبحث المباشر
+// =====================================================================
+// == بداية الكود الجديد والمحسّن لتقرير المبيعات (نسخة ضد التكرار) ==
+// =====================================================================
+
+// دالة جلب كل بيانات الشهر (الطريقة الأولى) - نسخة محدثة
+async function generateMonthlySalesReport() {
+    if (!reportMonthYearInput || !reportMessage) return;
+
+    currentMonthlySalesData = [];
+    if (reportSearchInput) reportSearchInput.value = '';
+    
+    const yearMonth = reportMonthYearInput.value;
+    if (!yearMonth) {
+        showMessage(reportMessage, "يرجى اختيار الشهر والسنة لعرض التقرير.", true); return;
+    }
+
+    showMessage(reportMessage, `جاري تحميل كل مبيعات شهر ${yearMonth} وتنظيف البيانات...`, false, true);
+
+    const datesInMonth = getMonthStartDateEndDate(yearMonth);
+    let fetchedSales = [];
+
+    for (const dateStr of datesInMonth) {
+        const dayData = await fetchOnlineDataForDate(dateStr);
+        let salesForThisDay = dayData ? (dayData.salesToday || dayData.salestoday || []) : [];
+        if (Array.isArray(salesForThisDay) && salesForThisDay.length > 0) {
+            salesForThisDay.forEach(sale => {
+                sale.saleDate = dateStr;
+                fetchedSales.push(sale);
+            });
+        }
+    }
+
+    if (fetchedSales.length === 0) {
+        showMessage(reportMessage, `لا توجد بيانات مبيعات محفوظة للشهر المحدد.`, false, true);
+        displaySalesReport([]); // اعرض جدول فارغ
+        return;
+    }
+
+    // --- التحسينات الجديدة ---
+    // 1. إزالة التكرار من البيانات
+    const uniqueSales = [];
+    const seen = new Set(); // لتتبع السجلات التي تمت رؤيتها
+    fetchedSales.forEach(sale => {
+        // نُنشئ مفتاحًا فريدًا لكل عملية بيع بناءً على التوقيت والمحتوى
+        const saleKey = `${sale.timestamp}-${sale.customerName}-${sale.grandTotal}`;
+        if (!seen.has(saleKey)) {
+            seen.add(saleKey);
+            uniqueSales.push(sale);
+        }
+    });
+
+    // 2. فرز دقيق للبيانات النظيفة بناءً على التوقيت الأصلي
+    uniqueSales.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
+    // 3. تخزين وعرض البيانات النظيفة
+    currentMonthlySalesData = uniqueSales;
+    displaySalesReport(currentMonthlySalesData); 
+    
+    showMessage(reportMessage, `تم عرض ${currentMonthlySalesData.length} عملية بيع فريدة لشهر ${yearMonth}.`, false);
+}
+
+
+// دالة البحث المباشر (الطريقة الثانية) - نسخة محدثة
 async function performDirectSearch() {
     if (!reportMonthYearInput || !reportMessage || !reportSearchInput) return;
 
@@ -3340,7 +3417,6 @@ async function performDirectSearch() {
     }
 
     showMessage(reportMessage, `جاري البحث المباشر عن "${searchTerm}" في شهر ${yearMonth}...`, false, true);
-    if (salesReportSearchContainer) salesReportSearchContainer.classList.remove('hidden');
 
     const datesInMonth = getMonthStartDateEndDate(yearMonth);
     let matchedSales = [];
@@ -3364,64 +3440,31 @@ async function performDirectSearch() {
         }
     }
     
-    matchedSales.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    // --- التحسينات الجديدة ---
+    // 1. إزالة التكرار من نتائج البحث
+    const uniqueMatches = [];
+    const seen = new Set();
+    matchedSales.forEach(sale => {
+        const saleKey = `${sale.timestamp}-${sale.customerName}-${sale.grandTotal}`;
+        if (!seen.has(saleKey)) {
+            seen.add(saleKey);
+            uniqueMatches.push(sale);
+        }
+    });
+
+    // 2. فرز دقيق للنتائج النظيفة
+    uniqueMatches.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
     
-    // اعرض النتائج التي تطابقت فقط
-    currentMonthlySalesData = []; // أفراغ الذاكرة المؤقتة لأن هذا بحث مباشر
-    displaySalesReport(matchedSales); 
+    // 3. عرض النتائج النظيفة
+    currentMonthlySalesData = []; 
+    displaySalesReport(uniqueMatches); 
     
-    showMessage(reportMessage, `تم العثور على ${matchedSales.length} نتيجة للبحث المباشر.`, false);
+    showMessage(reportMessage, `تم العثور على ${uniqueMatches.length} نتيجة فريدة للبحث المباشر.`, false);
 }
 
 // =====================================================================
-// == نهاية الكود الجديد لتقرير المبيعات ==
-// =====================================================================     
-// دالة البحث المباشر في قاعدة البيانات (الطريقة الثانية)
-async function performDirectSearch() {
-    if (!reportMonthYearInput || !reportMessage || !reportSearchInput) return;
-
-    const yearMonth = reportMonthYearInput.value;
-    const searchTerm = reportSearchInput.value.trim().toLowerCase();
-
-    if (!yearMonth) {
-        showMessage(reportMessage, "يرجى اختيار الشهر للبحث فيه.", true); return;
-    }
-    if (!searchTerm) {
-        showMessage(reportMessage, "يرجى كتابة ما تريد البحث عنه أولاً.", true); return;
-    }
-
-    showMessage(reportMessage, `جاري البحث المباشر عن "${searchTerm}" في شهر ${yearMonth}...`, false, true);
-    if (salesReportSearchContainer) salesReportSearchContainer.classList.remove('hidden');
-
-    const datesInMonth = getMonthStartDateEndDate(yearMonth);
-    let matchedSales = [];
-
-    for (const dateStr of datesInMonth) {
-        const dayData = await fetchOnlineDataForDate(dateStr);
-        let salesForThisDay = dayData ? (dayData.salesToday || dayData.salestoday || []) : [];
-
-        if (Array.isArray(salesForThisDay) && salesForThisDay.length > 0) {
-            const dayMatches = salesForThisDay.filter(sale => {
-                const customerMatch = (sale.customerName || '').toLowerCase().includes(searchTerm);
-                const invoiceNumberMatch = (sale.invoiceNumber || '').toLowerCase().includes(searchTerm);
-                const itemMatch = (sale.items || []).some(item => (item.name || '').toLowerCase().includes(searchTerm));
-                return customerMatch || itemMatch || invoiceNumberMatch;
-            });
-
-            if (dayMatches.length > 0) {
-                dayMatches.forEach(sale => sale.saleDate = dateStr);
-                matchedSales.push(...dayMatches);
-            }
-        }
-    }
-    
-    matchedSales.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    
-    // اعرض النتائج التي تطابقت فقط
-    displaySalesReport(matchedSales); 
-    
-    showMessage(reportMessage, `تم العثور على ${matchedSales.length} نتيجة للبحث المباشر.`, false);
-}
+// == نهاية الكود الجديد والمحسّن لتقرير المبيعات ==
+// =====================================================================
 
        function handlePendingSaleActions(event) {
             saveStateToHistory();
