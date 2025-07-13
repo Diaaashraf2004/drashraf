@@ -316,6 +316,76 @@
     color: #7c2d12;           /* لون بني داكن للنص */
     opacity: 0.7;
     cursor: not-allowed;
+ /* === بداية التصميم الاحترافي الجديد لزر الحفظ التلقائي === */
+
+/* الحاوية الرئيسية للزر */
+.auto-save-switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 28px;
+}
+
+/* إخفاء مربع الاختيار الافتراضي */
+.auto-save-switch input { 
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* شريط التمرير (الجزء الخلفي للزر) */
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #d1d5db; /* لون رمادي فاتح احترافي لوضع الإيقاف */
+  -webkit-transition: .3s;
+  transition: .3s;
+  border-radius: 28px; /* حواف دائرية بالكامل */
+}
+
+/* الدائرة التي تتحرك (المقبض) */
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 22px;
+  width: 22px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  -webkit-transition: .3s;
+  transition: .3s;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* ظل ناعم لإعطاء عمق */
+}
+
+/* عند تفعيل الزر */
+input:checked + .slider {
+  background-color: #2563eb; /* لون أزرق جذاب يتناسب مع البرنامج */
+}
+
+/* عند تفعيل الزر، يتم تحريك المقبض */
+input:checked + .slider:before {
+  -webkit-transform: translateX(22px);
+  -ms-transform: translateX(22px);
+  transform: translateX(22px);
+}
+
+/* تأثير بسيط عند الضغط على الزر (يعطي إحساسًا بالتفاعلية) */
+input:active + .slider:before {
+    width: 26px; /* يتمدد المقبض قليلاً عند الضغط */
+}
+
+input:checked:active + .slider:before {
+    -webkit-transform: translateX(18px);
+    -ms-transform: translateX(18px);
+    transform: translateX(18px); /* يتم تعديل موضعه ليتناسب مع الحجم الجديد */
+}
+
+/* === نهاية التصميم الاحترافي الجديد === */
 }
     </style>
     <style>
@@ -353,6 +423,19 @@
         <div id="undo-redo-controls" class="mb-4 flex justify-center gap-4">
     <button id="undo-button" class="bg-orange-500 hover:bg-orange-600 text-black font-bold py-2 px-4 rounded" disabled>تراجع</button>
     <button id="redo-button" class="bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-2 px-4 rounded" disabled>إعادة</button>
+    <div class="flex items-center justify-center p-2 bg-gray-100 rounded-lg border border-gray-200">
+
+    <label for="auto-save-toggle" class="text-sm font-medium text-gray-700 ml-3">الحفظ التلقائي (كل 20 ثانية)</label>
+
+    <label class="auto-save-switch">
+
+        <input type="checkbox" id="auto-save-toggle">
+
+        <span class="slider round"></span>
+
+    </label>
+
+</div>                    
 </div>
         
 
@@ -1217,7 +1300,9 @@
                 </div>
 
                 <div id="controls-sub-section" class="mt-6 flex flex-col sm:flex-row justify-center items-center flex-wrap gap-4">
-                    <button id="save-button-alt" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded flex items-center">
+                    
+<button id="save-button-alt" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded flex items-center">
+                       
                         <svg class="save-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V7.82843C21 7.29799 20.7893 6.78929 20.4142 6.41421L17.5858 3.58579C17.2107 3.21071 16.702 3 16.1716 3H17ZM15 9C15 8.44772 14.5523 8 14 8H10C9.44772 8 9 8.44772 9 9V14C9 14.5523 9.44772 15 10 15H14C14.5523 15 15 14.5523 15 14V9ZM12 13C11.4477 13 11 12.5523 11 12C11 11.4477 11.4477 11 12 11C12.5523 11 13 11.4477 13 12C13 12.5523 12.5523 13 12 13Z"></path></svg>
                         حفظ التغييرات
                     </button>
@@ -1301,6 +1386,9 @@ let redoHistory = [];  // لتخزين الحالات التي تم التراج
         let currentSupplierSerials = []; // **** لتخزين السيريالات المعروضة حالياً للفلترة ****
         let inboxTasks = [];
         let currentMonthlySalesData = []; // لتخزين بيانات التقرير التي تم جلبها
+        let isAutoSaveEnabled = false;
+let autoSaveTimer = null;
+const lsAutoSaveKey = "goodsMgmt_autoSaveEnabled"; // مفتاح لحفظ تفضيل المستخدم
 
         // --- تعريف المراجع الأساسية (DOM Element References) ---
         // Declared here, assigned in initializeApp after DOM is ready
@@ -1934,6 +2022,40 @@ async function saveCurrentStateByDate(dateString) {
     } catch (error) {
         console.error("Error saving data to Firebase: ", error);
         showGlobalMessage("حدث خطأ أثناء محاولة حفظ البيانات على الإنترنت. يرجى مراجعة الـ Console.", true);
+    }
+}
+// دالة لتشغيل أو إيقاف الحفظ التلقائي
+function toggleAutoSave() {
+    const autoSaveToggle = d('auto-save-toggle');
+    isAutoSaveEnabled = autoSaveToggle.checked;
+
+    if (isAutoSaveEnabled) {
+        // إذا تم تفعيل الميزة
+        if (autoSaveTimer) clearInterval(autoSaveTimer); // أوقف أي مؤقت قديم احتياطياً
+
+        // ابدأ مؤقت جديد يعمل كل 90 ثانية (90000 ميلي ثانية)
+        autoSaveTimer = setInterval(() => {
+            console.log("Auto-saving data...");
+            const targetDate = currentLoadedDate || getTodayDateString();
+            saveCurrentStateByDate(targetDate);
+            // نعرض رسالة مؤقتة لتأكيد الحفظ
+            const tempMsg = d("global-message");
+            if(tempMsg) {
+                showMessage(tempMsg, `تم الحفظ تلقائياً... ${new Date().toLocaleTimeString()}`, false, true);
+            }
+        }, 20000); // يمكنك تغيير هذا الرقم (بالمللي ثانية)
+
+        showGlobalMessage("تم تفعيل الحفظ التلقائي.", false);
+        saveData(lsAutoSaveKey, true); // حفظ تفضيل المستخدم
+
+    } else {
+        // إذا تم إيقاف الميزة
+        if (autoSaveTimer) {
+            clearInterval(autoSaveTimer); // أوقف المؤقت
+            autoSaveTimer = null;
+            showGlobalMessage("تم إيقاف الحفظ التلقائي.", false, true);
+        }
+        saveData(lsAutoSaveKey, false); // حفظ تفضيل المستخدم
     }
 }
 // =======================================================
@@ -5082,6 +5204,21 @@ if (reportClearSearchBtn) {
         displaySalesReport(currentMonthlySalesData); // أعد عرض كل النتائج المحملة
     });
 }
+// ... بعد كل أسطر addEventListener الأخرى ...
+
+    // --- ربط وتشغيل ميزة الحفظ التلقائي ---
+    const autoSaveToggle = d('auto-save-toggle');
+    if (autoSaveToggle) {
+        // ربط الزر بالدالة
+        autoSaveToggle.addEventListener('change', toggleAutoSave);
+
+        // التحقق من التفضيل المحفوظ عند بدء تشغيل البرنامج
+        const savedAutoSavePref = fetchData(lsAutoSaveKey, false);
+        if (savedAutoSavePref === true) {
+            autoSaveToggle.checked = true; // اجعل الزر في وضعية "التشغيل"
+            toggleAutoSave(); // قم بتفعيل الحفظ التلقائي مباشرة
+        }
+    }
 
     // --- Initial Load Logic ---
     const todayString = getTodayDateString();
