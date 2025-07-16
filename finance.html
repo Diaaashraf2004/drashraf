@@ -400,8 +400,26 @@ input:checked:active + .slider:before {
         @media (min-width: 1024px){.lg\:grid-cols-3{grid-template-columns:repeat(3, minmax(0, 1fr))}.lg\:grid-cols-4{grid-template-columns:repeat(4, minmax(0, 1fr))}}
     </style>
 </head><body class="p-6">
+<div id="auth-container" class="widget-card" style="max-width: 400px; margin: 5% auto;">
+    <h2 id="auth-title">تسجيل الدخول</h2>
+    <div id="auth-error" class="section-message error" style="display:none;"></div>
 
-    <div id="main-content">
+    <div class="form-group mb-4">
+        <label for="auth-email">البريد الإلكتروني:</label>
+        <input type="email" id="auth-email" class="fc-form-input">
+    </div>
+    <div class="form-group mb-4">
+        <label for="auth-password">كلمة المرور:</label>
+        <input type="password" id="auth-password" class="fc-form-input">
+    </div>
+
+    <div class="flex gap-4">
+        <button id="login-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded w-full">دخول</button>
+        <button id="register-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded w-full">تسجيل جديد</button>
+    </div>
+</div>
+
+    <div id="main-content" class="hidden">
         <h1 class="text-3xl font-semibold text-center text-blue-600 mb-4">برنامج إدارة البضائع</h1>
         <p class="text-center text-sm text-gray-500 mb-2">البيانات المعروضة حاليًا لتاريخ: <span id="current-data-date" class="font-semibold"></span></p>
         <div id="global-message" class="section-message"></div>
@@ -1325,6 +1343,7 @@ input:checked:active + .slider:before {
                 </a>
                  - <span id="current-time"></span>
             </p>
+            <button id="logout-btn" class="hidden bg-red-500 text-white font-bold py-1 px-3 rounded mt-2">تسجيل الخروج</button>
         </footer>
 
     </div><script>
@@ -1450,6 +1469,7 @@ let fc_main_tabs, fc_tab_buttons, fc_tab_contents, fc_month_select, fc_expenses_
     fc_debt_select, fc_execute_dist_btn, fc_execute_debt_btn, reportSearchInput,
     reportClearSearchBtn,
     salesReportSearchContainer, reportDirectSearchBtn; 
+    
 
         // --- الدوال المساعدة (Helper Functions) ---
 
@@ -1460,17 +1480,22 @@ let fc_main_tabs, fc_tab_buttons, fc_tab_contents, fc_month_select, fc_expenses_
         function fetchData(key, defaultValue){ const data = localStorage.getItem(key); try { if(data === null || data === undefined) return defaultValue; const parsed = JSON.parse(data); return parsed } catch(e) { console.error(`Error parsing data for key "${key}":`, e); localStorage.removeItem(key); return defaultValue } }
         // دالة جديدة لجلب بيانات يوم واحد من Firebase
 async function fetchOnlineDataForDate(dateString) {
+    if (!window.currentUser) {
+        console.error("Cannot fetch report data. No user logged in.");
+        return null;
+    }
+    const userId = window.currentUser.uid;
     try {
-        const docRef = window.doc(window.db, "days", dateString);
+        const docRef = window.doc(window.db, "users", userId, "days", dateString);
         const docSnap = await window.getDoc(docRef);
         if (docSnap.exists()) {
             console.log(`Report: Found online data for ${dateString}`);
-            return docSnap.data(); // إرجاع البيانات إذا وجدت
+            return docSnap.data();
         }
-        return null; // إرجاع null إذا لم يتم العثور على المستند
+        return null;
     } catch (error) {
         console.error("Error fetching online report data for", dateString, error);
-        return null; // إرجاع null في حالة حدوث خطأ
+        return null;
     }
 }
         function saveData(key, data){ console.log(`saveData: Saving data for key: ${key}`); try { localStorage.setItem(key, JSON.stringify(data)) } catch(e) { console.error(`Error saving data for key "${key}":`, e); showGlobalMessage("حدث خطأ أثناء حفظ البيانات. قد يكون التخزين ممتلئًا.", true) } }
@@ -1995,26 +2020,27 @@ if (d('financial-center-section') && !d('financial-center-section').classList.co
 // START: دالة الحفظ الجديدة (المتصلة بالإنترنت)
 // =======================================================
 async function saveCurrentStateByDate(dateString) {
-    console.log(`Saving data to Firebase for date: ${dateString}`);
+    if (!window.currentUser) {
+        showGlobalMessage("خطأ: يجب تسجيل الدخول للحفظ.", true);
+        return;
+    }
+    const userId = window.currentUser.uid;
 
-    // تجهيز كائن البيانات للحفظ، تمامًا مثل السابق
+    console.log(`Saving data to Firebase for date: ${dateString} for user: ${userId}`);
+
     const stateToSave = {
+        month: dateString.substring(0, 7), // حقل الشهر للبحث الفعال
         products, suppliers, liquidity, expenses, debtors, liabilities, monthlyLiabilities,
         profit: totalProfit, log: operationLog, pendingSales,
-        liquidityLog, salesToday, serialNumbersLog, inboxTasks, // <-- تأكد من إضافة inboxTasks هنا
+        liquidityLog, salesToday, serialNumbersLog, inboxTasks,
         savedAt: new Date().toISOString(),
         savedForDate: dateString
     };
 
     try {
-        // هذا هو السطر الجديد الذي يحفظ البيانات على الإنترنت
-        // يقوم بإنشاء "مستند" داخل "مجموعة" اسمها "days" ويستخدم التاريخ كاسم للمستند
-        const docRef = window.doc(window.db, "days", dateString);
+        const docRef = window.doc(window.db, "users", userId, "days", dateString);
         await window.setDoc(docRef, stateToSave);
-        saveData(lsPrefix + dateString, stateToSave);
-
-        // لم نعد بحاجة لحفظ آخر تاريخ في localStorage، ولكن يمكن إبقاؤه مؤقتًا
-        // saveData(lsLastSaveKey, dateString); 
+        saveData(lsPrefix + dateString, stateToSave); // Keep local backup
 
         currentLoadedDate = dateString;
         updateUI();
@@ -2069,6 +2095,11 @@ function toggleAutoSave() {
 // START: دالة تحميل البيانات النهائية (مع الترحيل)
 // =======================================================
 async function loadDataForDate(dateString) {
+    if (!window.currentUser) {
+        console.log("No user is logged in. Cannot load data.");
+        return false;
+    }
+    const userId = window.currentUser.uid;
     const loadMessageElement = d("load-message-alt");
     const dateInputElement = d("load-date-alt");
     const dayDisplayElement = d("load-date-day-name-alt");
@@ -2078,10 +2109,10 @@ async function loadDataForDate(dateString) {
         return false;
     }
 
-    console.log(`=> Loading data from Firebase for: ${dateString}`);
+    console.log(`=> Loading data from Firebase for: ${dateString} for user: ${userId}`);
 
     try {
-        const docRef = window.doc(window.db, "days", dateString);
+        const docRef = window.doc(window.db, "users", userId, "days", dateString);
         const docSnap = await window.getDoc(docRef);
 
         if (docSnap.exists()) {
@@ -2097,7 +2128,7 @@ async function loadDataForDate(dateString) {
                 return true;
             }
 
-            const prevDocRef = window.doc(window.db, "days", previousDayString);
+            const prevDocRef = window.doc(window.db, "users", userId, "days", previousDayString);
             const prevDocSnap = await window.getDoc(prevDocRef);
 
             if (prevDocSnap.exists()) {
@@ -2988,6 +3019,7 @@ function printPendingSaleAsInvoice(pendingId) {
                       </style>
                   </head>
                   <body>
+                 
                       <div class="invoice-box">
                           <div class="invoice-header">
                               <h1>فاتورة بيع</h1>
@@ -5243,45 +5275,109 @@ if (reportClearSearchBtn) {
 
     console.log("Initialization complete. Final loaded date:", currentLoadedDate);
 }
-// =======================================================
-// END: دالة بدء التشغيل النهائية
-// ======================================================= // End of initializeApp
+// 1. تعريف متغيرات واجهة المصادقة وتعيينها مرة واحدة فقط
+    const authContainer = d('auth-container');
+    const mainContent = d('main-content');
+    const logoutBtn = d('logout-btn');
+    const loginBtn = d('login-btn');
+    const registerBtn = d('register-btn');
+    const authError = d('auth-error');
 
-            // Call initializeApp LAST, after all functions and references are set
-            initializeApp();
+    // 2. ربط أزرار المصادقة بوظائفها
+    if (loginBtn) {
+        loginBtn.addEventListener('click', () => {
+            if(!authError) return;
+            const email = d('auth-email').value;
+            const password = d('auth-password').value;
+            window.signInWithEmailAndPassword(window.auth, email, password)
+                .catch(error => { showMessage(authError, "فشل تسجيل الدخول: " + error.message, true); });
+        });
+    }
+    if (registerBtn) {
+        registerBtn.addEventListener('click', () => {
+            if(!authError) return;
+            const email = d('auth-email').value;
+            const password = d('auth-password').value;
+            window.createUserWithEmailAndPassword(window.auth, email, password)
+                .catch(error => { showMessage(authError, "فشل التسجيل: " + error.message, true); });
+        });
+    }
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            window.signOut(window.auth);
+        });
+    }
 
-    }); // End DOMContentLoaded
-            </script>
-            <!-- ======================================================= -->
-<!-- START: Firebase Connection (Revised) -->
-<!-- ======================================================= -->
+    // 3. تشغيل "حارس البوابة" الذي يقرر ما سيظهر للمستخدم
+    window.onAuthStateChanged(window.auth, (user) => {
+        if (user) {
+            // المستخدم مسجل دخوله
+            if(authContainer) authContainer.classList.add('hidden');
+            if(mainContent) mainContent.classList.remove('hidden');
+            if(logoutBtn) logoutBtn.classList.remove('hidden');
+            
+            window.currentUser = user; 
+
+            // تشغيل البرنامج الرئيسي مرة واحدة فقط
+            if (!window.appInitialized) {
+                initializeApp(); 
+                window.appInitialized = true;
+            }
+        } else {
+            // المستخدم غير مسجل
+            if(authContainer) authContainer.classList.remove('hidden');
+            if(mainContent) mainContent.classList.add('hidden');
+            if(logoutBtn) logoutBtn.classList.add('hidden');
+            window.currentUser = null;
+            window.appInitialized = false;
+        }
+    });
+
+}); // End DOMContentLoaded
+</script>
+
 <script type="module">
-    // استيراد المكتبات المطلوبة من الإنترنت
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+    import { 
+        getAuth, 
+        createUserWithEmailAndPassword, 
+        signInWithEmailAndPassword, 
+        onAuthStateChanged,
+        signOut 
+    } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 
-    // الصق كود firebaseConfig الذي نسخته من موقع Firebase هنا
     const firebaseConfig = {
-    apiKey: "AIzaSyCgJeOT_wh9d6h3MTkj-XsEoWW9wo-97ZE",
-    authDomain: "financial-app-96527.firebaseapp.com",
-    projectId: "financial-app-96527",
-    storageBucket: "financial-app-96527.firebasestorage.app",
-    messagingSenderId: "409763079254",
-    appId: "1:409763079254:web:ae95c7da0aaea083a207f7",
-    measurementId: "G-Q5ZLBCBG3J"
-  };
+        apiKey: "AIzaSyCgJeOT_wh9d6h3MTkj-XsEoWW9wo-97ZE",
+        authDomain: "financial-app-96527.firebaseapp.com",
+        projectId: "financial-app-96527",
+        storageBucket: "financial-app-96527.firebasestorage.app",
+        messagingSenderId: "409763079254",
+        appId: "1:409763079254:web:ae95c7da0aaea083a207f7",
+        measurementId: "G-Q5ZLBCBG3J"
+    };
 
-    // تهيئة وتشغيل Firebase
     const app = initializeApp(firebaseConfig);
-
-    // تجهيز قاعدة البيانات وجعلها متاحة لكل البرنامج
+    
+    // --- تهيئة الخدمات وجعلها متاحة عالميًا ---
     window.db = getFirestore(app);
-    window.doc = doc; // لجعل دالة doc متاحة
-    window.setDoc = setDoc; // لجعل دالة setDoc متاحة
-    window.getDoc = getDoc; // لجعل دالة getDoc متاحة
+    window.doc = doc;
+    window.setDoc = setDoc;
+    window.getDoc = getDoc;
+    window.collection = collection;
+    window.query = query;
+    window.where = where;
+    window.getDocs = getDocs;
+
+    const auth = getAuth(app);
+    window.auth = auth;
+    window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
+    window.signInWithEmailAndPassword = signInWithEmailAndPassword;
+    window.onAuthStateChanged = onAuthStateChanged;
+    window.signOut = signOut;
 
     console.log("Firebase connected successfully! قاعدة البيانات جاهزة.");
-</script>
+    </script>
 <!-- ======================================================= -->
 <!-- END: Firebase Connection (Revised) -->
 <!-- ======================================================= -->
