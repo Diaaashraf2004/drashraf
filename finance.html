@@ -2041,6 +2041,27 @@ async function saveCurrentStateByDate(dateString) {
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
         await window.setDoc(docRef, stateToSave);
         saveData(lsPrefix + dateString, stateToSave); // Keep local backup
+        // 1. تجهيز كائن ملخص الأرصدة
+    const latestBalancesSummary = {
+        products,
+        suppliers,
+        liquidity,
+        debtors,
+        liabilities,
+        monthlyLiabilities, // مهم لترحيل الالتزامات الشهرية
+        pendingSales,
+        serialNumbersLog,
+        inboxTasks,
+        summaryForDate: dateString, // حفظ تاريخ هذا الملخص
+        lastUpdated: new Date().toISOString()
+    };
+
+    // 2. تحديد مسار مستند الملخص الثابت
+    const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
+
+    // 3. حفظ/تحديث مستند الملخص
+    await window.setDoc(summaryDocRef, latestBalancesSummary);
+    console.log(`Successfully updated latestBalances summary from date: ${dateString}`);
 
         currentLoadedDate = dateString;
         updateUI();
@@ -2119,46 +2140,49 @@ async function loadDataForDate(dateString) {
             console.log("Data found in Firebase for", dateString);
             loadState(docSnap.data(), dateString);
             if (loadMessageElement) showMessage(loadMessageElement, `تم تحميل البيانات بنجاح من الإنترنت لتاريخ ${formatDateForDisplay(dateString)}.`, false);
-        } else {
-            console.log("No data in Firebase for", dateString, ". Attempting carry-forward.");
-            const previousDayString = getPreviousDayString(dateString);
-            if (!previousDayString) {
-                resetState();
-                currentLoadedDate = dateString;
-                return true;
-            }
-
-            const prevDocRef = window.doc(window.db, "users", userId, "days", previousDayString);
-            const prevDocSnap = await window.getDoc(prevDocRef);
-
-            if (prevDocSnap.exists()) {
-                console.log(`Found previous day's data (${previousDayString}). Carrying forward.`);
-                const previousData = prevDocSnap.data();
-
-                products = previousData.products || [];
-                suppliers = previousData.suppliers || [];
-                liquidity = parseFloat(previousData.liquidity) || 0;
-                debtors = previousData.debtors || [];
-                liabilities = previousData.liabilities || [];
-                monthlyLiabilities = previousData.monthlyLiabilities || [];
-                pendingSales = previousData.pendingSales || [];
-                serialNumbersLog = previousData.serialNumbersLog || [];
-                inboxTasks = previousData.inboxTasks || [];
-
-                expenses = 0;
-                totalProfit = 0;
-                operationLog = [];
-                liquidityLog = [];
-                salesToday = [];
-
-                logOperation("ترحيل تلقائي", `تم ترحيل الأرصدة من يوم ${formatDateForDisplay(previousDayString)} إلى اليوم الحالي.`);
-                if (loadMessageElement) showMessage(loadMessageElement, `تم ترحيل الأرصدة من اليوم السابق إلى تاريخ ${formatDateForDisplay(dateString)}.`, false);
-            } else {
-                console.log("No previous day's data found. Starting fresh.");
-                resetState();
-                if (loadMessageElement) showMessage(loadMessageElement, `لا توجد بيانات محفوظة لهذا اليوم أو لليوم السابق. تم البدء بيوم جديد فارغ.`, false, true);
-            }
         }
+         else {
+    
+    console.log(`No data in Firebase for ${dateString}. Attempting FAST carry-forward from summary.`);
+    
+    // 1. تحديد مسار مستند الملخص
+    const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
+    const summaryDocSnap = await window.getDoc(summaryDocRef);
+
+    if (summaryDocSnap.exists()) {
+        // 2. إذا وجدنا الملخص، نقوم بترحيل الأرصدة منه
+        console.log(`Found latestBalances summary. Carrying forward to ${dateString}.`);
+        const previousData = summaryDocSnap.data();
+
+        // ترحيل الأرصدة
+        products = previousData.products || [];
+        suppliers = previousData.suppliers || [];
+        liquidity = parseFloat(previousData.liquidity) || 0;
+        debtors = previousData.debtors || [];
+        liabilities = previousData.liabilities || [];
+        monthlyLiabilities = previousData.monthlyLiabilities || [];
+        pendingSales = previousData.pendingSales || [];
+        serialNumbersLog = previousData.serialNumbersLog || [];
+        inboxTasks = previousData.inboxTasks || [];
+
+        // تصفير بيانات اليوم الجديد
+        expenses = 0;
+        totalProfit = 0;
+        operationLog = [];
+        liquidityLog = [];
+        salesToday = [];
+
+        logOperation("ترحيل سريع", `تم ترحيل الأرصدة من ملخص يوم ${formatDateForDisplay(previousData.summaryForDate)}.`);
+        if (loadMessageElement) showMessage(loadMessageElement, `تم ترحيل الأرصدة من آخر يوم عمل إلى تاريخ ${formatDateForDisplay(dateString)}.`, false);
+
+    } else {
+        // 3. إذا لم نجد ملخصًا (قد يكون أول استخدام للتطبيق)، نبدأ من الصفر
+        console.log("No summary document found. Starting fresh.");
+        resetState();
+        if (loadMessageElement) showMessage(loadMessageElement, `لا توجد بيانات سابقة. تم البدء بيوم جديد فارغ.`, false, true);
+    }
+    // =================== نهاية الكود الجديد للترحيل السريع ===================
+}
 
         currentLoadedDate = dateString;
         if (dateInputElement) dateInputElement.value = dateString;
