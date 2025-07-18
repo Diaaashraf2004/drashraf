@@ -1560,6 +1560,81 @@ async function fetchOnlineDataForDate(dateString) {
             const options = { timeZone: 'Africa/Cairo', hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true };
             currentTimeDisplay.textContent = new Intl.DateTimeFormat('ar-EG', options).format(now);
         }
+        // ================== بداية الدالة المساعدة الجديدة ==================
+async function saveInvoiceToFirestore(invoiceRecord) {
+    if (!window.currentUser) {
+        console.error("Cannot save invoice, no user logged in.");
+        return;
+    }
+    const userId = window.currentUser.uid;
+    
+    // إضافة تاريخ البيع للمستند ليسهل البحث به لاحقًا
+    invoiceRecord.saleDate = currentLoadedDate || getTodayDateString();
+
+    try {
+        // الحفظ في المجموعة الجديدة invoices باستخدام ID الفاتورة
+        const invoiceDocRef = window.doc(window.db, "users", userId, "invoices", invoiceRecord.id);
+        await window.setDoc(invoiceDocRef, invoiceRecord);
+        console.log(`Invoice ${invoiceRecord.invoiceNumber || invoiceRecord.id} saved to the new invoices collection.`);
+    } catch (error) {
+        console.error("Error saving invoice to the new collection: ", error);
+        // يمكنك هنا إظهار رسالة خطأ للمستخدم إذا أردت
+    }
+}
+// ================== بداية دالة ترحيل البيانات القديمة ==================
+async function migrateOldSalesToInvoicesCollection() {
+    if (!window.currentUser) { 
+        alert("يرجى تسجيل الدخول أولاً قبل بدء الترحيل.");
+        return; 
+    }
+    if (!confirm("هل أنت متأكد من رغبتك في بدء عملية ترحيل المبيعات القديمة؟ قد تستغرق هذه العملية بعض الوقت. تأكد من أنك أخذت نسخة احتياطية.")) {
+        return;
+    }
+
+    const userId = window.currentUser.uid;
+    console.log("Starting migration of old sales data...");
+    alert("بدأت عملية ترحيل البيانات. يرجى إبقاء هذه النافذة مفتوحة ومراقبة الـ Console (F12) للمتابعة.");
+    let migratedCount = 0;
+    
+    // حدد نطاق التاريخ الذي تريد ترحيل بياناته (عدّل التاريخ حسب الحاجة)
+    const startDate = new Date('2023-01-01'); // ابدأ من تاريخ قديم
+    const endDate = new Date(); // حتى اليوم
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        const dayDocRef = window.doc(window.db, "users", userId, "days", dateStr);
+        
+        try {
+            const dayDocSnap = await window.getDoc(dayDocRef);
+
+            if (dayDocSnap.exists()) {
+                const dayData = dayDocSnap.data();
+                const salesForThisDay = dayData.salesToday || [];
+                
+                if (salesForThisDay.length > 0) {
+                    console.log(`Found ${salesForThisDay.length} sales for ${dateStr}. Migrating...`);
+                    for (const sale of salesForThisDay) {
+                        // أهم خطوة: إضافة تاريخ البيع للبحث
+                        if(sale.id && !sale.saleDate) { // تأكد من وجود ID وأنها ليست مرحّلة من قبل
+                           sale.saleDate = dateStr; 
+                           const invoiceDocRef = window.doc(window.db, "users", userId, "invoices", sale.id);
+                           await window.setDoc(invoiceDocRef, sale);
+                           migratedCount++;
+                        }
+                    }
+                }
+            }
+        } catch(e) {
+            console.error(`Could not process date ${dateStr}:`, e);
+        }
+    }
+    console.log(`Migration complete! Total sales migrated: ${migratedCount}`);
+    alert(`اكتملت عملية الترحيل! تم ترحيل ${migratedCount} عملية بيع قديمة بنجاح!`);
+    
+}
+// =================== نهاية دالة ترحيل البيانات القديمة ===================
+window.migrateOldSalesToInvoicesCollection = migrateOldSalesToInvoicesCollection;
+
         // --- Undo/Redo State Management Functions ---
 
 function createStateSnapshot() {
@@ -2720,7 +2795,7 @@ function processMonthlyLiabilities() {
                  return isValid;
              }
 
-            function handleSaveInvoice() {
+           async function handleSaveInvoice() {
             saveStateToHistory();
                 console.log("handleSaveInvoice called. isInvoiceFromPending:", isInvoiceFromPending);
                 if (!inv_validateForm()){
@@ -2877,7 +2952,7 @@ function processMonthlyLiabilities() {
                      liquidityLog.push(liqLogEntry);
                 }
 
-                salesToday.push(invoiceRecord); // Add record to salesToday array
+                await saveInvoiceToFirestore(invoiceRecord); // Add record to salesToday array
 
                 // Reset flags and update UI
                 isInvoiceFromPending = false;
@@ -3461,10 +3536,12 @@ function displaySalesReport(salesToDisplay) {
 // =====================================================================
 
 // دالة جلب كل بيانات الشهر (الطريقة الأولى) - نسخة محدثة
+// ================== بداية دالة التقرير الجديدة والسريعة ==================
+// ================== بداية دالة التقرير الجديدة والسريعة ==================
 async function generateMonthlySalesReport() {
-    if (!reportMonthYearInput || !reportMessage) return;
+    if (!reportMonthYearInput || !reportMessage || !window.currentUser) return;
 
-    currentMonthlySalesData = [];
+    currentMonthlySalesData = []; // تصفير البيانات الحالية
     if (reportSearchInput) reportSearchInput.value = '';
     
     const yearMonth = reportMonthYearInput.value;
@@ -3472,51 +3549,54 @@ async function generateMonthlySalesReport() {
         showMessage(reportMessage, "يرجى اختيار الشهر والسنة لعرض التقرير.", true); return;
     }
 
-    showMessage(reportMessage, `جاري تحميل كل مبيعات شهر ${yearMonth} وتنظيف البيانات...`, false, true);
+    showMessage(reportMessage, `جاري البحث السريع عن مبيعات شهر ${yearMonth}...`, false, true);
 
-    const datesInMonth = getMonthStartDateEndDate(yearMonth);
-    let fetchedSales = [];
+    try {
+        const userId = window.currentUser.uid;
+        const [year, month] = yearMonth.split('-');
+        
+        // تحديد تاريخ بداية ونهاية الشهر للبحث
+        const startDate = `${yearMonth}-01`;
+        const endDate = new Date(year, month, 0).toISOString().split('T')[0]; // آخر يوم في الشهر
 
-    for (const dateStr of datesInMonth) {
-        const dayData = await fetchOnlineDataForDate(dateStr);
-        let salesForThisDay = dayData ? (dayData.salesToday || dayData.salestoday || []) : [];
-        if (Array.isArray(salesForThisDay) && salesForThisDay.length > 0) {
-            salesForThisDay.forEach(sale => {
-                sale.saleDate = dateStr;
-                fetchedSales.push(sale);
-            });
+        // إنشاء مسار لمجموعة الفواتير
+        const invoicesColRef = window.collection(window.db, "users", userId, "invoices");
+
+        // إنشاء الاستعلام (Query)
+        const q = window.query(invoicesColRef, 
+            window.where("saleDate", ">=", startDate), 
+            window.where("saleDate", "<=", endDate),
+            window.orderBy("timestamp", "asc")
+        );
+
+        // تنفيذ الاستعلام
+        const querySnapshot = await window.getDocs(q);
+        
+        let fetchedSales = [];
+        querySnapshot.forEach((doc) => {
+            fetchedSales.push(doc.data());
+        });
+
+        if (fetchedSales.length === 0) {
+            showMessage(reportMessage, `لا توجد مبيعات مسجلة للشهر المحدد.`, false, true);
+            displaySalesReport([]); // عرض جدول فارغ
+            return;
         }
+        
+        // فرز النتائج حسب التاريخ
+        fetchedSales.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        currentMonthlySalesData = fetchedSales; // تخزين البيانات للفلترة المحلية
+        displaySalesReport(currentMonthlySalesData); // عرض البيانات
+        
+        showMessage(reportMessage, `تم عرض ${currentMonthlySalesData.length} عملية بيع لشهر ${yearMonth}.`, false);
+
+    } catch (error) {
+        console.error("Error generating sales report with new method: ", error);
+        showMessage(reportMessage, "حدث خطأ أثناء جلب التقرير. راجع الـ Console.", true);
     }
-
-    if (fetchedSales.length === 0) {
-        showMessage(reportMessage, `لا توجد بيانات مبيعات محفوظة للشهر المحدد.`, false, true);
-        displaySalesReport([]); // اعرض جدول فارغ
-        return;
-    }
-
-    // --- التحسينات الجديدة ---
-    // 1. إزالة التكرار من البيانات
-    const uniqueSales = [];
-    const seen = new Set(); // لتتبع السجلات التي تمت رؤيتها
-    fetchedSales.forEach(sale => {
-        // نُنشئ مفتاحًا فريدًا لكل عملية بيع بناءً على التوقيت والمحتوى
-        const saleKey = `${sale.timestamp}-${sale.customerName}-${sale.grandTotal}`;
-        if (!seen.has(saleKey)) {
-            seen.add(saleKey);
-            uniqueSales.push(sale);
-        }
-    });
-
-    // 2. فرز دقيق للبيانات النظيفة بناءً على التوقيت الأصلي
-    uniqueSales.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    
-    // 3. تخزين وعرض البيانات النظيفة
-    currentMonthlySalesData = uniqueSales;
-    displaySalesReport(currentMonthlySalesData); 
-    
-    showMessage(reportMessage, `تم عرض ${currentMonthlySalesData.length} عملية بيع فريدة لشهر ${yearMonth}.`, false);
 }
-
+// =================== نهاية دالة التقرير الجديدة والسريعة ===================// =================== نهاية دالة التقرير الجديدة والسريعة ===================
 
 // =====================================================================
 // == بداية الكود الجديد والمحسّن لتقرير المبيعات (نسخة ضد التكرار) ==
@@ -3644,7 +3724,7 @@ async function performDirectSearch() {
 // == نهاية الكود الجديد والمحسّن لتقرير المبيعات ==
 // =====================================================================
 
-       function handlePendingSaleActions(event) {
+       async function handlePendingSaleActions(event) {
             saveStateToHistory();
                 console.log("handlePendingSaleActions called");
                 const button = event.target.closest('button');
@@ -3690,7 +3770,7 @@ async function performDirectSearch() {
                              totalCost: saleCost,
                              profit: confirmedSaleData.potentialProfit,
                          };
-                         salesToday.push(saleRecord);
+                         await saveInvoiceToFirestore(saleRecord);
 
                         updateUI();
                         showGlobalMessage("تم تأكيد البيع المؤقت بنجاح.", false);
@@ -5362,7 +5442,7 @@ if (reportClearSearchBtn) {
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-    import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
     import { 
         getAuth, 
         createUserWithEmailAndPassword, 
