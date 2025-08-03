@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مدير المعاملات المالية</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f0f2f5;
+        }
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+        @media (min-width: 1024px) {
+            .main-container {
+                grid-template-columns: 400px 1fr;
+            }
+        }
+        .card {
+            background-color: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: all 0.3s ease-in-out;
+        }
+        .form-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            transition: all 0.2s ease;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+        }
+        .btn-primary {
+            background-image: linear-gradient(to right, #4f46e5, #6366f1);
+            color: white;
+            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px 0 rgba(79, 70, 229, 0.3);
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px 0 rgba(79, 70, 229, 0.4);
+        }
+        .transaction-item {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s ease;
+            animation: fadeIn 0.5s ease-out;
+        }
+        .transaction-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            border-color: #cbd5e1;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .delete-btn {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .transaction-item:hover .delete-btn {
+            opacity: 1;
+        }
+        .modal-backdrop {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            z-index: 50;
+            justify-content: center; align-items: center;
+        }
+        .toggle-container {
+            background-color: #e5e7eb;
+            border-radius: 9999px;
+            padding: 0.25rem;
+            display: flex;
+            width: 200px;
+            position: relative;
+        }
+        .toggle-option {
+            flex: 1;
+            text-align: center;
+            padding: 0.5rem;
+            cursor: pointer;
+            z-index: 10;
+            font-weight: 600;
+            transition: color 0.3s ease;
+            color: #4b5563;
+        }
+        .toggle-slider {
+            position: absolute;
+            top: 0.25rem;
+            bottom: 0.25rem;
+            width: calc(50% - 0.25rem);
+            background-color: white;
+            border-radius: 9999px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">
+                مدير المعاملات المالية
+            </h1>
+            <p class="text-gray-500 mt-3 text-lg">أداة بسيطة وأنيقة لتتبع أموالك</p>
+        </header>
+
+        <div class="main-container max-w-7xl mx-auto">
+            <!-- Left Column -->
+            <aside>
+                <div class="card mb-8">
+                    <h2 class="text-xl font-bold mb-4 text-gray-700">اختر الحساب</h2>
+                     <div class="toggle-container mx-auto">
+                        <div id="slider" class="toggle-slider"></div>
+                        <div id="company-btn" class="toggle-option">شركة</div>
+                        <div id="personal-btn" class="toggle-option">شخصي</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2 class="text-xl font-bold mb-4 text-gray-700">إضافة معاملة جديدة</h2>
+                    <form id="transaction-form" class="space-y-4">
+                        <div>
+                            <label for="description" class="block text-sm font-medium text-gray-600 mb-1">البيان</label>
+                            <input type="text" id="description" placeholder="مثال: فاتورة الإنترنت" class="form-input" required>
+                        </div>
+                        <div>
+                            <label for="amount" class="block text-sm font-medium text-gray-600 mb-1">المبلغ (ج.م)</label>
+                            <input type="number" id="amount" placeholder="0.00" step="0.01" class="form-input" required>
+                        </div>
+                        <div>
+                            <label for="type" class="block text-sm font-medium text-gray-600 mb-1">النوع</label>
+                            <select id="type" class="form-input">
+                                <option value="expense">مصروف</option>
+                                <option value="income">إيراد</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="w-full btn-primary !mt-6">
+                            إضافة المعاملة
+                        </button>
+                    </form>
+                </div>
+            </aside>
+
+            <!-- Right Column -->
+            <main>
+                <div class="card">
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 id="list-title" class="text-2xl font-bold text-gray-800">المعاملات الشخصية</h2>
+                            <p class="text-gray-500">آخر العمليات المسجلة</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-sm text-gray-500">الرصيد الحالي</span>
+                            <p id="balance" class="text-3xl font-bold text-gray-800">0.00</p>
+                        </div>
+                    </div>
+                    
+                    <div id="loader" class="text-center py-10 hidden">
+                         <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="mt-2 text-gray-500">جاري تحميل المعاملات...</p>
+                    </div>
+
+                    <div id="transactions-list" class="space-y-3">
+                        <!-- Transactions will be dynamically inserted here -->
+                    </div>
+                </div>
+            </main>
+        </div>
+         <div class="text-center mt-10">
+            <p class="text-xs text-gray-400">معرف المستخدم: <span id="user-id-display"></span></p>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="modal-backdrop">
+        <div class="modal-content">
+            <p id="modal-text" class="mb-4 text-lg">هل أنت متأكد؟</p>
+            <div class="flex justify-center gap-4">
+                <button id="modal-confirm-btn" class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700">تأكيد</button>
+                <button id="modal-cancel-btn" class="bg-gray-300 text-gray-800 px-6 py-2 rounded-lg hover:bg-gray-400">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, onSnapshot, doc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- CONFIGURATION ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDzxQbE8W-NijzRAKyUmQC9G85x1MI0wMk",
+            authDomain: "finance-9227c.firebaseapp.com",
+            projectId: "finance-9227c",
+            storageBucket: "finance-9227c.appspot.com",
+            messagingSenderId: "933948017258",
+            appId: "1:933948017258:web:4cd6cc6e8cbd20658cd813",
+            measurementId: "G-B1DBFJZN7X"
+        };
+
+        // --- FIREBASE INITIALIZATION ---
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- DOM ELEMENTS ---
+        const personalBtn = document.getElementById('personal-btn');
+        const companyBtn = document.getElementById('company-btn');
+        const slider = document.getElementById('slider');
+        const listTitle = document.getElementById('list-title');
+        const transactionForm = document.getElementById('transaction-form');
+        const descriptionInput = document.getElementById('description');
+        const amountInput = document.getElementById('amount');
+        const typeInput = document.getElementById('type');
+        const transactionsList = document.getElementById('transactions-list');
+        const balanceEl = document.getElementById('balance');
+        const loader = document.getElementById('loader');
+        const userIdDisplay = document.getElementById('user-id-display');
+        const modal = document.getElementById('confirmation-modal');
+        const modalConfirmBtn = document.getElementById('modal-confirm-btn');
+        const modalCancelBtn = document.getElementById('modal-cancel-btn');
+        
+        // --- STATE ---
+        let currentMode = 'personal';
+        let currentUserId = null;
+        let unsubscribeFromTransactions = null;
+        let resolveConfirm = null;
+
+        // --- FUNCTIONS ---
+
+        function setMode(mode) {
+            currentMode = mode;
+            if (mode === 'personal') {
+                slider.style.transform = 'translateX(100%)';
+                personalBtn.style.color = '#1f2937';
+                companyBtn.style.color = '#4b5563';
+                listTitle.textContent = 'المعاملات الشخصية';
+            } else {
+                slider.style.transform = 'translateX(0%)';
+                companyBtn.style.color = '#1f2937';
+                personalBtn.style.color = '#4b5563';
+                listTitle.textContent = 'معاملات الشركة';
+            }
+            fetchTransactions();
+        }
+
+        function fetchTransactions() {
+            if (!currentUserId) return;
+            if (unsubscribeFromTransactions) unsubscribeFromTransactions();
+
+            transactionsList.innerHTML = '';
+            loader.classList.remove('hidden');
+            
+            const transactionsCollectionPath = `users/${currentUserId}/${currentMode}`;
+            const q = query(collection(db, transactionsCollectionPath));
+            
+            unsubscribeFromTransactions = onSnapshot(q, (querySnapshot) => {
+                const transactions = [];
+                querySnapshot.forEach((doc) => {
+                    transactions.push({ id: doc.id, ...doc.data() });
+                });
+                transactions.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                renderTransactions(transactions);
+                loader.classList.add('hidden');
+            }, (error) => {
+                console.error("Error fetching transactions: ", error);
+                loader.classList.add('hidden');
+                transactionsList.innerHTML = `<p class="text-center text-red-500">حدث خطأ أثناء تحميل البيانات.</p>`;
+            });
+        }
+
+        function renderTransactions(transactions) {
+            transactionsList.innerHTML = '';
+            let balance = 0;
+            if (transactions.length === 0) {
+                transactionsList.innerHTML = `<div class="text-center py-10">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <h3 class="mt-2 text-sm font-medium text-gray-900">لا توجد معاملات</h3>
+                    <p class="mt-1 text-sm text-gray-500">ابدأ بإضافة معاملة جديدة.</p>
+                </div>`;
+            } else {
+                transactions.forEach(tx => {
+                    const amount = parseFloat(tx.amount);
+                    balance += (tx.type === 'income' ? amount : -amount);
+                    createTransactionElement(tx);
+                });
+            }
+            balanceEl.textContent = balance.toLocaleString('ar-EG', { style: 'currency', currency: 'EGP' });
+            balanceEl.classList.toggle('text-green-600', balance >= 0);
+            balanceEl.classList.toggle('text-red-600', balance < 0);
+        }
+
+        function createTransactionElement(tx) {
+            const item = document.createElement('div');
+            item.className = 'transaction-item';
+            const isIncome = tx.type === 'income';
+            const amountColor = isIncome ? 'text-green-600' : 'text-red-500';
+            const amountSign = isIncome ? '+' : '-';
+            const amount = parseFloat(tx.amount).toLocaleString('ar-EG', { minimumFractionDigits: 2 });
+            const transactionDate = tx.timestamp?.toDate().toLocaleDateString('ar-EG', { day: '2-digit', month: 'long', year: 'numeric' }) || 'الآن';
+            const icon = isIncome ? 
+                `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>` :
+                `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12" /></svg>`;
+
+            item.innerHTML = `
+                <div class="flex-shrink-0 h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center ml-4">${icon}</div>
+                <div class="flex-grow">
+                    <p class="font-semibold text-gray-800">${tx.description}</p>
+                    <p class="text-sm text-gray-500">${transactionDate}</p>
+                </div>
+                <div class="text-left mr-4">
+                    <p class="font-bold text-lg ${amountColor}">${amountSign} ${amount}</p>
+                </div>
+                <button data-id="${tx.id}" class="delete-btn text-gray-400 hover:text-red-600 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+            `;
+            transactionsList.appendChild(item);
+        }
+
+        async function handleAddTransaction(e) {
+            e.preventDefault();
+            if (!currentUserId) return;
+
+            const description = descriptionInput.value.trim();
+            const amount = parseFloat(amountInput.value);
+            const type = typeInput.value;
+
+            if (description === '' || isNaN(amount) || amount <= 0) { return; }
+
+            try {
+                const transactionsCollectionPath = `users/${currentUserId}/${currentMode}`;
+                await addDoc(collection(db, transactionsCollectionPath), {
+                    description, amount, type, timestamp: serverTimestamp()
+                });
+                transactionForm.reset();
+            } catch (error) {
+                console.error("Error adding document: ", error);
+            }
+        }
+        
+        async function handleDeleteTransaction(e) {
+            const deleteButton = e.target.closest('.delete-btn');
+            if (deleteButton) {
+                const transactionId = deleteButton.dataset.id;
+                const confirmed = await showConfirmation('هل أنت متأكد من حذف هذه المعاملة؟');
+                if (confirmed) {
+                     try {
+                        const docPath = `users/${currentUserId}/${currentMode}/${transactionId}`;
+                        await deleteDoc(doc(db, docPath));
+                     } catch(error) {
+                         console.error("Error deleting document: ", error);
+                     }
+                }
+            }
+        }
+
+        function showConfirmation(message) {
+            document.getElementById('modal-text').textContent = message;
+            modal.style.display = 'flex';
+            return new Promise((resolve) => { resolveConfirm = resolve; });
+        }
+
+        modalConfirmBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+            if (resolveConfirm) resolveConfirm(true);
+        });
+
+        modalCancelBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+            if (resolveConfirm) resolveConfirm(false);
+        });
+
+        // --- EVENT LISTENERS ---
+        personalBtn.addEventListener('click', () => setMode('personal'));
+        companyBtn.addEventListener('click', () => setMode('company'));
+        transactionForm.addEventListener('submit', handleAddTransaction);
+        transactionsList.addEventListener('click', handleDeleteTransaction);
+
+        // --- AUTH & INITIAL LOAD ---
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUserId = user.uid;
+                userIdDisplay.textContent = currentUserId;
+                setMode('personal'); // Start with personal mode
+            } else {
+                // Handle signed out state
+            }
+        });
+
+        (async () => {
+            try {
+                await signInAnonymously(auth);
+            } catch (error) {
+                console.error("Authentication failed: ", error);
+            }
+        })();
+    </script>
+</body>
+</html>
