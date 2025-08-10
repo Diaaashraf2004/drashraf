@@ -1236,9 +1236,20 @@ input:checked:active + .slider:before {
                                     </div>
                                 </div>
                             </fieldset>
+                            <fieldset class="no-print">
+    <legend>حالة الفاتورة</legend>
+    <div class="form-group">
+        <label for="inv_markAsPending" class="inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="inv_markAsPending" class="rounded border-gray-300 text-blue-600 shadow-sm ml-2">
+            <span class="text-sm text-yellow-800 font-semibold">تسجيل الفاتورة كـ "بيع مؤقت" (تحت التسوية)</span>
+        </label>
+        <p class="text-xs text-gray-500 mt-1">عند تفعيل هذا الخيار، سيتم خصم البضاعة من المخزون ولكن لن يتم إضافة قيمتها للسيولة أو الأرباح حتى يتم تأكيدها لاحقاً.</p>
+    </div>
+</fieldset>
                             <div id="inv_validationError" class="error-message no-print"></div>
                         </form>
                     </div> <div class="invoice-modal-footer modal-footer">
+
                         <button type="button" id="inv_printInvoiceBtn" class="no-print">طباعة الفاتورة</button>
                         <button type="button" id="inv_saveInvoiceBtn" class="no-print">إنشاء وحفظ الفاتورة</button>
                         <button type="button" class="invoice-close-btn-footer modal-close-btn-footer no-print">إغلاق</button>
@@ -1739,7 +1750,24 @@ function redo() {
 }
 
         // --- دوال المنطق الأساسي ---
-        function calculateConsignmentValue(){ return pendingSales.reduce((sum, sale) => { const mainCost = (Number(sale.mainProduct.costPrice) || 0) * (Number(sale.mainProduct.quantity) || 0); const additionalCost = (sale.additionalItems || []).reduce((addSum, item) => addSum + ((Number(item.costPrice) || 0) * (Number(item.quantity) || 0)), 0); return sum + mainCost + additionalCost }, 0) }
+function calculateConsignmentValue() {
+    return pendingSales.reduce((sum, sale) => {
+        let saleCost = 0;
+        
+        // يتحقق إذا كان البيع المؤقت هو فاتورة مفصلة (تحتوي على totalCost)
+        if (sale.items && sale.totalCost !== undefined) {
+            saleCost = Number(sale.totalCost) || 0;
+        } 
+        // إذا لم يكن كذلك، يستخدم الطريقة القديمة للبيع المؤقت السريع
+        else if (sale.mainProduct) {
+            const mainCost = (Number(sale.mainProduct.costPrice) || 0) * (Number(sale.mainProduct.quantity) || 0);
+            const additionalCost = (sale.additionalItems || []).reduce((addSum, item) => addSum + ((Number(item.costPrice) || 0) * (Number(item.quantity) || 0)), 0);
+            saleCost = mainCost + additionalCost;
+        }
+
+        return sum + saleCost;
+    }, 0);
+}
         function loadState(data, dateString){
         monthlyLiabilities = data.monthlyLiabilities || [];
              console.log("loadState called for date:", dateString, data); // Log input data
@@ -1946,62 +1974,95 @@ resetMonthlyLiabilityForm();
              option.textContent = `${liability.name} (${formatCurrency(liability.amount)})`; paymentCreditorSelect.appendChild(option); if (liability.id === currentSelection) { hasSelection = true; } }); if (hasSelection) { paymentCreditorSelect.value = currentSelection; } else { paymentCreditorSelect.value = ""; } }
 
         // --- << تعديل دالة تحديث المبيعات المؤقتة >> ---
-        function updatePendingSalesDisplay(){
-             if(!pendingSalesListContainer || !pendingSalesSearchInput || !pendingSalesTotalCostSpan || !pendingSalesTotalProfitSpan) return;
+       function updatePendingSalesDisplay() {
+    if (!pendingSalesListContainer || !pendingSalesSearchInput || !pendingSalesTotalCostSpan || !pendingSalesTotalProfitSpan) return;
 
-             // 1. حساب الإجماليات (قبل الفلترة)
-             let totalPendingCost = 0;
-             let totalPendingProfit = 0;
-             pendingSales.forEach(sale => {
-                 totalPendingCost += calculateSinglePendingSaleCost(sale);
-                 totalPendingProfit += (Number(sale.potentialProfit) || 0);
-             });
-             pendingSalesTotalCostSpan.textContent = `إجمالي التكلفة: ${formatCurrency(totalPendingCost)}`;
-             pendingSalesTotalProfitSpan.textContent = `إجمالي الربح المتوقع: ${formatCurrency(totalPendingProfit)}`;
+    // 1. حساب الإجماليات (قبل الفلترة)
+    let totalPendingCost = 0;
+    let totalPendingProfit = 0;
+    pendingSales.forEach(sale => {
+        totalPendingCost += calculateSinglePendingSaleCost(sale); // Uses the corrected helper function
+        totalPendingProfit += (Number(sale.potentialProfit) || 0);
+    });
+    pendingSalesTotalCostSpan.textContent = `إجمالي التكلفة: ${formatCurrency(totalPendingCost)}`;
+    pendingSalesTotalProfitSpan.textContent = `إجمالي الربح المتوقع: ${formatCurrency(totalPendingProfit)}`;
 
+    // 2. فلترة العرض بناءً على البحث
+    const searchTerm = pendingSalesSearchInput.value.trim().toLowerCase();
+    const filteredSales = pendingSales.filter(sale => {
+        if (!searchTerm) return true;
+        const customerMatch = sale.customerName && sale.customerName.toLowerCase().includes(searchTerm);
+        
+        // ★★★ تصحيح مهم هنا ★★★
+        // يتحقق من وجود items (للفواتير) أو mainProduct (للبيع السريع)
+        let productMatch = false;
+        if (sale.items) { // For detailed invoices
+            productMatch = sale.items.some(item => item.name.toLowerCase().includes(searchTerm));
+        } else if (sale.mainProduct) { // For quick sales
+            productMatch = sale.mainProduct.name.toLowerCase().includes(searchTerm);
+        }
+        return customerMatch || productMatch;
+    });
 
-             // 2. فلترة العرض بناءً على البحث
-             const searchTerm = pendingSalesSearchInput.value.trim().toLowerCase();
-             const filteredSales = pendingSales.filter(sale => {
-                 if (!searchTerm) return true; // Show all if search is empty
-                 const customerMatch = sale.customerName && sale.customerName.toLowerCase().includes(searchTerm);
-                 const productMatch = sale.mainProduct.name.toLowerCase().includes(searchTerm);
-                 // يمكن إضافة البحث في المنتجات الإضافية لو أردت
-                 // const additionalMatch = (sale.additionalItems || []).some(item => item.name.toLowerCase().includes(searchTerm));
-                 return customerMatch || productMatch; // || additionalMatch;
-             });
+    // 3. عرض القائمة المفلترة
+    if (filteredSales.length === 0) {
+        pendingSalesListContainer.innerHTML = `<p class="text-center text-gray-500 text-sm">لا توجد مبيعات مؤقتة تطابق البحث.</p>`;
+        return;
+    }
 
-             // 3. عرض القائمة المفلترة
-             if(filteredSales.length === 0){
-                 pendingSalesListContainer.innerHTML = `<p class="text-center text-gray-500 text-sm">لا توجد مبيعات مؤقتة تطابق البحث "${searchTerm}".</p>`;
-                 return;
-             }
+    pendingSalesListContainer.innerHTML = filteredSales.map(sale => {
+        let itemsText;
+        // ★★★ تصحيح مهم هنا ★★★
+        // يعرض البنود بشكل مختلف حسب نوع البيع المؤقت
+        if (sale.items) { // For detailed invoices
+            itemsText = sale.items.map(item => `${item.quantity}x "${item.name}"`).join(', ');
+            if (itemsText.length > 50) itemsText = itemsText.substring(0, 50) + "..."; // Shorten if too long
+            itemsText = `<b>[فاتورة]</b> ${itemsText}`;
+        } else if (sale.mainProduct) { // For quick sales
+            itemsText = `${sale.mainProduct.quantity}x "${sale.mainProduct.name}"`;
+            if (sale.additionalItems && sale.additionalItems.length > 0) {
+                itemsText += ` مع ملحقات`;
+            }
+        }
 
-             pendingSalesListContainer.innerHTML = filteredSales.map(sale => {
-                 let itemsText = `${sale.mainProduct.quantity}x "${sale.mainProduct.name}"`;
-                 if(sale.additionalItems && sale.additionalItems.length > 0){itemsText += ` مع (${sale.additionalItems.map(item => `${item.quantity}x "${item.name}"`).join(', ')})`}
-                 let customerInfo = sale.customerName ? `<span class="block text-sm text-blue-600">العميل: ${sale.customerName}</span>` : '';
-                 const saleCost = calculateSinglePendingSaleCost(sale); // حساب التكلفة للعرض
-                 return `<li>
-                            <div class="flex justify-between items-start gap-2 flex-wrap">
-                                <div>
-                                    <span class="block font-semibold">${itemsText}</span>
-                                    ${customerInfo}
-                                    <span class="block text-sm details">السعر المتوقع: ${formatCurrency(sale.totalSellPrice)} | التكلفة: ${formatCurrency(saleCost)} | الربح المتوقع: ${formatCurrency(sale.potentialProfit)}</span>
-                                    <span class="block text-xs text-gray-400">${formatDateTime(sale.timestamp)}</span>
-                                </div>
-                                <div class="actions flex-shrink-0 flex flex-col sm:flex-row gap-1 mt-1 sm:mt-0">
-                                    <button data-pending-id="${sale.id}" class="confirm-pending bg-green-500 hover:bg-green-600 text-white rounded px-2 py-1 text-xs border border-green-700">تأكيد فقط</button>
-                                    <button data-pending-id="${sale.id}" class="confirm-invoice-pending bg-yellow-500 hover:bg-yellow-600 text-white rounded px-2 py-1 text-xs border border-yellow-700">تأكيد وفاتورة</button>
-                                    <button data-pending-id="${sale.id}" class="cancel-pending bg-red-500 hover:bg-red-600 text-white rounded px-2 py-1 text-xs border border-red-700">إلغاء/إرجاع</button>
-                                    <button data-pending-id="${sale.id}" class="print-pending-invoice bg-blue-500 hover:bg-blue-600 text-white rounded px-2 py-1 text-xs border border-blue-700">طباعة (مؤقت)</button>
-                                </div>
-                            </div>
-                         </li>`
-             }).join('');
-          }
-        function calculateSinglePendingSaleCost(sale) { const mainCost = (Number(sale.mainProduct.costPrice) || 0) * (Number(sale.mainProduct.quantity) || 0); const additionalCost = (sale.additionalItems || []).reduce((addSum, item) => addSum + ((Number(item.costPrice) || 0) * (Number(item.quantity) || 0)), 0); return mainCost + additionalCost; }
-        function updateOffsetDatalists() { if (!debtorNamesDatalistOffset || !creditorNamesDatalistOffset) return; // Populate Debtor Datalist
+        let customerInfo = sale.customerName ? `<span class="block text-sm text-blue-600">العميل: ${sale.customerName}</span>` : '';
+        const saleCost = calculateSinglePendingSaleCost(sale);
+        return `<li>
+                    <div class="flex justify-between items-start gap-2 flex-wrap">
+                        <div>
+                            <span class="block font-semibold">${itemsText}</span>
+                            ${customerInfo}
+                            <span class="block text-sm details">السعر المتوقع: ${formatCurrency(sale.totalSellPrice)} | التكلفة: ${formatCurrency(saleCost)} | الربح المتوقع: ${formatCurrency(sale.potentialProfit)}</span>
+                            <span class="block text-xs text-gray-400">${formatDateTime(sale.timestamp)}</span>
+                        </div>
+                        <div class="actions flex-shrink-0 flex flex-col sm:flex-row gap-1 mt-1 sm:mt-0">
+                            <button data-pending-id="${sale.id}" class="confirm-pending bg-green-500 hover:bg-green-600 text-white rounded px-2 py-1 text-xs border border-green-700">تأكيد فقط</button>
+                            <button data-pending-id="${sale.id}" class="confirm-invoice-pending bg-yellow-500 hover:bg-yellow-600 text-white rounded px-2 py-1 text-xs border border-yellow-700">تأكيد وفاتورة</button>
+                            <button data-pending-id="${sale.id}" class="cancel-pending bg-red-500 hover:bg-red-600 text-white rounded px-2 py-1 text-xs border border-red-700">إلغاء/إرجاع</button>
+                            <button data-pending-id="${sale.id}" class="print-pending-invoice bg-blue-500 hover:bg-blue-600 text-white rounded px-2 py-1 text-xs border border-blue-700">طباعة (مؤقت)</button>
+                        </div>
+                    </div>
+                </li>`;
+    }).join('');
+}
+      function calculateSinglePendingSaleCost(sale) {
+    // إذا كان البيع المؤقت يحتوي على خاصية "totalCost" (موجودة في الفواتير المؤقتة)
+    // قم بإرجاع قيمتها مباشرة لأنها محسوبة مسبقًا وبدقة
+    if (sale.totalCost !== undefined) {
+        return Number(sale.totalCost) || 0;
+    }
+
+    // إذا لم تكن موجودة، فهذا يعني أنه بيع مؤقت بالطريقة القديمة، فاحسبها
+    if (sale.mainProduct) {
+        const mainCost = (Number(sale.mainProduct.costPrice) || 0) * (Number(sale.mainProduct.quantity) || 0);
+        const additionalCost = (sale.additionalItems || []).reduce((addSum, item) => addSum + ((Number(item.costPrice) || 0) * (Number(item.quantity) || 0)), 0);
+        return mainCost + additionalCost;
+    }
+
+    // في حالة وجود هيكل غير متوقع، أرجع صفرًا لمنع الخطأ
+    return 0;
+}
+ function updateOffsetDatalists() { if (!debtorNamesDatalistOffset || !creditorNamesDatalistOffset) return; // Populate Debtor Datalist
              const debtorNames = [...new Set(debtors.filter(d => (Number(d.amount) || 0) > 0.001).map(d => d.name))].sort((a, b) => a.localeCompare(b, 'ar'));
              debtorNamesDatalistOffset.innerHTML = debtorNames.map(name => `<option value="${name}"></option>`).join('');
 
@@ -2795,173 +2856,158 @@ function processMonthlyLiabilities() {
                  return isValid;
              }
 
-           async function handleSaveInvoice() {
-            saveStateToHistory();
-                console.log("handleSaveInvoice called. isInvoiceFromPending:", isInvoiceFromPending);
-                if (!inv_validateForm()){
-                    console.log("Invoice Validation failed!");
-                    return;
+    async function handleSaveInvoice() {
+    saveStateToHistory();
+    const isPending = d('inv_markAsPending').checked;
+
+    console.log("handleSaveInvoice called. isInvoiceFromPending:", isInvoiceFromPending);
+    if (!inv_validateForm()) {
+        console.log("Invoice Validation failed!");
+        return;
+    }
+
+    const customerName = inv_customerNameInput.value.trim();
+    const customerAddress = inv_customerAddressInput.value.trim();
+    const phones = inv_invoiceForm ? Array.from(inv_invoiceForm.querySelectorAll('input[name="phone[]"]')).map(input => input.value.trim()).filter(phone => phone) : [];
+    const invoiceItems = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => ({
+        name: row.dataset.itemName,
+        quantity: parseInt(row.dataset.itemQty),
+        unitPrice: parseFloat(row.dataset.itemPrice),
+        subtotal: parseFloat(row.dataset.itemSubtotal),
+        costPrice: parseFloat(row.dataset.itemCost),
+        serial: row.dataset.itemSerial || null
+    })) : [];
+    const shippingCost = parseInputNumber(inv_shippingCostInput) || 0;
+    const warranty = inv_warrantyInput ? inv_warrantyInput.value.trim() : '';
+    const notes = inv_notesTextarea ? inv_notesTextarea.value.trim() : '';
+    const totalGoods = invoiceItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const grandTotal = totalGoods + shippingCost;
+
+    const deductibleCheckboxes = inv_deductibleCostsContainer ? inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked') : [];
+    const deductedItemsData = [];
+    let totalDeductedCost = 0;
+    deductibleCheckboxes.forEach(checkbox => {
+        const name = checkbox.value;
+        const cost = parseFloat(checkbox.dataset.cost) || 0;
+        const qtyToDeduct = 1;
+        deductedItemsData.push({ name: name, quantity: qtyToDeduct, costPrice: cost });
+        totalDeductedCost += (cost * qtyToDeduct);
+    });
+
+    const costOfSoldItems = invoiceItems.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
+    const finalInvoiceProfit = totalGoods - costOfSoldItems - totalDeductedCost;
+
+    // --- خصم البضاعة من المخزون (خطوة مشتركة) ---
+    let requiredQuantities = {};
+    invoiceItems.forEach(item => {
+        const product = products.find(p => p.name === item.name);
+        if (product) {
+            requiredQuantities[item.name] = (requiredQuantities[item.name] || 0) + item.quantity;
+        }
+    });
+    deductedItemsData.forEach(item => {
+        requiredQuantities[item.name] = (requiredQuantities[item.name] || 0) + item.quantity;
+    });
+    Object.keys(requiredQuantities).forEach(itemName => {
+        const productIndex = products.findIndex(p => p.name === itemName);
+        if (productIndex !== -1) {
+            products[productIndex].quantity -= requiredQuantities[itemName];
+        }
+    });
+    products = products.filter(p => (Number(p.quantity) || 0) > 0.001);
+
+    // --- هنا يبدأ المنطق الجديد بناءً على حالة البيع ---
+    if (isPending) {
+        // --- ★★★ منطق الحفظ كفاتورة مؤقتة ★★★ ---
+        
+        // أ. تحديث حالة السيريالات إلى "pending_sale"
+        invoiceItems.forEach(item => {
+            if (item.serial) {
+                const serialIndex = serialNumbersLog.findIndex(log => log.serial === item.serial);
+                if (serialIndex !== -1) {
+                    serialNumbersLog[serialIndex].status = 'pending_sale';
                 }
-
-                const customerName = inv_customerNameInput.value.trim();
-                const customerAddress = inv_customerAddressInput.value.trim();
-                const phones = inv_invoiceForm ? Array.from(inv_invoiceForm.querySelectorAll('input[name="phone[]"]')).map(input => input.value.trim()).filter(phone => phone) : [];
-                const invoiceItems = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => ({
-                    name: row.dataset.itemName,
-                    quantity: parseInt(row.dataset.itemQty),
-                    unitPrice: parseFloat(row.dataset.itemPrice),
-                    subtotal: parseFloat(row.dataset.itemSubtotal),
-                    costPrice: parseFloat(row.dataset.itemCost),
-                    serial: row.dataset.itemSerial || null // **** حفظ السيريال مع البند ****
-                })) : [];
-                const shippingCost = parseInputNumber(inv_shippingCostInput) || 0;
-                const warranty = inv_warrantyInput ? inv_warrantyInput.value.trim() : '';
-                const notes = inv_notesTextarea ? inv_notesTextarea.value.trim() : '';
-
-                const totalGoods = invoiceItems.reduce((sum, item) => sum + item.subtotal, 0);
-                const grandTotal = totalGoods + shippingCost;
-
-                // Handle deducted costs
-                const deductibleCheckboxes = inv_deductibleCostsContainer ? inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked') : [];
-                const deductedItemsData = [];
-                let totalDeductedCost = 0;
-                deductibleCheckboxes.forEach(checkbox => {
-                    const name = checkbox.value;
-                    const cost = parseFloat(checkbox.dataset.cost) || 0;
-                    const qtyToDeduct = 1; // Assuming quantity 1 for deducted items
-                    deductedItemsData.push({ name: name, quantity: qtyToDeduct, costPrice: cost });
-                    totalDeductedCost += (cost * qtyToDeduct);
-                });
-
-                const costOfSoldItems = invoiceItems.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0); // Use stored cost
-                const finalInvoiceProfit = totalGoods - costOfSoldItems - totalDeductedCost;
-
-                // Create map of all items to deduct from stock (invoice items + deducted items)
-                let requiredQuantities = {};
-                invoiceItems.forEach(item => {
-                    // Only count inventory items for stock deduction
-                     const product = products.find(p => p.name === item.name);
-                     if(product) {
-                         requiredQuantities[item.name] = (requiredQuantities[item.name] || 0) + item.quantity;
-                     }
-                });
-                deductedItemsData.forEach(item => {
-                     requiredQuantities[item.name] = (requiredQuantities[item.name] || 0) + item.quantity;
-                });
-
-                // Deduct from stock
-                Object.keys(requiredQuantities).forEach(itemName => {
-                     const productIndex = products.findIndex(p => p.name === itemName);
-                     if (productIndex !== -1) {
-                         products[productIndex].quantity -= requiredQuantities[itemName];
-                     }
-                });
-                // Remove zero-quantity products after deduction
-                products = products.filter(p => (Number(p.quantity) || 0) > 0.001);
-
-                 // **** تحديث حالة السيريالات المباعة ****
-                 invoiceItems.forEach(item => {
-                     if (item.serial) { // إذا كان هناك سيريال مرتبط بهذا البند
-                         const serialIndex = serialNumbersLog.findIndex(log => log.serial === item.serial);
-                         if (serialIndex !== -1) {
-                             serialNumbersLog[serialIndex].status = 'sold'; // تغيير الحالة إلى مباع
-                             console.log(`Serial ${item.serial} status updated to 'sold'.`);
-                         } else {
-                             // هذا لا يجب أن يحدث إذا كان المنطق صحيحاً، لكن نضيف تحذيراً
-                             console.warn(`Serial ${item.serial} selected in invoice but not found in log or was not in 'in_invoice_temp' status!`);
-                         }
-                     }
-                 });
-                 // **** نهاية تحديث حالة السيريالات ****
-
-
-                // --- Generate Invoice Number ---
-                const todayStr = currentLoadedDate ? currentLoadedDate.replace(/-/g, '') : getTodayDateString().replace(/-/g, '');
-                let maxSeq = 0;
-                salesToday.forEach(sale => {
-                     if (sale.invoiceNumber && sale.invoiceNumber.startsWith(todayStr)) {
-                         const seqPart = parseInt(sale.invoiceNumber.split('-')[1] || '0');
-                         if (seqPart > maxSeq) maxSeq = seqPart;
-                     }
-                });
-                const nextSeq = (maxSeq + 1).toString().padStart(3, '0');
-                const generatedInvoiceNumber = `${todayStr}-${nextSeq}`;
-
-                // --- Create Invoice Record ---
-                const invoiceRecord = {
-                    id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv-from-pend') : `inv-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-                    invoiceNumber: generatedInvoiceNumber, // Added invoice number
-                    type: isInvoiceFromPending ? 'invoice-from-pending' : 'invoice',
-                    timestamp: new Date().toISOString(),
-                    customerName: customerName,
-                    customerAddress: customerAddress,
-                    phones: phones,
-                    items: invoiceItems, // يتضمن الآن السيريال إذا تم اختياره
-                    shippingCost: shippingCost,
-                    totalGoodsPrice: totalGoods,
-                    grandTotal: grandTotal,
-                    warranty: warranty,
-                    notes: notes,
-                    deductedItems: deductedItemsData, // Store info about deducted items
-                    totalCost: costOfSoldItems + totalDeductedCost,
-                    profit: finalInvoiceProfit
-                };
-
-                // --- Handle State Updates based on Origin ---
-                if (isInvoiceFromPending && pendingSaleOriginData) {
-                    // Handle case: Invoice from Pending Sale Confirmation
-                     console.log("Saving invoice generated from confirmed pending sale.");
-                     // Sale was already logged as pending, cost deducted then.
-                     // Liquidity/Profit were NOT affected by pending sale, affect them now.
-                     liquidity += grandTotal;
-                     totalProfit += finalInvoiceProfit;
-
-                     const liqLogEntry = {
-                         id: `liq-${Date.now()}`,
-                         timestamp: new Date().toISOString(),
-                         type: "add",
-                         amount: grandTotal,
-                         description: `فاتورة ${generatedInvoiceNumber} (مؤكدة) لـ ${customerName || 'عميل'}`,
-                         currentBalance: liquidity
-                     };
-                     liquidityLog.push(liqLogEntry);
-                     logOperation("تأكيد بيع مؤقت بفاتورة", `تأكيد فاتورة ${generatedInvoiceNumber} لـ ${customerName || '-'}. الإجمالي: ${formatCurrency(grandTotal)}. الربح النهائي: ${formatCurrency(finalInvoiceProfit)}.`);
-
-                } else {
-                     // Handle case: Brand New Invoice
-                     console.log("Saving brand new invoice.");
-                     // Affect liquidity and profit
-                     liquidity += grandTotal;
-                     totalProfit += finalInvoiceProfit;
-
-                     let logItemsSummary = invoiceItems.map(i => `${i.quantity}x ${i.name}${i.serial ? ' (S/N: '+i.serial+')' : ''}`).join(', '); // أضف السيريال للسجل
-                     let deductedItemsSummary = deductedItemsData.map(d => `${d.quantity}x ${d.name} (تكلفة مخصومة)`).join(', ');
-                     let logDetails = `إنشاء فاتورة بيع ${generatedInvoiceNumber} لـ ${customerName || 'عميل غير مسمى'}. البنود: ${logItemsSummary}.`;
-                     if (deductedItemsSummary) logDetails += ` تم خصم تكلفة: ${deductedItemsSummary}.`;
-                     logDetails += ` الشحن: ${formatCurrency(shippingCost)}. الإجمالي: ${formatCurrency(grandTotal)}. التكلفة الكلية: ${formatCurrency(costOfSoldItems + totalDeductedCost)}. الربح: ${formatCurrency(finalInvoiceProfit)}.`;
-                     logOperation("إنشاء فاتورة بيع", logDetails);
-
-                     const liqLogEntry = {
-                         id: `liq-${Date.now()}`,
-                         timestamp: new Date().toISOString(),
-                         type: "add",
-                         amount: grandTotal,
-                         description: `فاتورة بيع ${generatedInvoiceNumber} لـ ${customerName || 'عميل غير مسمى'}`,
-                         currentBalance: liquidity
-                     };
-                     liquidityLog.push(liqLogEntry);
-                }
-
-                await saveInvoiceToFirestore(invoiceRecord); // Add record to salesToday array
-
-                // Reset flags and update UI
-                isInvoiceFromPending = false;
-                pendingSaleOriginData = null;
-                updateUI();
-                showGlobalMessage(`تم إنشاء وحفظ الفاتورة رقم ${generatedInvoiceNumber} لـ ${customerName || 'عميل'} بنجاح.`, false);
-                inv_closeModal();
             }
+        });
 
+        // ب. إنشاء كائن بيع مؤقت مفصل وإضافته للقائمة
+        const pendingSaleData = {
+            id: `pending-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            customerName: customerName,
+            items: invoiceItems,
+            totalSellPrice: grandTotal,
+            totalCost: costOfSoldItems + totalDeductedCost,
+            potentialProfit: finalInvoiceProfit,
+            status: 'pending',
+            invoiceData: { customerAddress, phones, shippingCost, warranty, notes, deductedItems: deductedItemsData }
+        };
+        pendingSales.push(pendingSaleData);
+        goodsOnConsignmentValue += (costOfSoldItems + totalDeductedCost);
+
+        logOperation("فاتورة مؤقتة", `تسجيل فاتورة مفصلة كبيع مؤقت لـ ${customerName}. الإجمالي المتوقع: ${formatCurrency(grandTotal)}.`);
+        showGlobalMessage(`تم حفظ الفاتورة كـ "بيع مؤقت" بنجاح.`, false);
+
+    } else {
+        // --- ★★★ منطق البيع النهائي (الكود القديم) ★★★ ---
+        
+        // أ. تحديث حالة السيريالات إلى "sold"
+        invoiceItems.forEach(item => {
+            if (item.serial) {
+                const serialIndex = serialNumbersLog.findIndex(log => log.serial === item.serial);
+                if (serialIndex !== -1) {
+                    serialNumbersLog[serialIndex].status = 'sold';
+                }
+            }
+        });
+        
+        // ب. تحديث السيولة والأرباح
+        liquidity += grandTotal;
+        totalProfit += finalInvoiceProfit;
+
+        // ج. إنشاء رقم الفاتورة وسجل البيع
+        const todayStr = currentLoadedDate ? currentLoadedDate.replace(/-/g, '') : getTodayDateString().replace(/-/g, '');
+        let maxSeq = 0;
+        salesToday.forEach(sale => { if (sale.invoiceNumber && sale.invoiceNumber.startsWith(todayStr)) { const seqPart = parseInt(sale.invoiceNumber.split('-')[1] || '0'); if (seqPart > maxSeq) maxSeq = seqPart; } });
+        const nextSeq = (maxSeq + 1).toString().padStart(3, '0');
+        const generatedInvoiceNumber = `${todayStr}-${nextSeq}`;
+
+        const invoiceRecord = {
+            id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv-from-pend') : `inv-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            invoiceNumber: generatedInvoiceNumber,
+            type: isInvoiceFromPending ? 'invoice-from-pending' : 'invoice',
+            timestamp: new Date().toISOString(),
+            customerName: customerName,
+            customerAddress: customerAddress,
+            phones: phones,
+            items: invoiceItems,
+            shippingCost: shippingCost,
+            totalGoodsPrice: totalGoods,
+            grandTotal: grandTotal,
+            warranty: warranty,
+            notes: notes,
+            deductedItems: deductedItemsData,
+            totalCost: costOfSoldItems + totalDeductedCost,
+            profit: finalInvoiceProfit
+        };
+        
+        // حفظ الفاتورة النهائية
+        salesToday.push(invoiceRecord);
+        await saveInvoiceToFirestore(invoiceRecord);
+        
+        const liqLogEntry = { id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: grandTotal, description: `فاتورة بيع ${generatedInvoiceNumber} لـ ${customerName}`, currentBalance: liquidity };
+        liquidityLog.push(liqLogEntry);
+
+        logOperation("إنشاء فاتورة بيع", `تم إنشاء فاتورة ${generatedInvoiceNumber} لـ ${customerName}. الإجمالي: ${formatCurrency(grandTotal)}. الربح: ${formatCurrency(finalInvoiceProfit)}.`);
+        showGlobalMessage(`تم إنشاء وحفظ الفاتورة رقم ${generatedInvoiceNumber} بنجاح.`, false);
+    }
+
+    // --- خطوات مشتركة في النهاية ---
+    isInvoiceFromPending = false;
+    pendingSaleOriginData = null;
+    updateUI();
+    inv_closeModal();
+}
 
             // (سيتم استكمال JavaScript في الجزء التالي 8ب)
 // (استكمالاً للجزء 8أ)
@@ -3844,7 +3890,16 @@ async function performDirectSearch() {
                     // Cancel / Return to Stock
                     if (confirm(`هل أنت متأكد من إلغاء هذا البيع المؤقت وإرجاع البضاعة للمخزون؟\nالعميل: ${sale.customerName || '-'}\nالتكلفة المسترجعة: ${formatCurrency(saleCost)}`)) {
                         // Return items to stock
-                        const itemsToReturn = [sale.mainProduct, ...(sale.additionalItems || [])];
+                      // استبدل السطر القديم بهذا الكود الجديد
+let itemsToReturn = [];
+// تحقق إذا كانت فاتورة مؤقتة مفصلة
+if (sale.items) {
+    itemsToReturn = sale.items;
+} 
+// إذا لم تكن، فهي بيع سريع مؤقت بالطريقة القديمة
+else if (sale.mainProduct) {
+    itemsToReturn = [sale.mainProduct, ...(sale.additionalItems || [])];
+}
                         itemsToReturn.forEach(item => {
                             const productIndex = products.findIndex(p => p.name === item.name);
                             if (productIndex !== -1) {
