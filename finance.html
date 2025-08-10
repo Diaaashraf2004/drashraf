@@ -9,6 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
+
         /* --- التنسيقات الأساسية --- */
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; margin: 0; padding: 0; }
         html { direction: rtl; }
@@ -387,6 +388,67 @@ input:checked:active + .slider:before {
 
 /* === نهاية التصميم الاحترافي الجديد === */
 }
+/* ... أكواد CSS أخرى ... */
+
+input:checked:active + .slider:before {
+    -webkit-transform: translateX(18px);
+    -ms-transform: translateX(18px);
+    transform: translateX(18px); /* يتم تعديل موضعه ليتناسب مع الحجم الجديد */
+}
+
+/* === نهاية التصميم الاحترافي الجديد === */
+} 
+/* ============================================= */
+/* ====== تنسيقات جدول تقرير المصروفات ====== */
+/* ============================================= */
+#expenses-report-table {
+    width: 100%;
+    border-collapse: collapse; /* يزيل المسافات المزدوجة بين الحدود */
+    margin-top: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    border-radius: 0.5rem;
+    overflow: hidden; /* لإخفاء الزوايا الحادة للخلفية */
+}
+
+#expenses-report-table th {
+    background-color: #f9fafb; /* خلفية رمادية فاتحة جداً للرأس */
+    color: #374151; /* لون نص أغمق قليلاً */
+    font-weight: 600;
+    text-align: right;
+    padding: 0.75rem 1rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+#expenses-report-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e5e7eb;
+    color: #4b5563; /* لون نص المحتوى */
+}
+
+/* سطر تجميع التاريخ */
+#expenses-report-table .date-group-header td {
+    background-color: #eff6ff; /* خلفية زرقاء فاتحة */
+    color: #1e40af; /* لون أزرق داكن للنص */
+    font-weight: bold;
+    padding: 0.5rem 1rem;
+    border-top: 2px solid #dbeafe;
+    border-bottom: 2px solid #dbeafe;
+}
+
+/* تظليل السطور الفردية لتحسين القراءة */
+#expenses-report-table tbody tr.expense-row:nth-child(even) {
+    background-color: #f9fafb;
+}
+
+#expenses-report-table tfoot td {
+    font-weight: bold;
+    font-size: 1.1em;
+    background-color: #f3f4f6;
+    border-top: 2px solid #d1d5db;
+}
+    </style>
+    <style>
+/* ... أكواد CSS أخرى ... */
     </style>
     <style>
         /* TailwindCSS Utility Class Placeholders (Copied for reference, not dynamically generated) */
@@ -433,6 +495,7 @@ input:checked:active + .slider:before {
             <button class="nav-button" data-target="liabilities-section">الالتزامات (عليك)</button>
             <button class="nav-button" data-target="offsetting-section">المقاصة</button>
             <button class="nav-button" data-target="sales-report-section">تقرير المبيعات</button>
+            <button class="nav-button" data-target="expenses-report-section">تقرير المصروفات</button>
             <button class="nav-button" data-target="financial-center-section">المركز المالي</button>
             <button class="nav-button" data-target="search-section">بحث الفواتير</button>
             <button class="nav-button" data-target="log-section">السجل العام</button>
@@ -1061,6 +1124,48 @@ input:checked:active + .slider:before {
                     </div>
                 </div>
             </section>
+            <section id="expenses-report-section" class="widget-card content-section hidden">
+    <h2>تقرير المصروفات الشهرية</h2>
+    <p class="text-sm text-gray-600 mb-4">
+        اختر الشهر لعرض تقرير مفصل بكل المصروفات، شاملةً سحب السيولة، المصاريف المباشرة، وتكلفة البضاعة المشتراة نقدًا.
+    </p>
+    <div class="flex flex-col sm:flex-row justify-start items-end gap-4 mb-4">
+        <div>
+            <label for="exp-report-month-year" class="block text-gray-700 text-sm font-bold mb-1">اختر الشهر:<span class="required">*</span></label>
+            <input type="month" id="exp-report-month-year" class="shadow-sm w-full sm:w-auto">
+        </div>
+        <button id="generate-exp-report-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded w-full sm:w-auto">
+            عرض تقرير المصروفات
+        </button>
+    </div>
+    <div id="exp-report-message" class="section-message text-sm mb-4"></div>
+    <div id="exp-report-summary-container" class="hidden">
+     <div class="bg-red-50 p-4 rounded-lg border border-red-200 mb-4">
+        <h3 class="text-sm font-medium text-red-700 mb-1">إجمالي المصروفات للشهر المحدد</h3>
+        <div id="exp-report-summary-total" class="text-2xl font-bold text-red-800">0.00 جنيه</div>
+    </div>
+</div>
+
+    <div id="expenses-report-display">
+        <h3 class="text-lg font-medium text-gray-700 mb-3">تفاصيل المصروفات للشهر المحدد</h3>
+        <div class="overflow-x-auto">
+            <table id="expenses-report-table" class="min-w-full">
+                <thead>
+                    <tr>
+                        <th class="px-4 py-2">تاريخ العملية</th>
+                        <th class="px-4 py-2">نوع المصروف</th>
+                        <th class="px-4 py-2">التفاصيل/السبب</th>
+                        <th class="px-4 py-2">المبلغ</th>
+                    </tr>
+                </thead>
+                <tbody id="expenses-report-table-body">
+                    <tr><td colspan="4" class="text-center text-gray-500 py-4">اختر الشهر واضغط "عرض التقرير".</td></tr>
+                </tbody>
+               
+            </table>
+        </div>
+    </div>
+</section>
 
             <section id="search-section" class="widget-card content-section hidden">
                 <h2>البحث عن فاتورة (لليوم الحالي)</h2>
@@ -3584,65 +3689,218 @@ function displaySalesReport(salesToDisplay) {
 // دالة جلب كل بيانات الشهر (الطريقة الأولى) - نسخة محدثة
 // ================== بداية دالة التقرير الجديدة والسريعة ==================
 // ================== بداية دالة التقرير الجديدة والسريعة ==================
-async function generateMonthlySalesReport() {
-    if (!reportMonthYearInput || !reportMessage || !window.currentUser) return;
+// =======================================================
+// START: دالة تقرير المبيعات (النسخة النهائية فائقة السرعة)
+// =======================================================
+// =======================================================
+// START: دالة البحث المباشر (النسخة النهائية فائقة السرعة)
+// =======================================================
+async function performDirectSearch() {
+    if (!reportMonthYearInput || !reportMessage || !reportSearchInput || !window.currentUser) return;
 
-    currentMonthlySalesData = []; // تصفير البيانات الحالية
-    if (reportSearchInput) reportSearchInput.value = '';
-    
     const yearMonth = reportMonthYearInput.value;
+    const searchTerm = reportSearchInput.value.trim().toLowerCase();
+
     if (!yearMonth) {
-        showMessage(reportMessage, "يرجى اختيار الشهر والسنة لعرض التقرير.", true); return;
+        showMessage(reportMessage, "يرجى اختيار الشهر للبحث فيه.", true); return;
+    }
+    if (!searchTerm) {
+        showMessage(reportMessage, "يرجى كتابة ما تريد البحث عنه أولاً.", true); return;
     }
 
-    showMessage(reportMessage, `جاري البحث السريع عن مبيعات شهر ${yearMonth}...`, false, true);
+    showMessage(reportMessage, `جاري البحث المباشر عن "${searchTerm}" في شهر ${yearMonth}...`, false, true);
+    displaySalesReport([]); // عرض جدول فارغ مبدئيًا
 
     try {
+        // بما أن جلب كل بيانات الشهر أصبح سريعًا، سنقوم بجلبها كلها ثم التصفية محليًا
+        // هذا أسرع وأكثر مرونة من عمل استعلامات معقدة
         const userId = window.currentUser.uid;
         const [year, month] = yearMonth.split('-');
         
-        // تحديد تاريخ بداية ونهاية الشهر للبحث
         const startDate = `${yearMonth}-01`;
-        const endDate = new Date(year, month, 0).toISOString().split('T')[0]; // آخر يوم في الشهر
+        const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
-        // إنشاء مسار لمجموعة الفواتير
         const invoicesColRef = window.collection(window.db, "users", userId, "invoices");
-
-        // إنشاء الاستعلام (Query)
         const q = window.query(invoicesColRef, 
             window.where("saleDate", ">=", startDate), 
-            window.where("saleDate", "<=", endDate),
-            window.orderBy("timestamp", "asc")
+            window.where("saleDate", "<=", endDate)
         );
 
-        // تنفيذ الاستعلام
         const querySnapshot = await window.getDocs(q);
         
-        let fetchedSales = [];
+        let allMonthSales = [];
         querySnapshot.forEach((doc) => {
-            fetchedSales.push(doc.data());
+            allMonthSales.push(doc.data());
         });
 
-        if (fetchedSales.length === 0) {
-            showMessage(reportMessage, `لا توجد مبيعات مسجلة للشهر المحدد.`, false, true);
-            displaySalesReport([]); // عرض جدول فارغ
+        // الآن نقوم بالتصفية على البيانات التي تم جلبها بسرعة
+        const matchedSales = allMonthSales.filter(sale => {
+            const customerMatch = (sale.customerName || '').toLowerCase().includes(searchTerm);
+            const invoiceNumberMatch = (sale.invoiceNumber || '').toLowerCase().includes(searchTerm);
+            const itemMatch = (sale.items || []).some(item => (item.name || '').toLowerCase().includes(searchTerm));
+            return customerMatch || itemMatch || invoiceNumberMatch;
+        });
+
+        if (matchedSales.length === 0) {
+            showMessage(reportMessage, `لم يتم العثور على نتائج للبحث المباشر.`, false, true);
             return;
         }
-        
-        // فرز النتائج حسب التاريخ
-        fetchedSales.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-        currentMonthlySalesData = fetchedSales; // تخزين البيانات للفلترة المحلية
-        displaySalesReport(currentMonthlySalesData); // عرض البيانات
+        matchedSales.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         
-        showMessage(reportMessage, `تم عرض ${currentMonthlySalesData.length} عملية بيع لشهر ${yearMonth}.`, false);
+        currentMonthlySalesData = matchedSales; // نخزن نتائج البحث فقط
+        displaySalesReport(currentMonthlySalesData);
+        
+        showMessage(reportMessage, `تم العثور على ${matchedSales.length} نتيجة للبحث المباشر.`, false);
 
     } catch (error) {
-        console.error("Error generating sales report with new method: ", error);
-        showMessage(reportMessage, "حدث خطأ أثناء جلب التقرير. راجع الـ Console.", true);
+        console.error("Error during direct search: ", error);
+        showMessage(reportMessage, "حدث خطأ أثناء البحث. راجع الـ Console.", true);
     }
 }
-// =================== نهاية دالة التقرير الجديدة والسريعة ===================// =================== نهاية دالة التقرير الجديدة والسريعة ===================
+// دالة مساعدة لاستخراج المبلغ من تفاصيل السجل
+function parseAmountFromLogDetails(details) {
+    // تبحث عن أي نمط مثل "بقيمة 100.50 جنيه" أو "سحب 50" أو "خصم 200"
+    const match = details.match(/(?:بقيمة|سحب|خصم)\s*([\d\.,]+)/);
+    if (match && match[1]) {
+        // تنظيف الرقم من الفواصل وتحويله
+        return parseFloat(match[1].replace(/,/g, ''));
+    }
+    return 0; // إذا لم تجد مبلغًا، ترجع صفرًا
+}
+
+// الدالة الرئيسية لإنشاء التقرير
+// =======================================================
+// START: دالة تقرير المصروفات (النسخة المعدلة والمبسطة)
+// =======================================================
+
+// (دالة parseAmountFromLogDetails تبقى كما هي بدون تغيير)
+function parseAmountFromLogDetails(details) {
+    const match = details.match(/(?:بقيمة|سحب|خصم)\s*([\d\.,]+)/);
+    if (match && match[1]) {
+        return parseFloat(match[1].replace(/,/g, ''));
+    }
+    return 0;
+}
+
+// الدالة الرئيسية لإنشاء التقرير (النسخة المعدلة)
+// =======================================================
+// START: دالة تقرير المصروفات (النسخة النهائية مع تجميع حسب التاريخ)
+// =======================================================
+// =======================================================
+// START: دالة تقرير المصروفات (النسخة النهائية فائقة السرعة)
+// =======================================================
+async function generateExpensesReport() {
+    const monthInput = d('exp-report-month-year');
+    const messageEl = d('exp-report-message');
+    const tableBody = d('expenses-report-table-body');
+    const summaryContainer = d('exp-report-summary-container');
+    const summaryTotalEl = d('exp-report-summary-total');
+
+    if (!monthInput || !messageEl || !tableBody || !summaryTotalEl || !summaryContainer) return;
+
+    const yearMonth = monthInput.value;
+    if (!yearMonth) {
+        showMessage(messageEl, "يرجى اختيار الشهر والسنة.", true);
+        return;
+    }
+
+    showMessage(messageEl, `جاري تحميل وتنسيق المصروفات لشهر ${yearMonth}...`, false, true);
+    summaryContainer.classList.add('hidden');
+    tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">جاري التحميل...</td></tr>`;
+
+    const datesInMonth = getMonthStartDateEndDate(yearMonth);
+    let allExpenses = [];
+
+    try {
+        // ★★★ بداية التعديل الرئيسي لتحسين السرعة ★★★
+        
+        // 1. إنشاء مصفوفة من الوعود (Promises) لجلب كل الأيام دفعة واحدة
+        const fetchPromises = datesInMonth.map(dateStr => fetchOnlineDataForDate(dateStr));
+        
+        // 2. انتظار وصول كل البيانات بشكل متوازٍ باستخدام Promise.all
+        const allDaysData = await Promise.all(fetchPromises);
+        
+        // 3. معالجة البيانات بعد وصولها بالكامل
+        allDaysData.forEach((dayData, index) => {
+            if (dayData && Array.isArray(dayData.log)) {
+                const dateStr = datesInMonth[index]; // الحصول على التاريخ الصحيح
+                dayData.log.forEach(log => {
+                    let expense = null;
+                    const amount = parseAmountFromLogDetails(log.details);
+                    if (amount > 0) {
+                        let cleanDetails = log.details;
+                        if (log.type === "تسجيل مصروف") {
+                            cleanDetails = log.details.replace(/بقيمة.*$/, '').trim();
+                            expense = { date: dateStr, type: "مصروف مباشر", details: cleanDetails, amount: amount };
+                        } else if (log.type === "سحب سيولة") {
+                            const reasonMatch = log.details.match(/بسبب "([^"]+)"/);
+                            cleanDetails = reasonMatch ? reasonMatch[1] : log.details;
+                            expense = { date: dateStr, type: "سحب سيولة", details: cleanDetails, amount: amount };
+                        }
+                    }
+                    if (expense) {
+                        allExpenses.push(expense);
+                    }
+                });
+            }
+        });
+
+        // ★★★ نهاية التعديل الرئيسي ★★★
+
+    } catch (error) {
+        console.error("Error fetching expenses data in parallel:", error);
+        showMessage(messageEl, "حدث خطأ أثناء جلب البيانات.", true);
+        return;
+    }
+
+    // عرض النتائج (هذا الجزء يبقى كما هو)
+    tableBody.innerHTML = '';
+    if (allExpenses.length === 0) {
+        showMessage(messageEl, `لا توجد مصروفات مسجلة للشهر المحدد.`, false, true);
+        tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">لا توجد نتائج.</td></tr>`;
+        summaryTotalEl.textContent = formatCurrency(0);
+        summaryContainer.classList.remove('hidden');
+        return;
+    }
+
+    const groupedExpenses = allExpenses.reduce((acc, exp) => {
+        const date = exp.date;
+        if (!acc[date]) { acc[date] = []; }
+        acc[date].push(exp);
+        return acc;
+    }, {});
+
+    const sortedDates = Object.keys(groupedExpenses).sort((a, b) => new Date(a) - new Date(b));
+    
+    let totalAmount = 0;
+    sortedDates.forEach(date => {
+        const dateHeaderRow = tableBody.insertRow();
+        dateHeaderRow.className = 'date-group-header';
+        dateHeaderRow.innerHTML = `<td colspan="4">${formatDateForDisplay(date)}</td>`;
+
+        const expensesForDay = groupedExpenses[date];
+        expensesForDay.forEach(exp => {
+            totalAmount += exp.amount;
+            const row = tableBody.insertRow();
+            row.className = 'expense-row';
+            row.innerHTML = `
+                <td></td>
+                <td>${exp.type}</td>
+                <td>${exp.details}</td>
+                <td class="text-center font-mono">${formatCurrency(exp.amount)}</td>
+            `;
+        });
+    });
+
+    summaryTotalEl.textContent = formatCurrency(totalAmount);
+    summaryContainer.classList.remove('hidden');
+    showMessage(messageEl, `تم عرض ${allExpenses.length} عملية مصروف.`, false);
+}
+// =======================================================
+// END: دالة تقرير المصروفات
+// =======================================================
+
 
 // =====================================================================
 // == بداية الكود الجديد والمحسّن لتقرير المبيعات (نسخة ضد التكرار) ==
@@ -3707,8 +3965,11 @@ async function generateMonthlySalesReport() {
 
 
 // دالة البحث المباشر (الطريقة الثانية) - نسخة محدثة
+// =======================================================
+// START: دالة البحث المباشر (النسخة النهائية فائقة السرعة)
+// =======================================================
 async function performDirectSearch() {
-    if (!reportMonthYearInput || !reportMessage || !reportSearchInput) return;
+    if (!reportMonthYearInput || !reportMessage || !reportSearchInput || !window.currentUser) return;
 
     const yearMonth = reportMonthYearInput.value;
     const searchTerm = reportSearchInput.value.trim().toLowerCase();
@@ -3721,49 +3982,54 @@ async function performDirectSearch() {
     }
 
     showMessage(reportMessage, `جاري البحث المباشر عن "${searchTerm}" في شهر ${yearMonth}...`, false, true);
+    displaySalesReport([]); // عرض جدول فارغ مبدئيًا
 
-    const datesInMonth = getMonthStartDateEndDate(yearMonth);
-    let matchedSales = [];
+    try {
+        // بما أن جلب كل بيانات الشهر أصبح سريعًا، سنقوم بجلبها كلها ثم التصفية محليًا
+        // هذا أسرع وأكثر مرونة من عمل استعلامات معقدة
+        const userId = window.currentUser.uid;
+        const [year, month] = yearMonth.split('-');
+        
+        const startDate = `${yearMonth}-01`;
+        const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
-    for (const dateStr of datesInMonth) {
-        const dayData = await fetchOnlineDataForDate(dateStr);
-        let salesForThisDay = dayData ? (dayData.salesToday || dayData.salestoday || []) : [];
+        const invoicesColRef = window.collection(window.db, "users", userId, "invoices");
+        const q = window.query(invoicesColRef, 
+            window.where("saleDate", ">=", startDate), 
+            window.where("saleDate", "<=", endDate)
+        );
 
-        if (Array.isArray(salesForThisDay) && salesForThisDay.length > 0) {
-            const dayMatches = salesForThisDay.filter(sale => {
-                const customerMatch = (sale.customerName || '').toLowerCase().includes(searchTerm);
-                const invoiceNumberMatch = (sale.invoiceNumber || '').toLowerCase().includes(searchTerm);
-                const itemMatch = (sale.items || []).some(item => (item.name || '').toLowerCase().includes(searchTerm));
-                return customerMatch || itemMatch || invoiceNumberMatch;
-            });
+        const querySnapshot = await window.getDocs(q);
+        
+        let allMonthSales = [];
+        querySnapshot.forEach((doc) => {
+            allMonthSales.push(doc.data());
+        });
 
-            if (dayMatches.length > 0) {
-                dayMatches.forEach(sale => sale.saleDate = dateStr);
-                matchedSales.push(...dayMatches);
-            }
+        // الآن نقوم بالتصفية على البيانات التي تم جلبها بسرعة
+        const matchedSales = allMonthSales.filter(sale => {
+            const customerMatch = (sale.customerName || '').toLowerCase().includes(searchTerm);
+            const invoiceNumberMatch = (sale.invoiceNumber || '').toLowerCase().includes(searchTerm);
+            const itemMatch = (sale.items || []).some(item => (item.name || '').toLowerCase().includes(searchTerm));
+            return customerMatch || itemMatch || invoiceNumberMatch;
+        });
+
+        if (matchedSales.length === 0) {
+            showMessage(reportMessage, `لم يتم العثور على نتائج للبحث المباشر.`, false, true);
+            return;
         }
+
+        matchedSales.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        
+        currentMonthlySalesData = matchedSales; // نخزن نتائج البحث فقط
+        displaySalesReport(currentMonthlySalesData);
+        
+        showMessage(reportMessage, `تم العثور على ${matchedSales.length} نتيجة للبحث المباشر.`, false);
+
+    } catch (error) {
+        console.error("Error during direct search: ", error);
+        showMessage(reportMessage, "حدث خطأ أثناء البحث. راجع الـ Console.", true);
     }
-    
-    // --- التحسينات الجديدة ---
-    // 1. إزالة التكرار من نتائج البحث
-    const uniqueMatches = [];
-    const seen = new Set();
-    matchedSales.forEach(sale => {
-        const saleKey = `${sale.timestamp}-${sale.customerName}-${sale.grandTotal}`;
-        if (!seen.has(saleKey)) {
-            seen.add(saleKey);
-            uniqueMatches.push(sale);
-        }
-    });
-
-    // 2. فرز دقيق للنتائج النظيفة
-    uniqueMatches.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    
-    // 3. عرض النتائج النظيفة
-    currentMonthlySalesData = []; 
-    displaySalesReport(uniqueMatches); 
-    
-    showMessage(reportMessage, `تم العثور على ${uniqueMatches.length} نتيجة فريدة للبحث المباشر.`, false);
 }
 
 // =====================================================================
@@ -5229,6 +5495,7 @@ if (fc_execute_dist_btn) {
     });
 }
                  if (generateReportButton) { generateReportButton.addEventListener("click", generateMonthlySalesReport); }
+                 if (d('generate-exp-report-button')) { d('generate-exp-report-button').addEventListener('click', generateExpensesReport); }
                  if (addSupplierButton) { 
     addSupplierButton.addEventListener("click", () => {
         saveStateToHistory(); // <-- أضف هذا السطر
