@@ -1359,7 +1359,8 @@ input:checked:active + .slider:before {
                         <button type="button" id="inv_saveInvoiceBtn" class="no-print">إنشاء وحفظ الفاتورة</button>
                         <button type="button" class="invoice-close-btn-footer modal-close-btn-footer no-print">إغلاق</button>
                     </div>
-                </div> </div> <div id="manageSerialsModal" class="modal">
+                </div>
+         </div> <div id="manageSerialsModal" class="modal">
                 <div class="modal-content">
                     <div class="modal-header">
                         <span class="modal-close-btn no-print">&times;</span>
@@ -1402,6 +1403,26 @@ input:checked:active + .slider:before {
                         <button type="button" class="modal-close-btn-footer no-print">إغلاق</button>
                     </div>
                 </div> </div> 
+                <div id="backupHistoryModal" class="modal">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <span class="modal-close-btn no-print">&times;</span>
+            <h2>سجل النسخ الاحتياطية التلقائية لليوم</h2>
+        </div>
+        <div class="modal-body">
+            <p class="text-sm text-gray-600 mb-4">
+                هذه قائمة بآخر النسخ التي تم حفظها تلقائيًا. اختر النسخة التي تريد استعادتها.
+            </p>
+            <div id="backup-history-list" class="space-y-2" style="max-height: 60vh; overflow-y: auto;">
+                <p class="text-center text-gray-500">جاري تحميل السجل...</p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="modal-close-btn-footer no-print">إغلاق</button>
+        </div>
+    </div>
+</div>
+
             <section id="settings-section" class="widget-card content-section hidden">
                 <h2>تحميل/حفظ/إعدادات</h2>
                 <div id="load-data-sub-section" class="mb-6 pb-4 border-b">
@@ -1432,6 +1453,18 @@ input:checked:active + .slider:before {
                      <p class="text-xs text-gray-500 mt-2 text-center">ملاحظة: عند الاستيراد، اختر أولاً التاريخ الذي تريد الاستيراد إليه من قسم "تحميل بيانات تاريخ سابق".</p>
                     <div id="import-message" class="section-message text-sm mt-2"></div>
                 </div>
+                <div id="safety-net-section" class="mb-6 pb-4 border-b">
+    <h3 class="text-lg font-medium text-yellow-700 mb-3">🛡️ شبكة الأمان (استعادة الطوارئ)</h3>
+    <p class="text-xs text-gray-500 mb-3">
+        إذا حدث خطأ كارثي وتم حفظ بيانات فارغة أو خاطئة تلقائيًا، يمكنك استخدام هذا الزر لاستعادة بياناتك كما كانت عند آخر عملية حفظ تلقائي ناجحة.
+    </p>
+    <div class="flex flex-col sm:flex-row justify-center items-center gap-4 flex-wrap">
+        <button id="open-backup-history-button" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded">
+    عرض واستعادة النسخ الاحتياطية لليوم
+</button>
+    </div>
+    <div id="auto-backup-message" class="section-message text-sm mt-2"></div>
+</div>
 
                 <div id="controls-sub-section" class="mt-6 flex flex-col sm:flex-row justify-center items-center flex-wrap gap-4">
                     
@@ -1478,7 +1511,8 @@ input:checked:active + .slider:before {
             //     showGlobalMessage('حدث خطأ غير متوقع في البرنامج. يرجى مراجعة الـ console لمزيد من التفاصيل ومحاولة تحديث الصفحة.', true);
             // }
         });
-
+const lsAutoBackupPrefix = "goodsMgmt_auto_backup_"; // مفتاح لنسخة الطوارئ
+const MAX_DAILY_BACKUPS = 15; // الحد الأقصى لعدد نسخ الطوارئ في اليوم
         // اختيارياً: يمكنك أيضاً التقاط الأخطاء في الـ Promises التي لم يتم التعامل معها
         window.addEventListener('unhandledrejection', function(event) {
             console.error('!!! خطأ Promise غير معالج تم اكتشافه !!!');
@@ -1585,7 +1619,9 @@ let fc_main_tabs, fc_tab_buttons, fc_tab_contents, fc_month_select, fc_expenses_
     fc_debt_select, fc_execute_dist_btn, fc_execute_debt_btn, reportSearchInput,
     reportClearSearchBtn,
     salesReportSearchContainer, reportDirectSearchBtn; 
-    
+    let openBackupHistoryButton, autoBackupMessage, backupHistoryModal, backupHistoryList;
+
+
 
         // --- الدوال المساعدة (Helper Functions) ---
 
@@ -2266,6 +2302,38 @@ async function saveCurrentStateByDate(dateString) {
         return;
     }
     const userId = window.currentUser.uid;
+    try {
+        const docRefForBackup = window.doc(window.db, "users", userId, "days", dateString);
+        const docSnap = await window.getDoc(docRefForBackup);
+
+        if (docSnap.exists()) {
+            // الخطوة 1: إنشاء مفتاح فريد بالوقت الحالي للنسخة الجديدة
+            const timestamp = new Date().toISOString();
+            const backupKey = `goodsMgmt_backup_${dateString}_${timestamp}`;
+            saveData(backupKey, docSnap.data());
+            console.log(`Safety Net: Created new backup: ${backupKey}`);
+
+            // الخطوة 2: تنظيف النسخ القديمة
+            let dayBackups = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith(`goodsMgmt_backup_${dateString}_`)) {
+                    dayBackups.push(key);
+                }
+            }
+            
+            if (dayBackups.length > MAX_DAILY_BACKUPS) {
+                dayBackups.sort(); // الفرز سيجعل أقدم نسخة في البداية
+                const backupsToDelete = dayBackups.length - MAX_DAILY_BACKUPS;
+                for (let i = 0; i < backupsToDelete; i++) {
+                    console.log(`Safety Net: Deleting old backup: ${dayBackups[i]}`);
+                    localStorage.removeItem(dayBackups[i]);
+                }
+            }
+        }
+    } catch (error) {
+        console.error("Safety Net: Failed to create backup before saving.", error);
+    }
 
     console.log(`Saving data to Firebase for date: ${dateString} for user: ${userId}`);
 
@@ -2311,6 +2379,51 @@ async function saveCurrentStateByDate(dateString) {
         console.error("Error saving data to Firebase: ", error);
         showGlobalMessage("حدث خطأ أثناء محاولة حفظ البيانات على الإنترنت. يرجى مراجعة الـ Console.", true);
     }
+}
+// دالة لفتح نافذة سجل النسخ الاحتياطية
+function openBackupHistoryModal() {
+    const targetDate = currentLoadedDate || getTodayDateString();
+    const modal = d('backupHistoryModal');
+    const listContainer = d('backup-history-list');
+    
+    if (!modal || !listContainer) return;
+
+    let dayBackups = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith(`goodsMgmt_backup_${targetDate}_`)) {
+            dayBackups.push(key);
+        }
+    }
+
+    dayBackups.sort().reverse(); // الفرز العكسي لعرض الأحدث أولاً
+
+    if (dayBackups.length === 0) {
+        listContainer.innerHTML = '<p class="text-center text-gray-500">لا توجد نسخ احتياطية تلقائية لهذا اليوم.</p>';
+    } else {
+        listContainer.innerHTML = dayBackups.map(key => {
+            const timestamp = key.split('_').pop(); // استخراج الوقت من اسم المفتاح
+            const backupDate = new Date(timestamp);
+            const formattedTime = backupDate.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            
+            return `
+                <div class="flex justify-between items-center p-2 bg-gray-50 rounded border">
+                    <span class="font-semibold text-gray-700">نسخة الساعة: ${formattedTime}</span>
+                    <button data-backup-key="${key}" class="restore-backup-btn text-xs bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded">
+                        استعادة
+                    </button>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    modal.style.display = 'block';
+}
+
+// دالة لإغلاق نافذة سجل النسخ الاحتياطية
+function closeBackupHistoryModal() {
+    const modal = d('backupHistoryModal');
+    if (modal) modal.style.display = 'none';
 }
 // دالة لتشغيل أو إيقاف الحفظ التلقائي
 function toggleAutoSave() {
@@ -4083,6 +4196,8 @@ async function performDirectSearch() {
                              profit: confirmedSaleData.potentialProfit,
                          };
                          await saveInvoiceToFirestore(saleRecord);
+                         salesToday.push(saleRecord);
+logOperation("تحديث سجل المبيعات", `تمت إضافة البيعة المؤكدة ${saleRecord.id} إلى سجل مبيعات اليوم.`);
 
                         updateUI();
                         showGlobalMessage("تم تأكيد البيع المؤقت بنجاح.", false);
@@ -4950,6 +5065,10 @@ monthlyLiabilityFormTitle = d('monthly-liability-form-title');
                   searchByNameBtn = d('search-by-name-btn');
                   searchMessageContainer = d('search-message');
                   searchResultsListContainer = d('search-results-list');
+                 openBackupHistoryButton = d('open-backup-history-button');
+autoBackupMessage = d('auto-backup-message');
+backupHistoryModal = d('backupHistoryModal');
+backupHistoryList = d('backup-history-list');
                   // --- Financial Center (FC) Elements ---
 fc_main_tabs = d('fc-main-tabs');
 fc_tab_buttons = document.querySelectorAll('.fc-tab-button');
@@ -5635,6 +5754,44 @@ if (fc_execute_dist_btn) {
                      });
                  }
                  // ... بعد كل أسطر addEventListener الأخرى
+               // === بداية الكود الجديد لشبكة الأمان المطورة ===
+if (openBackupHistoryButton) {
+    openBackupHistoryButton.addEventListener('click', openBackupHistoryModal);
+}
+
+if (backupHistoryModal) {
+    // إغلاق النافذة عند الضغط على زر الإغلاق أو الخلفية
+    backupHistoryModal.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal') || e.target.closest('.modal-close-btn') || e.target.closest('.modal-close-btn-footer')) {
+            closeBackupHistoryModal();
+        }
+    });
+
+    // التعامل مع الضغط على زر "استعادة" داخل النافذة
+    backupHistoryModal.addEventListener('click', async (e) => {
+        const restoreButton = e.target.closest('.restore-backup-btn');
+        if (!restoreButton) return;
+
+        const backupKey = restoreButton.dataset.backupKey;
+        if (!backupKey) return;
+
+        if (confirm(`هل أنت متأكد من استعادة هذه النسخة؟ سيتم الكتابة فوق البيانات الحالية.`)) {
+            const backupData = fetchData(backupKey, null);
+            if (backupData) {
+                console.log(`Restoring from key: ${backupKey}`);
+                loadState(backupData, backupData.savedForDate);
+                await saveCurrentStateByDate(backupData.savedForDate);
+                updateUI();
+                closeBackupHistoryModal();
+                showGlobalMessage("تم استعادة النسخة الاحتياطية المحددة بنجاح!", false);
+            } else {
+                showGlobalMessage("فشلت عملية الاستعادة، النسخة غير موجودة.", true);
+            }
+        }
+    });
+}
+// === نهاية الكود الجديد لشبكة الأمان المطورة ===
+
 
 // إسناد متغيرات عناصر البحث
 reportSearchInput = d('report-search-input');
