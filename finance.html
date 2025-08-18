@@ -3056,8 +3056,11 @@ function processMonthlyLiabilities() {
                      if (tempUnavailableDeducted) return; // Stop checking if one error found
                      const name = checkbox.value;
                      const available = parseInt(checkbox.dataset.available) || 0;
-                     const qtyToDeduct = 1; // Currently hardcoded to 1 for deducted items
-                     if (available < qtyToDeduct) {
+                    const parentLabel = checkbox.closest('label');
+const quantityInput = parentLabel.querySelector('.inv-deducted-item-quantity');
+const qtyToDeduct = parseInt(quantityInput.value) || 0; // يقرأ الكمية من الحقل الجديد
+
+if (available < qtyToDeduct) {
                          tempUnavailableDeducted = { name: name, required: qtyToDeduct, available: available };
                      }
                  });
@@ -3104,13 +3107,21 @@ function processMonthlyLiabilities() {
     const deductibleCheckboxes = inv_deductibleCostsContainer ? inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked') : [];
     const deductedItemsData = [];
     let totalDeductedCost = 0;
-    deductibleCheckboxes.forEach(checkbox => {
-        const name = checkbox.value;
-        const cost = parseFloat(checkbox.dataset.cost) || 0;
-        const qtyToDeduct = 1;
+   deductibleCheckboxes.forEach(checkbox => {
+    const name = checkbox.value;
+    const cost = parseFloat(checkbox.dataset.cost) || 0;
+
+    // --- بداية التعديل ---
+    const parentLabel = checkbox.closest('label');
+    const quantityInput = parentLabel.querySelector('.inv-deducted-item-quantity');
+    const qtyToDeduct = parseInt(quantityInput.value) || 0;
+    // --- نهاية التعديل ---
+
+    if (qtyToDeduct > 0) { // التأكد من أن الكمية صالحة قبل إضافتها
         deductedItemsData.push({ name: name, quantity: qtyToDeduct, costPrice: cost });
         totalDeductedCost += (cost * qtyToDeduct);
-    });
+    }
+});
 
     const costOfSoldItems = invoiceItems.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
     const finalInvoiceProfit = totalGoods - costOfSoldItems - totalDeductedCost;
@@ -3481,36 +3492,49 @@ function printPendingSaleAsInvoice(pendingId) {
                 if(inv_grandTotalPriceSpan) inv_grandTotalPriceSpan.textContent = formatCurrency(grandTotal);
             }
 
-            function inv_updateDeductibleCostsCheckboxes() {
-                if (!inv_deductibleCostsContainer) return;
-                inv_deductibleCostsContainer.innerHTML = '';
-                const itemsInInvoice = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => row.dataset.itemName.toLowerCase()) : [];
-                const availableForDeduction = products.filter(p =>
-                    !itemsInInvoice.includes(p.name.toLowerCase()) && (Number(p.quantity) || 0) > 0
-                );
+          function inv_updateDeductibleCostsCheckboxes() {
+    if (!inv_deductibleCostsContainer) return;
+    inv_deductibleCostsContainer.innerHTML = '';
+    const itemsInInvoice = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => row.dataset.itemName.toLowerCase()) : [];
+    const availableForDeduction = products.filter(p =>
+        !itemsInInvoice.includes(p.name.toLowerCase()) && (Number(p.quantity) || 0) > 0
+    );
 
-                if (availableForDeduction.length === 0) {
-                    inv_deductibleCostsContainer.innerHTML = '<p class="text-center text-sm" style="color:grey;">لا توجد منتجات أخرى متاحة لخصم تكلفتها.</p>';
-                    return;
-                }
+    if (availableForDeduction.length === 0) {
+        inv_deductibleCostsContainer.innerHTML = '<p class="text-center text-sm" style="color:grey;">لا توجد منتجات أخرى متاحة لخصم تكلفتها.</p>';
+        return;
+    }
 
-                availableForDeduction.sort((a, b) => a.name.localeCompare(b.name, 'ar')).forEach(product => {
-                     const qtyAvailable = Number(product.quantity) || 0;
-                     const cost = Number(product.costPrice) || 0;
-                     const label = document.createElement('label');
-                     const checkbox = document.createElement('input');
-                     checkbox.type = 'checkbox';
-                     checkbox.value = product.name;
-                     checkbox.dataset.cost = cost;
-                     checkbox.dataset.available = qtyAvailable; // Store available qty
-                     checkbox.id = `inv_deductcost_${generateId(product.name)}`;
-                     label.htmlFor = checkbox.id;
-                     label.appendChild(checkbox);
-                     label.appendChild(document.createTextNode(` ${product.name} (تكلفة: ${formatCurrency(cost)}, متاح: ${qtyAvailable})`));
-                     inv_deductibleCostsContainer.appendChild(label);
-                 });
-             }
-
+    availableForDeduction.sort((a, b) => a.name.localeCompare(b.name, 'ar')).forEach(product => {
+        const qtyAvailable = Number(product.quantity) || 0;
+        const cost = Number(product.costPrice) || 0;
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = product.name;
+        checkbox.dataset.cost = cost;
+        checkbox.dataset.available = qtyAvailable;
+        checkbox.id = `inv_deductcost_${generateId(product.name)}`;
+        
+        // --- بداية التعديل ---
+        label.style.display = 'flex';
+        label.style.alignItems = 'center';
+        label.style.gap = '8px'; // إضافة مسافة بين العناصر
+        label.htmlFor = checkbox.id;
+        
+        label.appendChild(checkbox);
+        label.innerHTML += `
+            <span style="flex-grow: 1;">
+                 ${product.name} (تكلفة: ${formatCurrency(cost)}, متاح: ${qtyAvailable})
+            </span>
+            <span style="flex-shrink: 0; font-size: 0.9em; color: #555; margin-right: 5px;">الكمية:</span>
+            <input type="number" class="inv-deducted-item-quantity" min="1" value="1" style="width: 60px; text-align: center; flex-shrink: 0; border: 1px solid #ccc; border-radius: 4px; padding: 2px;">
+        `;
+        // --- نهاية التعديل ---
+        
+        inv_deductibleCostsContainer.appendChild(label);
+    });
+}
             // --- Manage Serials Modal Logic ---
             function openManageSerialsModal(productName) {
                 currentManagingSerialsProduct = productName; // Store the product name being managed
