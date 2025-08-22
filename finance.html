@@ -852,6 +852,7 @@ input:checked:active + .slider:before {
                     </div>
                     <div class="flex flex-wrap gap-4 mt-6">
                         <button id="sell-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">بيع البضاعة (سريع/مؤقت)</button>
+                        <button id="cancel-edit-pending-button" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded hidden">إلغاء التعديل</button>
                         <button type="button" id="openInvoiceModalBtn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">إنشاء فاتورة بيع مفصلة</button>
                     </div>
                     <div id="sell-message" class="section-message mt-3"></div>
@@ -1527,6 +1528,7 @@ const MAX_DAILY_BACKUPS = 15; // الحد الأقصى لعدد نسخ الطو�
         const lsLastSaveKey = "goodsMgmt_lastSaveDate";
 
         // --- متغيرات الحالة (Main App State) ---
+        let editingPendingSaleId = null; // To track which pending sale is being edited
         let monthlyLiabilities = []; // لتخزين قائمة الالتزامات الشهرية
 let editingMonthlyLiabilityId = null; // لمعرفة الالتزام الذي يتم تعديله
 const lsLastProcessedMonthKey = "goodsMgmt_lastProcessedMonth"; // مفتاح لتخزين آخر شهر تمت معالجته
@@ -2115,6 +2117,7 @@ resetMonthlyLiabilityForm();
              option.textContent = `${liability.name} (${formatCurrency(liability.amount)})`; paymentCreditorSelect.appendChild(option); if (liability.id === currentSelection) { hasSelection = true; } }); if (hasSelection) { paymentCreditorSelect.value = currentSelection; } else { paymentCreditorSelect.value = ""; } }
 
         // --- << تعديل دالة تحديث المبيعات المؤقتة >> ---
+     
        function updatePendingSalesDisplay() {
     if (!pendingSalesListContainer || !pendingSalesSearchInput || !pendingSalesTotalCostSpan || !pendingSalesTotalProfitSpan) return;
 
@@ -2122,7 +2125,7 @@ resetMonthlyLiabilityForm();
     let totalPendingCost = 0;
     let totalPendingProfit = 0;
     pendingSales.forEach(sale => {
-        totalPendingCost += calculateSinglePendingSaleCost(sale); // Uses the corrected helper function
+        totalPendingCost += calculateSinglePendingSaleCost(sale);
         totalPendingProfit += (Number(sale.potentialProfit) || 0);
     });
     pendingSalesTotalCostSpan.textContent = `إجمالي التكلفة: ${formatCurrency(totalPendingCost)}`;
@@ -2133,13 +2136,10 @@ resetMonthlyLiabilityForm();
     const filteredSales = pendingSales.filter(sale => {
         if (!searchTerm) return true;
         const customerMatch = sale.customerName && sale.customerName.toLowerCase().includes(searchTerm);
-        
-        // ★★★ تصحيح مهم هنا ★★★
-        // يتحقق من وجود items (للفواتير) أو mainProduct (للبيع السريع)
         let productMatch = false;
-        if (sale.items) { // For detailed invoices
+        if (sale.items) {
             productMatch = sale.items.some(item => item.name.toLowerCase().includes(searchTerm));
-        } else if (sale.mainProduct) { // For quick sales
+        } else if (sale.mainProduct) {
             productMatch = sale.mainProduct.name.toLowerCase().includes(searchTerm);
         }
         return customerMatch || productMatch;
@@ -2152,35 +2152,43 @@ resetMonthlyLiabilityForm();
     }
 
     pendingSalesListContainer.innerHTML = filteredSales.map(sale => {
-        let itemsText;
-        // ★★★ تصحيح مهم هنا ★★★
-        // يعرض البنود بشكل مختلف حسب نوع البيع المؤقت
-        if (sale.items) { // For detailed invoices
+        let itemsText, attachmentsHTML = '';
+        
+        // ★★★ بداية الجزء الجديد لعرض الملحقات ★★★
+        const attachments = sale.additionalItems || (sale.invoiceData ? sale.invoiceData.deductedItems : []);
+        if (attachments && attachments.length > 0) {
+            attachmentsHTML = `
+                <div class="text-xs text-gray-500 mt-1 pl-4">
+                    <strong>مشتملات:</strong> ${attachments.map(item => `${item.quantity}x ${item.name}`).join(', ')}
+                </div>
+            `;
+        }
+        // ★★★ نهاية الجزء الجديد ★★★
+
+        if (sale.items) {
             itemsText = sale.items.map(item => `${item.quantity}x "${item.name}"`).join(', ');
-            if (itemsText.length > 50) itemsText = itemsText.substring(0, 50) + "..."; // Shorten if too long
+            if (itemsText.length > 50) itemsText = itemsText.substring(0, 50) + "...";
             itemsText = `<b>[فاتورة]</b> ${itemsText}`;
-        } else if (sale.mainProduct) { // For quick sales
+        } else if (sale.mainProduct) {
             itemsText = `${sale.mainProduct.quantity}x "${sale.mainProduct.name}"`;
-            if (sale.additionalItems && sale.additionalItems.length > 0) {
-                itemsText += ` مع ملحقات`;
-            }
         }
 
         let customerInfo = sale.customerName ? `<span class="block text-sm text-blue-600">العميل: ${sale.customerName}</span>` : '';
         const saleCost = calculateSinglePendingSaleCost(sale);
+        
         return `<li>
                     <div class="flex justify-between items-start gap-2 flex-wrap">
                         <div>
                             <span class="block font-semibold">${itemsText}</span>
                             ${customerInfo}
-                            <span class="block text-sm details">السعر المتوقع: ${formatCurrency(sale.totalSellPrice)} | التكلفة: ${formatCurrency(saleCost)} | الربح المتوقع: ${formatCurrency(sale.potentialProfit)}</span>
+                            ${attachmentsHTML}
+                            <span class="block text-sm details mt-1">السعر المتوقع: ${formatCurrency(sale.totalSellPrice)} | التكلفة: ${formatCurrency(saleCost)} | الربح المتوقع: ${formatCurrency(sale.potentialProfit)}</span>
                             <span class="block text-xs text-gray-400">${formatDateTime(sale.timestamp)}</span>
                         </div>
                         <div class="actions flex-shrink-0 flex flex-col sm:flex-row gap-1 mt-1 sm:mt-0">
+                             <button data-pending-id="${sale.id}" class="edit-pending bg-blue-500 hover:bg-blue-600 text-white rounded px-2 py-1 text-xs border border-blue-700">تعديل</button>
                             <button data-pending-id="${sale.id}" class="confirm-pending bg-green-500 hover:bg-green-600 text-white rounded px-2 py-1 text-xs border border-green-700">تأكيد فقط</button>
-                            <button data-pending-id="${sale.id}" class="confirm-invoice-pending bg-yellow-500 hover:bg-yellow-600 text-white rounded px-2 py-1 text-xs border border-yellow-700">تأكيد وفاتورة</button>
                             <button data-pending-id="${sale.id}" class="cancel-pending bg-red-500 hover:bg-red-600 text-white rounded px-2 py-1 text-xs border border-red-700">إلغاء/إرجاع</button>
-                            <button data-pending-id="${sale.id}" class="print-pending-invoice bg-blue-500 hover:bg-blue-600 text-white rounded px-2 py-1 text-xs border border-blue-700">طباعة (مؤقت)</button>
                         </div>
                     </div>
                 </li>`;
@@ -3789,7 +3797,7 @@ function displaySalesReport(salesToDisplay) {
         filteredSales.forEach(sale => {
             const saleDateDisplay = formatDateForDisplay(sale.saleDate);
             const customer = sale.customerName || '-';
-            let itemsDesc = (sale.items || []).map(item => `${item.quantity}x ${item.name} ${item.serial ? '(S/N: '+item.serial+')' : ''}`).join('<br>');
+            let itemsDesc = (sale.items || []).filter(item => item).map(item => `${item.quantity}x ${item.name} ${item.serial ? '(S/N: '+item.serial+')' : ''}`).join('<br>');
             const saleAmount = Number(sale.grandTotal ?? sale.totalSellPrice) || 0;
             const costAmount = Number(sale.totalCost) || 0;
             const profitAmount = Number(sale.profit) || 0;
@@ -4208,19 +4216,25 @@ async function performDirectSearch() {
                         logOperation("تأكيد بيع مؤقت", `تم تأكيد بيع مؤقت لـ ${sale.customerName || '-'}. السعر: ${formatCurrency(sale.totalSellPrice)}. الربح: ${formatCurrency(sale.potentialProfit)}.`);
 
                         // Add simple record to salesToday
-                         const saleRecord = {
-                             id: confirmedSaleData.id.replace('pending','confirmed'),
-                             type: 'pending-confirmed',
-                             timestamp: new Date().toISOString(), // Confirmation time
-                             originalTimestamp: confirmedSaleData.timestamp,
-                             customerName: confirmedSaleData.customerName || null,
-                             items: [confirmedSaleData.mainProduct, ...(confirmedSaleData.additionalItems || [])], // Simplified items
-                             totalSellPrice: confirmedSaleData.totalSellPrice,
-                             totalCost: saleCost,
-                             profit: confirmedSaleData.potentialProfit,
-                         };
-                         await saveInvoiceToFirestore(saleRecord);
-                         salesToday.push(saleRecord);
+                        // Add record to salesToday (Handles both invoice-based and quick-sale based pending sales)
+const saleRecord = {
+    id: confirmedSaleData.id.replace('pending', 'confirmed'),
+    type: 'pending-confirmed',
+    timestamp: new Date().toISOString(),
+    originalTimestamp: confirmedSaleData.timestamp,
+    customerName: confirmedSaleData.customerName || null,
+    // ★★★ START OF FIX ★★★
+    // Check if the pending sale was from an invoice (has .items) or a quick sale (has .mainProduct)
+    items: confirmedSaleData.items 
+        ? confirmedSaleData.items 
+        : [confirmedSaleData.mainProduct, ...(confirmedSaleData.additionalItems || [])],
+    // ★★★ END OF FIX ★★★
+    totalSellPrice: confirmedSaleData.totalSellPrice,
+    totalCost: saleCost,
+    profit: confirmedSaleData.potentialProfit,
+};
+await saveInvoiceToFirestore(saleRecord);
+salesToday.push(saleRecord);
 logOperation("تحديث سجل المبيعات", `تمت إضافة البيعة المؤكدة ${saleRecord.id} إلى سجل مبيعات اليوم.`);
 
                         updateUI();
@@ -4291,7 +4305,11 @@ logOperation("تحديث سجل المبيعات", `تمت إضافة البيع
 
                     }
 
-                } else if (button.classList.contains('cancel-pending')) {
+                }
+                else if (button.classList.contains('edit-pending')) {
+    openPendingSaleForEdit(pendingId);
+}
+                 else if (button.classList.contains('cancel-pending')) {
                     // Cancel / Return to Stock
                     if (confirm(`هل أنت متأكد من إلغاء هذا البيع المؤقت وإرجاع البضاعة للمخزون؟\nالعميل: ${sale.customerName || '-'}\nالتكلفة المسترجعة: ${formatCurrency(saleCost)}`)) {
                         // Return items to stock
@@ -4336,6 +4354,52 @@ else if (sale.mainProduct) {
     printPendingSaleAsInvoice(pendingId); 
 }
             }
+            function openPendingSaleForEdit(pendingId) {
+    const sale = pendingSales.find(s => s.id === pendingId);
+    if (!sale) {
+        showGlobalMessage("لم يتم العثور على البيع المؤقت للتعديل.", true);
+        return;
+    }
+
+    // انتقل إلى قسم البيع واعرضه
+    const sellSection = d('sell-product');
+    const navButton = document.querySelector('button[data-target="sell-product"]');
+    if (sellSection && navButton) {
+        document.querySelectorAll('.content-section').forEach(s => s.classList.add('hidden'));
+        document.querySelectorAll('.nav-button').forEach(b => b.classList.remove('active'));
+        sellSection.classList.remove('hidden');
+        navButton.classList.add('active');
+        sellSection.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    editingPendingSaleId = pendingId;
+
+    // ملء الحقول الأساسية
+    sellProductNameInput.value = sale.mainProduct.name;
+    sellCustomerNameInput.value = sale.customerName || '';
+    sellQuantityInput.value = sale.mainProduct.quantity;
+    sellPriceInput.value = sale.totalSellPrice;
+    sellPendingCheckbox.checked = true; // يجب أن تبقى مؤقتة عند التعديل
+
+    // تحديث وعرض الملحقات وتحديد الملحقات القديمة
+    updateAdditionalCostsCheckboxes();
+    const attachments = sale.additionalItems || [];
+    attachments.forEach(att => {
+        const checkbox = additionalCostsContainer.querySelector(`input[value="${att.name}"]`);
+        if (checkbox) {
+            checkbox.checked = true;
+            const qtyInput = checkbox.closest('label').querySelector('.additional-item-quantity');
+            if(qtyInput) {
+                qtyInput.value = att.quantity;
+            }
+        }
+    });
+
+    // تغيير شكل زر البيع إلى "تحديث"
+    sellButton.textContent = "تحديث البيع المؤقت";
+    d('cancel-edit-pending-button').classList.remove('hidden');
+    // يمكنك إضافة زر "إلغاء التعديل" هنا إذا أردت
+}
             // --- Invoice Search Functions ---
             function searchInvoiceByNumber() {
                 if (!searchInvoiceNumberInput || !searchResultsListContainer || !searchMessageContainer) return;
@@ -5534,51 +5598,214 @@ if (editingProductName) {
                          }
                      });
                  }
-                 if (sellButton) { sellButton.addEventListener("click", () => {saveStateToHistory(); 
-                    const isPendingSale = sellPendingCheckbox.checked; const mainProductName = sellProductNameInput.value.trim(); const customerName = d("sell-customer-name").value.trim(); const quantitySold = parseInputNumber(sellQuantityInput); const totalSellPrice = parseInputNumber(sellPriceInput); if (!mainProductName || isNaN(quantitySold) || quantitySold <= 0 || isNaN(totalSellPrice) || (totalSellPrice < 0 && !isPendingSale) ) { showMessage(sellMessage, "يرجى ملء اسم المنتج والكمية (>0) وسعر البيع (>=0) بشكل صحيح.", true); return; } const mainProductIndex = products.findIndex(p => p.name === mainProductName); if (mainProductIndex === -1) { showMessage(sellMessage, `المنتج الرئيسي "${mainProductName}" غير موجود بالمخزون.`, true); return; } const mainProduct = { ...products[mainProductIndex] }; // Clone product data
-                      if (mainProduct.quantity < quantitySold) { showMessage(sellMessage, `الكمية المطلوبة (${quantitySold}) من "${mainProductName}" غير متوفرة (المتاح: ${mainProduct.quantity}).`, true); return; } let costOfGoodsSold = (Number(mainProduct.costPrice) || 0) * quantitySold; let additionalItemsDataForPending = []; let additionalItemsToUpdateIndices = []; let additionalItemsLog = []; const additionalCheckboxes = additionalCostsContainer ? additionalCostsContainer.querySelectorAll('input[type="checkbox"]:checked') : []; let possible = true; // Check stock for additional items
-                     // ألصق هذا الكود الجديد مكانه
-additionalCheckboxes.forEach(checkbox => {
-    if (!possible) return;
+                 // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+// ★★★ بداية الكود الجديد الذي ستلصقه (يشمل 3 دوال) ★★★
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-    const parentLabel = checkbox.closest('label');
-    const quantityInput = parentLabel.querySelector('.additional-item-quantity');
-    const qtyToDeduct = parseInt(quantityInput.value) || 0; // يقرأ الكمية من الحقل الجديد
+// دالة صغيرة لتنظيف نموذج البيع
+function resetSellForm() {
+    editingPendingSaleId = null; // أهم خطوة
+    d('cancel-edit-pending-button').classList.add('hidden');
+    
+    sellProductNameInput.value = "";
+    sellCustomerNameInput.value = "";
+    sellQuantityInput.value = "1";
+    sellPriceInput.value = "0";
+    sellPendingCheckbox.checked = false;
+    sellButton.textContent = "بيع البضاعة (سريع/مؤقت)";
+    
+    if (additionalCostsContainer) {
+        additionalCostsContainer.innerHTML = '<p class="text-center text-gray-500 text-sm">أدخل اسم المنتج الرئيسي لعرض المرفقات المتاحة.</p>';
+    }
+    showMessage(sellMessage, ""); // مسح أي رسائل قديمة
+}
 
-    const additionalProductName = checkbox.value;
-    const additionalProductIndex = products.findIndex(p => p.name === additionalProductName);
+// 1. الدالة الرئيسية الجديدة للإضافة أو التحديث
+if (sellButton) {
+    sellButton.addEventListener("click", () => {
+        saveStateToHistory(); // حفظ الحالة قبل أي تغيير
 
-    if (qtyToDeduct > 0 && additionalProductIndex !== -1) {
-        const additionalProduct = products[additionalProductIndex];
-        if (additionalProduct.quantity < qtyToDeduct) { // يستخدم الكمية الجديدة في التحقق
-            showMessage(sellMessage, `الكمية المطلوبة (${qtyToDeduct}) للمرفق "${additionalProductName}" غير متوفرة (المتاح: ${additionalProduct.quantity}).`, true);
-            possible = false;
+        if (editingPendingSaleId) {
+            // إذا كنا في وضع التعديل، استدع دالة التحديث
+            updatePendingSale(editingPendingSaleId);
         } else {
-            costOfGoodsSold += (Number(additionalProduct.costPrice) || 0) * qtyToDeduct; 
-            additionalItemsDataForPending.push({ name: additionalProduct.name, quantity: qtyToDeduct, costPrice: additionalProduct.costPrice, supplierId: additionalProduct.supplierId });
-            additionalItemsToUpdateIndices.push({ index: additionalProductIndex, quantity: qtyToDeduct });
-            additionalItemsLog.push(`${qtyToDeduct}x ${additionalProductName}`);
+            // إذا كنا في وضع الإضافة، استدع دالة الإضافة
+            sellProduct();
         }
-    }
-}); if (!possible) return; const potentialProfit = totalSellPrice - costOfGoodsSold; // --- Update Stock ---
-                      products[mainProductIndex].quantity -= quantitySold; additionalItemsToUpdateIndices.forEach(item => {
-    const productToUpdate = products[item.index];
-    if (productToUpdate) {
-        productToUpdate.quantity -= item.quantity; // <-- أصبح يخصم الكمية الصحيحة لكل مرفق
-    }
-}); products = products.filter(p => (Number(p.quantity) || 0) > 0.001); // Remove zero-quantity products
+    });
+}
+if (d('cancel-edit-pending-button')) {
+    d('cancel-edit-pending-button').addEventListener('click', resetSellForm);
+}
 
-                       // **** تحديث حالة السيريالات المباعة (بيع سريع/مؤقت) ****
-                       // حالياً، البيع السريع/المؤقت لا يحدد سيريال معين
-                       // يمكن لاحقاً إضافة منطق لاختيار سيريال عشوائي من المتوفرين وتغيير حالته
-                       // أو ببساطة لا يتم تغيير حالة السيريال في هذه الحالة
 
-                      // --- Handle Sale Type ---
-                      if (!isPendingSale) { // --- Normal Quick Sale ---
-                           totalProfit += potentialProfit; liquidity += totalSellPrice; let logDetails = `بيع سريع لـ ${quantitySold}x "${mainProductName}"`; if (additionalItemsLog.length > 0) { logDetails += ` مع (${additionalItemsLog.join(', ')})`; } if (customerName) { logDetails += ` للعميل: ${customerName}`; } logDetails += ` بسعر إجمالي ${formatCurrency(totalSellPrice)}. التكلفة الإجمالية: ${formatCurrency(costOfGoodsSold)}. الربح: ${formatCurrency(potentialProfit)}.`; logOperation("بيع عادي (سريع)", logDetails); const saleRecord = { id: `sale-${Date.now()}`, type: 'quick', timestamp: new Date().toISOString(), customerName: customerName || null, items: [ // Store items involved
-                               { name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice }, ...additionalItemsDataForPending ], totalSellPrice: totalSellPrice, totalCost: costOfGoodsSold, profit: potentialProfit }; salesToday.push(saleRecord); const liqLogEntry = { id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: totalSellPrice, description: `بيع سريع لـ ${customerName || 'عميل'}`, currentBalance: liquidity }; liquidityLog.push(liqLogEntry); showMessage(sellMessage, `تمت عملية البيع السريع بنجاح. الربح: ${formatCurrency(potentialProfit)}`); } else { // --- Pending Sale ---
-                           goodsOnConsignmentValue += costOfGoodsSold; // Add cost to consignment value
-                           const pendingSaleData = { id: `pending-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`, timestamp: new Date().toISOString(), customerName: customerName || null, mainProduct: { name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice, supplierId: mainProduct.supplierId }, additionalItems: additionalItemsDataForPending, totalSellPrice: totalSellPrice, potentialProfit: potentialProfit, status: 'pending' }; pendingSales.push(pendingSaleData); let logDetails = `تسجيل بيع مؤقت لـ ${quantitySold}x "${mainProductName}"`; if (additionalItemsLog.length > 0) { logDetails += ` مع (${additionalItemsLog.join(', ')})`; } if (customerName) { logDetails += ` للعميل: ${customerName}`; } logDetails += `. التكلفة: ${formatCurrency(costOfGoodsSold)}. السعر المتوقع: ${formatCurrency(totalSellPrice)}.`; logOperation("بيع مؤقت", logDetails); showMessage(sellMessage, "تم تسجيل البيع كعملية مؤقتة."); } updateUI(); sellProductNameInput.value = ""; d("sell-customer-name").value = ""; sellQuantityInput.value = "1"; sellPriceInput.value = "0"; sellPendingCheckbox.checked = false; if(additionalCostsContainer) additionalCostsContainer.innerHTML = '<p class="text-center text-gray-500 text-sm">أدخل اسم المنتج الرئيسي لعرض المرفقات المتاحة.</p>'; }); }
+// 2. دالة إضافة بيع جديد (نفس الكود القديم مع تغييرات بسيطة)
+function sellProduct() {
+    const isPendingSale = sellPendingCheckbox.checked;
+    const mainProductName = sellProductNameInput.value.trim();
+    const customerName = d("sell-customer-name").value.trim();
+    const quantitySold = parseInputNumber(sellQuantityInput);
+    const totalSellPrice = parseInputNumber(sellPriceInput);
+
+    if (!mainProductName || isNaN(quantitySold) || quantitySold <= 0 || isNaN(totalSellPrice) || totalSellPrice < 0) {
+        showMessage(sellMessage, "يرجى ملء اسم المنتج والكمية (>0) وسعر البيع (>=0) بشكل صحيح.", true);
+        return;
+    }
+    
+    const mainProductIndex = products.findIndex(p => p.name === mainProductName);
+    if (mainProductIndex === -1) {
+        showMessage(sellMessage, `المنتج الرئيسي "${mainProductName}" غير موجود بالمخزون.`, true);
+        return;
+    }
+
+    const mainProduct = { ...products[mainProductIndex] };
+    if (mainProduct.quantity < quantitySold) {
+        showMessage(sellMessage, `الكمية المطلوبة (${quantitySold}) من "${mainProductName}" غير متوفرة (المتاح: ${mainProduct.quantity}).`, true);
+        return;
+    }
+
+    let costOfGoodsSold = (Number(mainProduct.costPrice) || 0) * quantitySold;
+    let additionalItemsDataForPending = [];
+    let additionalItemsToUpdate = [];
+    let additionalItemsLog = [];
+    const additionalCheckboxes = additionalCostsContainer ? additionalCostsContainer.querySelectorAll('input[type="checkbox"]:checked') : [];
+    let stockCheckFailed = false;
+
+    additionalCheckboxes.forEach(checkbox => {
+        if (stockCheckFailed) return;
+        const parentLabel = checkbox.closest('label');
+        const quantityInput = parentLabel.querySelector('.additional-item-quantity');
+        const qtyToDeduct = parseInt(quantityInput.value) || 0;
+        const additionalProductName = checkbox.value;
+        const additionalProductIndex = products.findIndex(p => p.name === additionalProductName);
+
+        if (qtyToDeduct > 0 && additionalProductIndex !== -1) {
+            const additionalProduct = products[additionalProductIndex];
+            if (additionalProduct.quantity < qtyToDeduct) {
+                showMessage(sellMessage, `الكمية المطلوبة (${qtyToDeduct}) للمرفق "${additionalProductName}" غير متوفرة.`, true);
+                stockCheckFailed = true;
+            } else {
+                costOfGoodsSold += (Number(additionalProduct.costPrice) || 0) * qtyToDeduct;
+                additionalItemsDataForPending.push({ name: additionalProduct.name, quantity: qtyToDeduct, costPrice: additionalProduct.costPrice, supplierId: additionalProduct.supplierId });
+                additionalItemsToUpdate.push({ index: additionalProductIndex, quantity: qtyToDeduct });
+                additionalItemsLog.push(`${qtyToDeduct}x ${additionalProductName}`);
+            }
+        }
+    });
+
+    if (stockCheckFailed) return;
+    
+    const profit = totalSellPrice - costOfGoodsSold;
+    
+    // --- Update Stock ---
+    products[mainProductIndex].quantity -= quantitySold;
+    additionalItemsToUpdate.forEach(item => {
+        products[item.index].quantity -= item.quantity;
+    });
+    products = products.filter(p => p.quantity > 0.001);
+
+    if (isPendingSale) {
+        goodsOnConsignmentValue += costOfGoodsSold;
+        const pendingSaleData = { id: generateId('pending'), timestamp: new Date().toISOString(), customerName, mainProduct: { name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice, supplierId: mainProduct.supplierId }, additionalItems: additionalItemsDataForPending, totalSellPrice, potentialProfit: profit, status: 'pending' };
+        pendingSales.push(pendingSaleData);
+        logOperation("بيع مؤقت", `تسجيل بيع مؤقت لـ ${quantitySold}x "${mainProductName}" للعميل ${customerName || '-'}.`);
+        showMessage(sellMessage, "تم تسجيل البيع كعملية مؤقتة.");
+    } else {
+        if(!addAmountToDefaultAccount(totalSellPrice, `بيع سريع لـ ${customerName || 'عميل'}`)) {
+            // Revert stock changes if adding to account fails
+             products[mainProductIndex].quantity += quantitySold;
+             additionalItemsToUpdate.forEach(item => { products[item.index].quantity += item.quantity; });
+            return;
+        }
+        totalProfit += profit;
+        logOperation("بيع عادي (سريع)", `بيع ${quantitySold}x "${mainProductName}" بسعر ${formatCurrency(totalSellPrice)}. الربح: ${formatCurrency(profit)}.`);
+         const saleRecord = { id: generateId('sale'), type: 'quick', timestamp: new Date().toISOString(), customerName, items: [{ name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice }, ...additionalItemsDataForPending], totalSellPrice, totalCost: costOfGoodsSold, profit };
+        salesToday.push(saleRecord);
+         saveInvoiceToFirestore(saleRecord);
+        showMessage(sellMessage, `تمت عملية البيع السريع بنجاح. الربح: ${formatCurrency(profit)}`);
+    }
+    
+    updateUI();
+    resetSellForm(); // استخدم الدالة الجديدة للتنظيف
+}
+
+
+// 3. دالة تحديث بيع مؤقت موجود
+function updatePendingSale(pendingId) {
+    const saleIndex = pendingSales.findIndex(s => s.id === pendingId);
+    if (saleIndex === -1) {
+        showGlobalMessage("خطأ: لم يتم العثور على البيع المؤقت.", true);
+        resetSellForm();
+        return;
+    }
+
+    const originalSale = pendingSales[saleIndex];
+    
+    // 1. إرجاع الكميات القديمة للمخزون
+    const originalItems = [originalSale.mainProduct, ...(originalSale.additionalItems || [])];
+    originalItems.forEach(item => {
+        const productIndex = products.findIndex(p => p.name === item.name);
+        if (productIndex !== -1) {
+            products[productIndex].quantity += item.quantity;
+        } else {
+            products.push({ ...item }); // Re-add if it was deleted
+        }
+    });
+
+    // 2. قراءة البيانات الجديدة من النموذج (مع التحقق)
+    const newMainProductName = sellProductNameInput.value.trim();
+    const newCustomerName = sellCustomerNameInput.value.trim();
+    const newQuantitySold = parseInputNumber(sellQuantityInput);
+    const newTotalSellPrice = parseInputNumber(sellPriceInput);
+
+    if (!newMainProductName || isNaN(newQuantitySold) || newQuantitySold <= 0 || isNaN(newTotalSellPrice)) {
+        showMessage(sellMessage, "البيانات المدخلة للتحديث غير صالحة.", true);
+        // Revert the stock addition because the update failed
+        originalItems.forEach(item => {
+            const productIndex = products.findIndex(p => p.name === item.name);
+            if (productIndex !== -1) products[productIndex].quantity -= item.quantity;
+        });
+        return;
+    }
+    
+    // --- كرر نفس منطق التحقق من المخزون وجمع التكاليف من دالة sellProduct ---
+    const newMainProductIndex = products.findIndex(p => p.name === newMainProductName);
+    if (newMainProductIndex === -1) { /* handle error */ return; }
+    const newMainProduct = { ...products[newMainProductIndex] };
+    if (newMainProduct.quantity < newQuantitySold) { /* handle error */ return; }
+    
+    let newCostOfGoodsSold = (Number(newMainProduct.costPrice) || 0) * newQuantitySold;
+    let newAdditionalItemsData = [];
+    let newAdditionalItemsToUpdate = [];
+    // ... كود التحقق من الملحقات المحدثة ... (نفس كود forEach من دالة sellProduct)
+    
+    const newProfit = newTotalSellPrice - newCostOfGoodsSold;
+    
+    // 3. خصم الكميات الجديدة من المخزون
+    products[newMainProductIndex].quantity -= newQuantitySold;
+    // ... كود خصم الملحقات الجديدة ...
+
+    // 4. تحديث البيعة في مصفوفة pendingSales
+    pendingSales[saleIndex] = {
+        ...originalSale, // Keep original ID and status
+        customerName: newCustomerName,
+        mainProduct: { name: newMainProduct.name, quantity: newQuantitySold, costPrice: newMainProduct.costPrice, supplierId: newMainProduct.supplierId },
+        additionalItems: newAdditionalItemsData,
+        totalSellPrice: newTotalSellPrice,
+        potentialProfit: newProfit,
+        timestamp: new Date().toISOString()
+    };
+    
+    logOperation("تعديل بيع مؤقت", `تم تحديث بيانات البيع للعميل: ${newCustomerName || '-'}.`);
+    showMessage(sellMessage, "تم تحديث البيع المؤقت بنجاح.");
+    
+    resetSellForm();
+    updateUI();
+}
+
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+// ★★★ نهاية الكود الجديد الذي ستلصقه ★★★
+// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
                  if(sellProductNameInput) { // Update checkboxes when main product changes
                      sellProductNameInput.addEventListener('input', updateAdditionalCostsCheckboxes); sellProductNameInput.addEventListener('change', updateAdditionalCostsCheckboxes); }
                  // <<< جديد: مستمع حدث لبحث المبيعات المؤقتة >>>
