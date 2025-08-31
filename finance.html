@@ -1626,7 +1626,27 @@ let fc_main_tabs, fc_tab_buttons, fc_tab_contents, fc_month_select, fc_expenses_
 
 
         // --- الدوال المساعدة (Helper Functions) ---
-
+// دالة مساعدة لإضافة مبلغ إلى السيولة وتسجيله في السجل
+function addAmountToDefaultAccount(amount, description) {
+    if (isNaN(amount) || amount <= 0) {
+        console.error("خطأ: لا يمكن إضافة مبلغ غير صحيح للسيولة.");
+        return false;
+    }
+    // حفظ الحالة قبل التغيير للسماح بالتراجع
+    saveStateToHistory(); 
+    liquidity += amount;
+    const logEntry = {
+        id: `liq-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        type: "add",
+        amount: amount,
+        description: description,
+        currentBalance: liquidity
+    };
+    liquidityLog.push(logEntry);
+    logOperation("إضافة سيولة", `إضافة ${formatCurrency(amount)} من "${description}". الرصيد الحالي: ${formatCurrency(liquidity)}`);
+    return true;
+}
         function convertNumerals(inputString) { if (typeof inputString !== 'string') return inputString; return inputString.replace(/[\u0660-\u0669]/g, d => d.charCodeAt(0) - 0x0660).replace(/[\u06F0-\u06F9]/g, d => d.charCodeAt(0) - 0x06F0); }
         function parseInputNumber(inputElement) { if (!inputElement) return NaN; const rawValue = inputElement.value; if (rawValue.trim() === '') return NaN; const westernValue = convertNumerals(rawValue.trim()); const normalizedValue = westernValue.replace(/٫/g, '.').replace(/,/g, ''); const number = parseFloat(normalizedValue); return isNaN(number) ? NaN : number; }
         function getTodayDateString() { const today = new Date(); const year = today.getFullYear(); const month = String(today.getMonth() + 1).padStart(2, '0'); const day = String(today.getDate()).padStart(2, '0'); return `${year}-${month}-${day}`; }
@@ -5711,12 +5731,29 @@ function sellProduct() {
         logOperation("بيع مؤقت", `تسجيل بيع مؤقت لـ ${quantitySold}x "${mainProductName}" للعميل ${customerName || '-'}.`);
         showMessage(sellMessage, "تم تسجيل البيع كعملية مؤقتة.");
     } else {
-        if(!addAmountToDefaultAccount(totalSellPrice, `بيع سريع لـ ${customerName || 'عميل'}`)) {
-            // Revert stock changes if adding to account fails
-             products[mainProductIndex].quantity += quantitySold;
-             additionalItemsToUpdate.forEach(item => { products[item.index].quantity += item.quantity; });
-            return;
-        }
+       // تحقق إذا كان البيع سريعًا (غير مؤقت)
+if (!isPendingSale) { 
+    // أضف المبلغ إلى السيولة
+    liquidity += totalSellPrice;
+    
+    // سجل العملية في سجل السيولة
+    const liqLogEntry = {
+        id: `liq-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        type: "add",
+        amount: totalSellPrice,
+        description: `بيع سريع لـ ${customerName || 'عميل'}`,
+        currentBalance: liquidity
+    };
+    liquidityLog.push(liqLogEntry);
+
+    totalProfit += profit;
+    logOperation("بيع عادي (سريع)", `بيع ${quantitySold}x "${mainProductName}" بسعر ${formatCurrency(totalSellPrice)}. الربح: ${formatCurrency(profit)}.`);
+    const saleRecord = { id: generateId('sale'), type: 'quick', timestamp: new Date().toISOString(), customerName, items: [{ name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice }, ...additionalItemsDataForPending], totalSellPrice, totalCost: costOfGoodsSold, profit };
+    salesToday.push(saleRecord);
+    saveInvoiceToFirestore(saleRecord);
+    showMessage(sellMessage, `تمت عملية البيع السريع بنجاح. الربح: ${formatCurrency(profit)}`);
+}
         totalProfit += profit;
         logOperation("بيع عادي (سريع)", `بيع ${quantitySold}x "${mainProductName}" بسعر ${formatCurrency(totalSellPrice)}. الربح: ${formatCurrency(profit)}.`);
          const saleRecord = { id: generateId('sale'), type: 'quick', timestamp: new Date().toISOString(), customerName, items: [{ name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice }, ...additionalItemsDataForPending], totalSellPrice, totalCost: costOfGoodsSold, profit };
