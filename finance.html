@@ -3,6 +3,7 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>برنامج إدارة البضائع والمخزون والفواتير (drashraf) - مُعدل</title>
     <meta name="description" content="برنامج ويب لإدارة المخزون، المبيعات، الموردين، السيولة، الديون، الالتزامات، وحساب رأس المال مع تقارير، بحث فواتير، وترحيل أرصدة تلقائي عند بدء يوم جديد. يتضمن تتبع الأرقام التسلسلية وإدارتها للمخزون الحالي مع بحث داخلي. تطوير ضياء أشرف (drashraf). يشمل بحث وتصفيات للمبيعات المؤقتة وإمكانية تعديل السيولة يدوياً.">
     <meta name="keywords" content="إدارة بضائع, مخزون, موردين, سيولة, ديون, التزامات, مقاصة, تقرير مبيعات, بحث فاتورة, ترحيل أرصدة, ترحيل تلقائي, تعديل, حذف, سبب الدين, برنامج, drashraf, ضياء أشرف, فاتورة, بيع مؤقت, بحث بيع مؤقت, رقم تسلسلي, سيريال, بحث سيريال, استيراد CSV, ربط سيريال بالفاتورة, إدارة سيريالات, بحث داخلي, تعديل السيولة, supplier, invoice, inventory, management, offsetting, sales report, invoice search, carry forward, auto carry forward, edit, delete, debt reason, pending sale, filter pending sales, deduct cost, serial number tracking, serial search, csv import, invoice serial link, manage serials, filter serials, adjust liquidity">
@@ -771,7 +772,96 @@ input:checked:active + .slider:before {
 }
 
 #returns-section .hidden { display: none; }
+  /* ============================================= */
+/* ====== START: Mobile Responsive Styles ====== */
+/* ============================================= */
+
+/* Styles for screens smaller than 768px (most phones) */
+@media (max-width: 768px) {
+    
+    /* تقليل الهوامش العامة للجسم */
+    body {
+        padding: 0.75rem; /* 12px */
+    }
+
+    /* تعديل حجم الخط الرئيسي والعناوين */
+    h1 {
+        font-size: 1.5rem; /* 24px */
+    }
+    .widget-card h2, .fc-step-card h3 {
+        font-size: 1.1rem; /* 18px */
+    }
+
+    /* جعل الأقسام تأخذ العرض الكامل وتقليل الهوامش الداخلية */
+    .widget-card {
+        padding: 1rem; /* 16px */
+    }
+
+    /* تعديل أزرار التنقل الرئيسية لتكون أفضل على الموبايل */
+    #main-nav {
+        gap: 0.5rem; /* 8px */
+    }
+    #main-nav button {
+        flex-grow: 1; /* تجعل الأزرار تتمدد لتملأ السطر */
+        flex-basis: 45%; /* كل زر يأخذ حوالي نصف العرض */
+        font-size: 0.8rem; /* تصغير الخط قليلاً */
+    }
+
+    /* تحويل كل الشبكات (Grids) إلى عمود واحد */
+    .grid {
+        grid-template-columns: 1fr !important; /* !important للتأكد من تطبيق الستايل */
+    }
+
+    /* تنسيق النماذج لتكون عمودية وواضحة */
+    .form-row, 
+    #pending-sales-controls, 
+    #add-update-monthly-liability-form .grid {
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: stretch; /* تجعل العناصر تمتد بعرض الحاوية */
+    }
+    .form-group {
+        min-width: 100%;
+    }
+
+    /* تعديل عرض الجداول لتكون قابلة للتمرير أفقيًا */
+    #sales-report-display .overflow-x-auto,
+    #expenses-report-display .overflow-x-auto {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch; /* لتحسين التمرير على iOS */
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+    }
+    #sales-report-table, #expenses-report-table, #pi_items_table {
+        min-width: 600px; /* اجعل الجدول أعرض من الشاشة لإجبار التمرير */
+        font-size: 0.8rem;
+    }
+    
+    /* تعديل حجم النوافذ المنبثقة (Modals) */
+    .modal-content {
+        width: 95%;
+        margin: 10% auto;
+        max-height: 80vh;
+    }
+    .modal-body {
+        padding: 0.75rem;
+    }
+    
+    /* تعديل الأزرار في الفوتر الخاص بالـ Modal */
+    .modal-footer {
+        flex-direction: column-reverse; /* وضع الأزرار فوق بعضها */
+        align-items: stretch;
+    }
+    .modal-footer button {
+        width: 100%;
+        margin-right: 0 !important;
+        margin-left: 0 !important;
+    }
+} 
+   
+   
     </style>
+
     <style>
 /* ... أكواد CSS أخرى ... */
     </style>
@@ -4488,6 +4578,7 @@ function printPendingSaleAsInvoice(pendingId) {
                   <html lang="ar" dir="rtl">
                   <head>
                       <meta charset="UTF-8">
+
                       <title>فاتورة بيع - ${invoiceNumber}</title>
                       <style>
                           body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 15px; font-size: 10pt; line-height: 1.4; color: #333; }
