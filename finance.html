@@ -1273,33 +1273,37 @@ input:checked:active + .slider:before {
         </fieldset>
 
         <!-- Totals and Payment Section -->
-        <fieldset class="mt-4">
-            <legend>المدفوعات والإجمالي</legend>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                <!-- Totals Display -->
-                <div class="space-y-2 p-4 bg-gray-50 rounded-lg border">
-                    <div class="flex justify-between font-semibold">
-                        <span>إجمالي الفاتورة:</span>
-                        <span id="pi_grand_total" class="font-mono">0.00 جنيه</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span>المبلغ المدفوع:</span>
-                        <span id="pi_paid_amount_display" class="font-mono text-green-600">0.00 جنيه</span>
-                    </div>
-                    <div class="flex justify-between font-bold text-lg border-t pt-2 mt-2">
-                        <span>المبلغ المتبقي:</span>
-                        <span id="pi_remaining_balance" class="font-mono text-red-600">0.00 جنيه</span>
-                    </div>
-                </div>
-
-                <!-- Payment Input -->
-                <div class="form-group md:col-span-2">
-                    <label for="pi_paid_amount" class="block text-sm font-bold mb-1">المبلغ المدفوع نقداً:<span class="required">*</span></label>
-                    <input type="number" id="pi_paid_amount" value="0" min="0" step="0.01" class="shadow-sm">
-                    <p class="text-xs text-gray-500 mt-1">أدخل 0 إذا كانت الفاتورة آجلة بالكامل.</p>
-                </div>
+       <fieldset class="mt-4">
+    <legend>المدفوعات والإجمالي</legend>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+        <div class="space-y-2 p-4 bg-gray-50 rounded-lg border">
+            <div class="flex justify-between font-semibold">
+                <span>إجمالي الفاتورة:</span>
+                <span id="pi_grand_total" class="font-mono">0.00 جنيه</span>
             </div>
-        </fieldset>
+            <div class="flex justify-between">
+                <span>المبلغ المدفوع:</span>
+                <span id="pi_paid_amount_display" class="font-mono text-green-600">0.00 جنيه</span>
+            </div>
+            <div class="flex justify-between font-bold text-lg border-t pt-2 mt-2">
+                <span>المبلغ المتبقي:</span>
+                <span id="pi_remaining_balance" class="font-mono text-red-600">0.00 جنيه</span>
+            </div>
+        </div>
+
+        <div class="form-group md:col-span-2">
+            <label for="pi_paid_amount" class="block text-sm font-bold mb-1">المبلغ المدفوع (العربون):<span class="required">*</span></label>
+            <input type="number" id="pi_paid_amount" value="0" min="0" step="0.01" class="shadow-sm">
+            <p class="text-xs text-gray-500 mt-1">أدخل 0 إذا كانت الفاتورة آجلة بالكامل.</p>
+            
+            <label for="pi_deduct_from_liquidity" class="inline-flex items-center cursor-pointer mt-3">
+                <input type="checkbox" id="pi_deduct_from_liquidity" class="rounded border-gray-300 text-blue-600 shadow-sm ml-2" checked>
+                <span class="text-sm text-gray-700 font-medium">خصم المبلغ المدفوع من السيولة الآن؟</span>
+            </label>
+            
+        </div>
+    </div>
+</fieldset>
     </div>
 <div class="my-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
     <label for="pi_goods_received" class="inline-flex items-center cursor-pointer font-semibold">
@@ -2735,23 +2739,26 @@ function resetState() {
         function calculateTotalLiabilities(){ return liabilities.reduce((sum, liability) => sum + (Number(liability.amount) || 0), 0) }
       
 
+
+// START: دالة حساب الإجماليات (النسخة النهائية الصحيحة)
 // =======================================================
-// START: دالة حساب الإجماليات (النسخة النهائية المحاسبية الصحيحة)
+// =======================================================
+// START: دالة حساب الإجماليات (النسخة النهائية الصحيحة)
 // =======================================================
 function calculateTotals() {
     const totalInventoryValue = products.reduce((sum, p) => sum + (Number(p.quantity) || 0) * (Number(p.costPrice) || 0), 0);
     goodsOnConsignmentValue = calculateConsignmentValue();
     const totalDebtsValue = calculateTotalDebts();
     const totalLiabilitiesValue = calculateTotalLiabilities();
-
-    // ✅✅✅ الإضافة الحاسمة: اعتبار المرتجعات المعلقة كأصل بقيمتها المرتجعة ✅✅✅
-    const pendingReturnsAssetValue = pendingReturns.reduce((sum, ret) => {
-        // قيمة هذا الأصل هي المبلغ الذي ستُرجع به، وليس تكلفته الأصلية
-        return sum + (ret.returnedAmount || 0);
+    const pendingReturnsAssetValue = pendingReturns.reduce((sum, ret) => sum + (ret.costOfGoods || 0), 0);
+    
+    // ✅ 1. اعتبار "المشتريات قيد الاستلام" كأصل بقيمتها الكاملة
+    const pendingPurchasesAssetValue = pendingPurchases.reduce((sum, purchase) => {
+        return sum + (purchase.grandTotal || 0);
     }, 0);
     
-    // معادلة رأس المال الصحيحة الآن تشمل هذا الأصل الجديد بقيمته الحقيقية
-    const totalCapital = liquidity + totalInventoryValue + goodsOnConsignmentValue + totalDebtsValue + pendingReturnsAssetValue - totalLiabilitiesValue;
+    // ✅ 2. معادلة رأس المال الصحيحة تشمل الآن كل الأصول
+    const totalCapital = liquidity + totalInventoryValue + goodsOnConsignmentValue + totalDebtsValue + pendingReturnsAssetValue + pendingPurchasesAssetValue - totalLiabilitiesValue;
 
     return {
         totalInventoryValue,
@@ -3061,107 +3068,87 @@ function updatePendingSalesDisplay() {
           }
 
         // --- الدالة الرئيسية لتحديث الواجهة ---
-        function updateUI(){
-        if (returnProductSelect && d('return-sale-price-display') && d('return-cost-price-display')) {
-    const selectedOption = returnProductSelect.options[returnProductSelect.selectedIndex];
-    const cost = selectedOption ? parseFloat(selectedOption.dataset.cost) : 0;
-    d('return-sale-price-display').textContent = formatCurrency(cost);
-    d('return-cost-price-display').textContent = formatCurrency(cost);
-}
-         updateMonthlyLiabilitiesDisplay();
-             // **** سطر التشخيص المضاف ****
-             console.log('Inside updateUI Start - Liquidity:', liquidity, 'summaryLiquidity Element:', d("summary-current-liquidity"));
-
-             console.log("updateUI called. Current loaded date:", currentLoadedDate);
-             const{totalInventoryValue, totalCapital, totalDebtsValue, totalLiabilitiesValue} = calculateTotals(); // This now also recalculates goodsOnConsignmentValue
-            const totalPurchases = calculateTotalPurchasesToday();
-    if(d('summary-total-purchases')) d('summary-total-purchases').textContent = formatCurrency(totalPurchases);
-             // 1. حساب إجمالي الربح المتوقع من جميع المبيعات المؤقتة
+        // =======================================================
+// START: دالة تحديث الواجهة (النسخة النهائية المصححة)
+// =======================================================
+// =======================================================
+// START: دالة تحديث الواجهة (النسخة النهائية المصححة)
+// =======================================================
+// =======================================================
+// START: دالة تحديث الواجهة (النسخة النهائية المصححة)
+// =======================================================
+// =======================================================
+// START: دالة تحديث الواجهة (النسخة النهائية والمضبوطة)
+// =======================================================
+// =======================================================
+// START: دالة تحديث الواجهة (النسخة النهائية والمضبوطة)
+// =======================================================
+function updateUI() {
+    console.log("updateUI called. Current loaded date:", currentLoadedDate);
+    const { totalInventoryValue, totalCapital, totalDebtsValue, totalLiabilitiesValue } = calculateTotals();
+    const totalPurchases = calculateTotalPurchasesToday();
+    
+    // ✅ 1. حساب الربح المتوقع من المبيعات المعلقة فقط
     const totalPotentialProfit = pendingSales.reduce((sum, sale) => {
         return sum + (Number(sale.potentialProfit) || 0);
     }, 0);
 
-    // 2. حساب رأس المال المتوقع
+    // ✅ 2. المعادلة النهائية والصحيحة لرأس المال المتوقع
     const expectedCapital = totalCapital + totalPotentialProfit;
 
-    // 3. تحديث صندوق العرض الجديد في الواجهة
-    summaryExpectedCapital = d("summary-expected-capital");
-     
-    if (summaryExpectedCapital) {
-        summaryExpectedCapital.textContent = formatCurrency(expectedCapital);
-    }
+    // -- تحديث عناصر الواجهة (باقي الكود لم يتغير) --
+    if (d('summary-current-liquidity')) d('summary-current-liquidity').textContent = formatCurrency(liquidity);
+    if (d('summary-total-inventory-value')) d('summary-total-inventory-value').textContent = formatCurrency(totalInventoryValue);
+    if (d('summary-consignment-value-display')) d('summary-consignment-value-display').textContent = formatCurrency(goodsOnConsignmentValue);
+    if (d('summary-total-debts-display')) d('summary-total-debts-display').textContent = formatCurrency(totalDebtsValue);
+    if (d('summary-total-liabilities-display')) d('summary-total-liabilities-display').textContent = formatCurrency(totalLiabilitiesValue);
+    if (d('summary-total-expenses')) d('summary-total-expenses').textContent = formatCurrency(expenses);
+    if (d('summary-total-profit')) d('summary-total-profit').textContent = formatCurrency(totalProfit);
+    if (d('summary-total-capital')) d('summary-total-capital').textContent = formatCurrency(totalCapital);
+    if (d('summary-expected-capital')) d('summary-expected-capital').textContent = formatCurrency(expectedCapital);
+    if (d('summary-total-purchases')) d('summary-total-purchases').textContent = formatCurrency(totalPurchases);
 
-             // Update Summary Widgets
-             if(summaryLiquidity) summaryLiquidity.textContent = formatCurrency(liquidity);
-             if(summaryInventory) summaryInventory.textContent = formatCurrency(totalInventoryValue);
-             if(summaryConsignment) summaryConsignment.textContent = formatCurrency(goodsOnConsignmentValue);
-             if(summaryDebts) summaryDebts.textContent = formatCurrency(totalDebtsValue);
-             if(summaryLiabilities) summaryLiabilities.textContent = formatCurrency(totalLiabilitiesValue);
-             if(summaryExpenses) summaryExpenses.textContent = formatCurrency(expenses);
-             if(summaryProfit) summaryProfit.textContent = formatCurrency(totalProfit);
-             if(summaryCapital) summaryCapital.textContent = formatCurrency(totalCapital);
-
-             // Update Inventory Section Details
-             if(inventoryTotalInventoryValue) inventoryTotalInventoryValue.textContent = `إجمالي قيمة المخزون: ${formatCurrency(totalInventoryValue)}`;
-             if(inventoryConsignmentValue) inventoryConsignmentValue.textContent = `قيمة مؤقتة: ${formatCurrency(goodsOnConsignmentValue)}`;
-             if(inventoryTotalProfit) inventoryTotalProfit.textContent = `إجمالي الربح: ${formatCurrency(totalProfit)}`;
-
-             // Update Lists and Dropdowns
-             updateProductListDisplay(); // Includes product datalist update & manage serials button
-             updateSuppliersListDisplay(); // Includes supplier datalist update for serial search
-             updateSupplierDropdown('product-supplier'); // Update product form dropdown
-             updateSupplierDropdown('pi_supplier'); // Populate purchase invoice supplier dropdown
-             updateLogDisplay();
-             updateAdditionalCostsCheckboxes(); // Update checkboxes in sell section
-             updatePendingSalesDisplay(); // <<< Now updates totals and filtered list
-             updateDebtorsListDisplay();
-             updatePaymentDebtorDropdown();
-             updateLiquidityLogDisplay();
-             updateLiabilitiesListDisplay();
-             updatePaymentCreditorDropdown();
-             updateOffsetDatalists(); // Update datalists in offset section
-             pi_updateRecentPurchasesDisplay(); 
-             pi_updatePendingPurchasesDisplay();
-              updateReturnsUI(); 
+    if (inventoryTotalInventoryValue) inventoryTotalInventoryValue.textContent = `إجمالي قيمة المخزون: ${formatCurrency(totalInventoryValue)}`;
+    if (inventoryConsignmentValue) inventoryConsignmentValue.textContent = `قيمة مؤقتة: ${formatCurrency(goodsOnConsignmentValue)}`;
+    if (inventoryTotalProfit) inventoryTotalProfit.textContent = `إجمالي الربح: ${formatCurrency(totalProfit)}`;
+    
+    updateProductListDisplay();
+    updateSuppliersListDisplay();
+    updateSupplierDropdown('product-supplier');
+    updateSupplierDropdown('pi_supplier');
+    updateLogDisplay();
+    updateAdditionalCostsCheckboxes();
+    updatePendingSalesDisplay();
+    updateDebtorsListDisplay();
+    updatePaymentDebtorDropdown();
+    updateLiquidityLogDisplay();
+    updateLiabilitiesListDisplay();
+    updatePaymentCreditorDropdown();
+    updateOffsetDatalists();
+    pi_updateRecentPurchasesDisplay();
+    pi_updatePendingPurchasesDisplay();
+    updateReturnsUI();
     populateReturnProductSelect();
-
-             // Update Section Headers/Totals
-             if(totalDebtsDisplay) totalDebtsDisplay.textContent = `إجمالي الديون: ${formatCurrency(totalDebtsValue)}`;
-             if(currentLiquidityDisplay) currentLiquidityDisplay.textContent = formatCurrency(liquidity);
-             if(totalExpensesDisplay) totalExpensesDisplay.textContent = formatCurrency(expenses);
-             if(totalLiabilitiesDisplay) totalLiabilitiesDisplay.textContent = `إجمالي الالتزامات: ${formatCurrency(totalLiabilitiesValue)}`;
-
-             // Update Top Bar Date Display
-             if(currentDataDateDisplay){currentDataDateDisplay.textContent = currentLoadedDate ? formatDateForDisplay(currentLoadedDate) : "بيانات جديدة (لم تحفظ بعد)"}
-
-             // Update invoice deductible costs only if modal is open (potentially redundant, but safe)
-             if (inv_modal && inv_modal.style.display === 'block') {
-                 inv_updateDeductibleCostsCheckboxes();
-             }
-             // ... at the end of updateUI() function
-// Populate for the first time if the financial center tab is active initially
-if (d('financial-center-section') && !d('financial-center-section').classList.contains('hidden')) {
-    const activeTab = d('fc-main-tabs').querySelector('.fc-tab-button.active');
-    if (activeTab) {
-        const targetId = activeTab.dataset.target;
-        if (targetId === 'fc-tab-distribution') {
-            fc_populate_month_select();
-        } else if (targetId === 'fc-tab-debt-treatment') {
-            fc_populate_debt_treatment();
-        }
-        // Note: The expenses and monthly liabilities tabs will be updated by the main updateUI function
+    updateMonthlyLiabilitiesDisplay();
+    
+    if (totalDebtsDisplay) totalDebtsDisplay.textContent = `إجمالي الديون: ${formatCurrency(totalDebtsValue)}`;
+    if (currentLiquidityDisplay) currentLiquidityDisplay.textContent = formatCurrency(liquidity);
+    if (totalExpensesDisplay) totalExpensesDisplay.textContent = formatCurrency(expenses);
+    if (totalLiabilitiesDisplay) totalLiabilitiesDisplay.textContent = `إجمالي الالتزامات: ${formatCurrency(totalLiabilitiesValue)}`;
+    if (currentDataDateDisplay) { currentDataDateDisplay.textContent = currentLoadedDate ? formatDateForDisplay(currentLoadedDate) : "بيانات جديدة (لم تحفظ بعد)"; }
+    if (inv_modal && inv_modal.style.display === 'block') { inv_updateDeductibleCostsCheckboxes(); }
+    if (d('financial-center-section') && !d('financial-center-section').classList.contains('hidden')) { 
+        const activeTab = d('fc-main-tabs').querySelector('.fc-tab-button.active'); 
+        if (activeTab) { 
+            const targetId = activeTab.dataset.target; 
+            if (targetId === 'fc-tab-distribution') { 
+                fc_populate_month_select(); 
+            } else if (targetId === 'fc-tab-debt-treatment') { 
+                fc_populate_debt_treatment(); 
+            } 
+        } 
     }
 }
-          }
-
-
-// =======================================================
-// START: دالة تحويل بيع مؤقت إلى مرتجع (النسخة النهائية المصححة)
-// =======================================================
-// =======================================================
-// START: دالة تحويل بيع مؤقت إلى مرتجع (النسخة النهائية المصححة)
-// =======================================================
-// =======================================================
 // START: دالة تحويل بيع مؤقت إلى مرتجع (النسخة النهائية)
 // =======================================================
 function initiateReturnFromPendingSale(pendingId) {
@@ -6427,7 +6414,6 @@ function pi_updateRecentPurchasesDisplay() {
 }
 /**
  * Updates the list of pending purchases for the current day.
- */
 /**
  * Updates the list of pending purchases for the current day.
  */
@@ -6445,7 +6431,13 @@ function pi_updatePendingPurchasesDisplay() {
     container.innerHTML = sortedInvoices.map(invoice => {
         const supplier = suppliers.find(s => s.id === invoice.supplierId);
 
-        // --- ✅ بداية الكود الجديد: إنشاء جدول البنود ---
+        // --- ✅ الكود الجديد: متغير لتخزين زر التسديد الإضافي ---
+        let receiveAndPayButtonHTML = '';
+        // أظهر زر "استلام وتسديد" فقط إذا كان هناك مبلغ متبقٍ
+        if (invoice.remainingBalance > 0.001) {
+            receiveAndPayButtonHTML = `<button data-pending-purchase-id="${invoice.id}" class="receive-and-pay-btn text-xs bg-purple-500 hover:bg-purple-600 text-white font-semibold py-1 px-3 rounded">استلام وتسديد المتبقي</button>`;
+        }
+        
         const itemsTableHTML = `
             <table class="w-full text-sm mt-2" style="border-top: 1px dashed #e2e8f0;">
                 <thead>
@@ -6466,8 +6458,7 @@ function pi_updatePendingPurchasesDisplay() {
                 </tbody>
             </table>
         `;
-        // --- نهاية الكود الجديد ---
-
+        
         return `
             <div class="p-3 border rounded-md bg-yellow-50 shadow-sm mb-2">
                 <div class="flex justify-between items-center flex-wrap gap-2">
@@ -6482,15 +6473,17 @@ function pi_updatePendingPurchasesDisplay() {
 
                 <div class="text-sm mt-2 pt-2 border-t flex justify-end gap-2">
                     <button data-pending-purchase-id="${invoice.id}" class="cancel-pending-purchase-btn text-xs bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded">إلغاء الشراء</button>
-                    <button data-pending-purchase-id="${invoice.id}" class="receive-goods-btn text-xs bg-green-500 hover:bg-green-600 text-white font-semibold py-1 px-3 rounded">استلام البضاعة</button>
+                    ${receiveAndPayButtonHTML} <button data-pending-purchase-id="${invoice.id}" class="receive-goods-btn text-xs bg-green-500 hover:bg-green-600 text-white font-semibold py-1 px-3 rounded">استلام (بقاء الدين)</button>
                 </div>
             </div>
         `;
     }).join('');
 }
-/**
- * Handles clicks on the "Receive Goods" and "Cancel Purchase" buttons.
- */
+// =======================================================
+// START: دالة التعامل مع المشتريات المعلقة (النسخة النهائية)
+// =======================================================
+// START: دالة التعامل مع المشتريات المعلقة (النهائية مع زر الدفع)
+// =======================================================
 function handlePendingPurchaseActions(event) {
     const target = event.target.closest('button');
     if (!target) return;
@@ -6503,19 +6496,11 @@ function handlePendingPurchaseActions(event) {
         showGlobalMessage("خطأ: لم يتم العثور على فاتورة الشراء المعلقة.", true);
         return;
     }
-
     const purchase = pendingPurchases[purchaseIndex];
     const supplier = suppliers.find(s => s.id === purchase.supplierId);
 
-    if (target.classList.contains('receive-goods-btn')) {
-        // --- LOGIC TO RECEIVE GOODS ---
-        if (!confirm(`هل أنت متأكد من استلام بضاعة الفاتورة من المورد "${supplier?.name || '-'}"؟\nسيتم تحديث المخزون الآن.`)) {
-            return;
-        }
-
-        saveStateToHistory();
-
-        // 1. Update Inventory and Serials
+    // دالة مشتركة لتحديث المخزون (لتجنب تكرار الكود)
+    const updateInventoryFromPurchase = () => {
         let logItems = [];
         purchase.items.forEach(item => {
             const productIndex = products.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
@@ -6531,58 +6516,76 @@ function handlePendingPurchaseActions(event) {
                 products.push({ name: item.name, quantity: item.quantity, costPrice: item.cost, supplierId: purchase.supplierId });
             }
             logItems.push(`${item.quantity}x ${item.name}`);
-
             if (item.serials && item.serials.length > 0) {
                 item.serials.forEach(serial => serialNumbersLog.push({ serial, productName: item.name, supplierId: purchase.supplierId, addedTimestamp: purchase.timestamp, status: "in_stock" }));
             }
         });
+        return logItems;
+    };
 
-        // 2. Update the Liability (change it from pending to a normal remaining balance)
-        const liabilityIndex = liabilities.findIndex(l => l.pendingPurchaseId === purchase.id);
-        if (liabilityIndex > -1) {
-            if (purchase.remainingBalance > 0) {
-                liabilities[liabilityIndex].name = `متبقي فاتورة لـ: ${supplier.name} (${purchase.invoiceNumber || 'بدون رقم'})`;
-                liabilities[liabilityIndex].amount = purchase.remainingBalance;
-                liabilities[liabilityIndex].purchaseInvoiceId = purchase.id;
-                delete liabilities[liabilityIndex].pendingPurchaseId;
-            } else {
-                // If fully paid, remove the liability altogether
-                liabilities.splice(liabilityIndex, 1);
-            }
+
+    if (target.classList.contains('receive-goods-btn') || target.classList.contains('receive-and-pay-btn')) {
+        // --- ★★★ منطق استلام البضاعة (لكلا الزرين) ★★★ ---
+        
+        const isPayingNow = target.classList.contains('receive-and-pay-btn');
+        let confirmMessage = `هل أنت متأكد من استلام بضاعة الفاتورة من المورد "${supplier?.name || '-'}"؟`;
+        if (isPayingNow) {
+            confirmMessage += `\nسيتم خصم المبلغ المتبقي (${formatCurrency(purchase.remainingBalance)}) من السيولة.`;
         }
 
-        // 3. Move from pending to confirmed list
-        purchase.status = 'Confirmed';
-        purchaseInvoices.push(purchase);
-        pendingPurchases.splice(purchaseIndex, 1);
-
-        logOperation("استلام بضاعة", `تم استلام بضاعة من "${supplier?.name || '-'}" بنجاح. البنود: ${logItems.join(', ')}.`);
-        showGlobalMessage("تم استلام البضاعة وتحديث المخزون.", false);
-
-    } else if (target.classList.contains('cancel-pending-purchase-btn')) {
-        // --- LOGIC TO CANCEL PURCHASE ---
-        if (!confirm(`هل أنت متأكد من إلغاء فاتورة الشراء المعلقة من المورد "${supplier?.name || '-'}"؟\nسيتم إرجاع أي دفعة مقدمة إلى السيولة.`)) {
+        if (!confirm(confirmMessage)) return;
+        
+        if (isPayingNow && purchase.remainingBalance > liquidity) {
+            showGlobalMessage(`فشل التسديد: السيولة غير كافية (${formatCurrency(liquidity)}) لتسديد المبلغ المتبقي.`, true);
             return;
         }
 
         saveStateToHistory();
+        updateInventoryFromPurchase(); // تحديث المخزون
+        
+        if (isPayingNow) {
+            liquidity -= purchase.remainingBalance;
+            liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: purchase.remainingBalance, description: `تسديد متبقي فاتورة شراء لـ ${supplier?.name || 'مورد'}`, currentBalance: liquidity });
+            purchase.paidAmount = purchase.grandTotal;
+            purchase.remainingBalance = 0;
+            liabilities = liabilities.filter(l => l.pendingPurchaseId !== purchase.id);
+            logOperation("استلام وتسديد", `تم استلام بضاعة من "${supplier?.name || '-'}" وتسديد المتبقي بالكامل.`);
+        } else {
+            const liabilityIndex = liabilities.findIndex(l => l.pendingPurchaseId === purchase.id);
+            if (liabilityIndex > -1) {
+                if (liabilities[liabilityIndex].amount > 0) {
+                    liabilities[liabilityIndex].name = `متبقي فاتورة لـ: ${supplier.name} (${purchase.invoiceNumber || 'بدون رقم'})`;
+                    liabilities[liabilityIndex].purchaseInvoiceId = purchase.id;
+                    delete liabilities[liabilityIndex].pendingPurchaseId;
+                } else {
+                    liabilities.splice(liabilityIndex, 1);
+                }
+            }
+            logOperation("استلام بضاعة", `تم استلام بضاعة من "${supplier?.name || '-'}" وسيبقى المتبقي كالتزام.`);
+        }
 
-        // 1. Return any paid amount (deposit) back to liquidity
-        if (purchase.paidAmount > 0) {
+        purchase.status = 'Confirmed';
+        purchaseInvoices.push(purchase);
+        pendingPurchases.splice(purchaseIndex, 1);
+        showGlobalMessage("تم استلام البضاعة وتحديث المخزون بنجاح.", false);
+        
+    } else if (target.classList.contains('cancel-pending-purchase-btn')) {
+        // --- ★★★ منطق إلغاء الشراء (لم يتغير) ★★★ ---
+        if (!confirm(`هل أنت متأكد من إلغاء فاتورة الشراء المعلقة من المورد "${supplier?.name || '-'}"؟`)) {
+            return;
+        }
+        saveStateToHistory();
+        
+        if (purchase.deductedFromLiquidity && purchase.paidAmount > 0) {
             liquidity += purchase.paidAmount;
             liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: purchase.paidAmount, description: `إلغاء شراء وإرجاع عربون من ${supplier?.name || 'مورد'}`, currentBalance: liquidity });
         }
-
-        // 2. Remove the associated liability
         liabilities = liabilities.filter(l => l.pendingPurchaseId !== purchase.id);
-
-        // 3. Remove from pending list
         pendingPurchases.splice(purchaseIndex, 1);
-
         logOperation("إلغاء فاتورة شراء معلقة", `تم إلغاء شراء من "${supplier?.name || '-'}" بقيمة ${formatCurrency(purchase.grandTotal)}.`);
         showGlobalMessage("تم إلغاء الشراء المعلق بنجاح.", false, true);
     }
-
+    
     updateUI();
 }
 
@@ -6591,16 +6594,23 @@ function handlePendingPurchaseActions(event) {
  * Core function to confirm a purchase invoice.
  * Updates inventory, liabilities, and liquidity.
  */
+// =======================================================
+// START: دالة تأكيد فاتورة الشراء (النسخة النهائية المصححة)
+// =======================================================
+// =======================================================
+// START: دالة تأكيد فاتورة الشراء (النسخة النهائية الصحيحة)
+// =======================================================
+// =======================================================
+// START: دالة تأكيد فاتورة الشراء (النسخة النهائية الصحيحة)
+// =======================================================
 function pi_confirmPurchaseInvoice() {
-    if (!pi_validateForm()) {
-        return; // Stop if form is not valid
-    }
-
-    saveStateToHistory(); // Save state before making changes
-
+    if (!pi_validateForm()) { return; }
+    saveStateToHistory();
+    
     const goodsReceived = d('pi_goods_received').checked;
+    const deductFromLiquidity = d('pi_deduct_from_liquidity').checked;
+    const paidAmountValue = parseInputNumber(piPaidAmountInput) || 0;
 
-    // 1. Collect all data from the form
     const invoiceData = {
         id: generateId('pi'),
         supplierId: piSupplierSelect.value,
@@ -6614,15 +6624,16 @@ function pi_confirmPurchaseInvoice() {
             serials: JSON.parse(row.dataset.serials || '[]')
         })),
         grandTotal: parseFloat(piGrandTotalSpan.textContent) || 0,
-        paidAmount: parseInputNumber(piPaidAmountInput) || 0,
+        paidAmount: paidAmountValue,
         remainingBalance: parseFloat(piRemainingBalanceSpan.textContent) || 0,
-        status: goodsReceived ? 'Confirmed' : 'Pending'
+        status: goodsReceived ? 'Confirmed' : 'Pending',
+        deductedFromLiquidity: deductFromLiquidity && paidAmountValue > 0 // ✅ حفظ حالة الخصم
     };
 
     const supplier = suppliers.find(s => s.id === invoiceData.supplierId);
 
     if (goodsReceived) {
-        // --- LOGIC IF GOODS ARE RECEIVED ---
+        // --- منطق الاستلام الفوري ---
         let logItems = [];
         invoiceData.items.forEach(item => {
             const productIndex = products.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
@@ -6642,55 +6653,38 @@ function pi_confirmPurchaseInvoice() {
                 item.serials.forEach(serial => serialNumbersLog.push({ serial, productName: item.name, supplierId: invoiceData.supplierId, addedTimestamp: invoiceData.timestamp, status: "in_stock" }));
             }
         });
-
         if (invoiceData.remainingBalance > 0 && supplier) {
             liabilities.push({ id: generateId('liab'), name: `متبقي فاتورة لـ: ${supplier.name} (${invoiceData.invoiceNumber || 'بدون رقم'})`, amount: invoiceData.remainingBalance, purchaseInvoiceId: invoiceData.id });
         }
-
-        if (invoiceData.paidAmount > 0) {
+        if (invoiceData.paidAmount > 0 && deductFromLiquidity) {
             liquidity -= invoiceData.paidAmount;
             liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: invoiceData.timestamp, type: "remove", amount: invoiceData.paidAmount, description: `دفع فاتورة شراء لـ ${supplier?.name || 'مورد'}`, currentBalance: liquidity });
         }
-
         purchaseInvoices.push(invoiceData);
         logOperation("تأكيد واستلام فاتورة شراء", `تم استلام بضاعة من ${supplier?.name || '-'} بقيمة ${formatCurrency(invoiceData.grandTotal)}. البنود: ${logItems.join(', ')}.`);
         showMessage(piFormMessage, "تم تأكيد الفاتورة وتحديث المخزون بنجاح.", false);
-
     } else {
-        // --- LOGIC IF GOODS ARE PENDING (NOT RECEIVED) ---
-
-        // Step 1: Add to pending purchases list
+        // --- ✅✅✅ منطق قيد الاستلام المصحح حسب طلبك ✅✅✅ ---
         pendingPurchases.push(invoiceData);
 
-        // Step 2: Create a liability for the FULL amount of the invoice, as it's now an obligation
-        if (supplier) {
-            liabilities.push({ id: generateId('liab'), name: `فاتورة شراء معلقة لـ: ${supplier.name} (${invoiceData.invoiceNumber || 'بدون رقم'})`, amount: invoiceData.grandTotal, pendingPurchaseId: invoiceData.id });
+        // 1. تسجيل الالتزام بالمبلغ المتبقي فقط
+        if (invoiceData.remainingBalance > 0 && supplier) {
+            liabilities.push({ id: generateId('liab'), name: `فاتورة شراء معلقة لـ: ${supplier.name} (${invoiceData.invoiceNumber || 'بدون رقم'})`, amount: invoiceData.remainingBalance, pendingPurchaseId: invoiceData.id });
         }
 
-        // Step 3: Deduct ONLY the paid amount (deposit/down payment) from liquidity
-        if (invoiceData.paidAmount > 0) {
+        // 2. خصم العربون من السيولة (إذا تم تحديد الخيار)
+        if (invoiceData.paidAmount > 0 && deductFromLiquidity) {
             liquidity -= invoiceData.paidAmount;
             liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: invoiceData.timestamp, type: "remove", amount: invoiceData.paidAmount, description: `دفعة مقدمة لفاتورة شراء من ${supplier?.name || 'مورد'}`, currentBalance: liquidity });
         }
-
-        // Step 4: Do NOT touch inventory.
-        logOperation("تسجيل فاتورة شراء معلقة", `تم تسجيل فاتورة من ${supplier?.name || '-'} بقيمة ${formatCurrency(invoiceData.grandTotal)} كشراء قيد الاستلام. ${invoiceData.paidAmount > 0 ? 'تم دفع عربون ' + formatCurrency(invoiceData.paidAmount) + '.' : ''}`);
+        
+        logOperation("تسجيل فاتورة شراء معلقة", `تسجيل فاتورة من ${supplier?.name || '-'} بقيمة ${formatCurrency(invoiceData.grandTotal)}.`);
         showMessage(piFormMessage, "تم تسجيل الفاتورة كـ 'شراء قيد الاستلام' بنجاح.", false, true);
     }
 
-    // Clear form and update UI for both cases
     pi_clearForm();
     updateUI();
 }
-
-// =======================================================
-// END: Purchase Invoice (PI) Logic Functions
-// =======================================================
-
-// ===================================================================================
-// END: FINANCIAL CENTER (FC) LOGIC
-// ===================================================================================
-
             
 // START: دالة بدء التشغيل النهائية (متصلة بالإنترنت)
 // =======================================================
