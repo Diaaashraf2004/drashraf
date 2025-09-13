@@ -3536,6 +3536,8 @@ async function saveCurrentStateByDate(dateString) {
         // حفظ الملخص (Latest Balances)
         const latestBalancesSummary = {
             products, suppliers, liquidity, debtors, liabilities, monthlyLiabilities, pendingSales, serialNumbersLog, inboxTasks,
+            pendingPurchases, // <-- ✅ السطر الأول المضاف
+    pendingReturns,   // <-- ✅ السطر الثاني المضاف
             summaryForDate: dateString,
             lastUpdated: new Date().toISOString()
         };
