@@ -2905,28 +2905,17 @@ function calculateConsignmentValue() {
     }, 0);
 }
     // ✅ الدالة الأولى: نسخة محسّنة من loadState
+// ✅ الكود الجديد والصحيح
 function loadState(data, dateString) {
-    resetState(); 
+    resetState(); // ابدأ دائمًا بحالة نظيفة
 
     products = data.products || [];
     suppliers = data.suppliers || [];
     
-    // --- ✅ تم تعديل هذا الجزء بالكامل ---
-    // تحقق أولاً مما إذا كانت البيانات المحملة تحتوي على نظام الحسابات الجديد
-    if (data.accounts && Array.isArray(data.accounts)) {
-        accounts = data.accounts;
-        // لم نعد بحاجة لمتغير liquidity القديم
-        liquidity = 0; 
-    } else {
-        // إذا كانت البيانات قديمة ولا تحتوي على accounts
-        // قم بإنشاء حساب افتراضي وضع فيه قيمة السيولة القديمة
-        accounts = [
-            { id: 'main', name: 'الخزينة الرئيسية', balance: parseFloat(data.liquidity) || 0 },
-            { id: 'bank', name: 'حساب البنك', balance: 0 }
-        ];
-        liquidity = 0; // تصفير المتغير القديم
-    }
-    // --- نهاية التعديل ---
+    // منطق جديد ومبسط للتعامل مع الحسابات
+    accounts = (data.accounts && Array.isArray(data.accounts) && data.accounts.length > 0) 
+        ? data.accounts 
+        : [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0 }]; // حالة احتياطية
 
     expenses = parseFloat(data.expenses) || 0;
     debtors = data.debtors || [];
@@ -2944,9 +2933,9 @@ function loadState(data, dateString) {
     pendingReturns = data.pendingReturns || [];
     pendingReturnsValue = data.pendingReturnsValue || 0;
 
-
     currentLoadedDate = dateString;
 
+    // تصفير سجل التراجع/الإعادة عند تحميل يوم جديد
     stateHistory = []; 
     redoHistory = [];
     updateUndoRedoButtons();
@@ -3764,13 +3753,13 @@ function resetReturnForm() {
 // START: دالة الحفظ الجديدة (المتصلة بالإنترنت)
 // =======================================================
 // ✅ انسخ هذا الكود بالكامل والصقه مكان الدالة القديمة
+// ✅ الكود الجديد والصحيح
 async function saveCurrentStateByDate(dateString) {
     if (!window.currentUser) {
         showGlobalMessage("خطأ: يجب تسجيل الدخول للحفظ.", true);
         return;
     }
     const userId = window.currentUser.uid;
-
     console.log(`Saving data to Firebase for date: ${dateString} for user: ${userId}`);
 
     // الكائن الأول: الحفظ الكامل لبيانات اليوم
@@ -3780,7 +3769,7 @@ async function saveCurrentStateByDate(dateString) {
         profit: totalProfit, log: operationLog, pendingSales,
         liquidityLog, salesToday, serialNumbersLog, inboxTasks,
         purchaseInvoices, pendingPurchases, completedReturns, pendingReturns,
-        pendingReturnsValue, // <-- موجود هنا
+        pendingReturnsValue,
         savedAt: new Date().toISOString(),
         savedForDate: dateString
     };
@@ -3789,37 +3778,24 @@ async function saveCurrentStateByDate(dateString) {
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
         await window.setDoc(docRef, stateToSave);
 
-        // ... (باقي كود النسخ الاحتياطي يبقى كما هو)
+        // ... (كود النسخ الاحتياطي يبقى كما هو) ...
         const timestamp = new Date().toISOString();
         const backupKey = `goodsMgmt_backup_${dateString}_${timestamp}`;
         saveData(backupKey, stateToSave);
-        console.log(`Safety Net: Created new backup: ${backupKey}`);
         
-        let dayBackups = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key.startsWith(`goodsMgmt_backup_${dateString}_`)) {
-                dayBackups.push(key);
-            }
-        }
-        if (dayBackups.length > MAX_DAILY_BACKUPS) {
-            dayBackups.sort();
-            const backupsToDelete = dayBackups.length - MAX_DAILY_BACKUPS;
-            for (let i = 0; i < backupsToDelete; i++) {
-                localStorage.removeItem(dayBackups[i]);
-            }
-        }
-        
-        // الكائن الثاني: ملخص الأرصدة للترحيل
+        // --- ★★★ بداية التعديل الجوهري ★★★ ---
+        // الكائن الثاني: ملخص الأرصدة للترحيل (النسخة الصحيحة)
         const latestBalancesSummary = {
             products, suppliers, accounts, debtors, liabilities, monthlyLiabilities, 
             pendingSales, serialNumbersLog, inboxTasks,
             pendingPurchases, 
             pendingReturns,
-            pendingReturnsValue, // <-- ✅ تم التأكد من إضافته هنا أيضًا
+            pendingReturnsValue,
             summaryForDate: dateString,
             lastUpdated: new Date().toISOString()
         };
+        // --- ★★★ نهاية التعديل الجوهري ★★★ ---
+
         const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
         await window.setDoc(summaryDocRef, latestBalancesSummary);
         console.log(`Successfully updated latestBalances summary from date: ${dateString}`);
@@ -3829,7 +3805,7 @@ async function saveCurrentStateByDate(dateString) {
         showGlobalMessage(`تم حفظ البيانات بنجاح على الإنترنت لتاريخ: ${formatDateForDisplay(dateString)}`, false);
     } catch (error) {
         console.error("Error saving data to Firebase: ", error);
-        showGlobalMessage("حدث خطأ أثناء محاولة حفظ البيانات على الإنترنت. يرجى مراجعة الـ Console.", true);
+        showGlobalMessage("حدث خطأ أثناء محاولة حفظ البيانات على الإنترنت.", true);
     }
 }
 // دالة لفتح نافذة سجل النسخ الاحتياطية
@@ -3918,20 +3894,9 @@ function toggleAutoSave() {
         // =======================================================
 // START: دالة تحميل البيانات الجديدة (من الإنترنت)
 // =======================================================
-// =======================================================
-// ✅ الدالة الثانية: نسخة جديدة كلياً ومنظمة لـ loadDataForDate
-// ✅ الدالة الثانية: نسخة منظمة من loadDataForDate
-// =======================================================
-// START: دالة تحميل البيانات النهائية (مع الترحيل الصحيح)
-// =======================================================
-// =======================================================
-// START: دالة تحميل البيانات (نسخة التشخيص)
-// =======================================================
+// ✅ الكود الجديد والصحيح
 async function loadDataForDate(dateString) {
-    // --- رسائل التشخيص ---
-    console.log(`\n\n--- [بداية] عملية تحميل بيانات لتاريخ: ${dateString} ---`);
-    // ----------------------
-
+    console.log(`\n--- [بداية] عملية تحميل بيانات لتاريخ: ${dateString} ---`);
     if (!window.currentUser) {
         console.log("[فشل] لا يوجد مستخدم مسجل الدخول.");
         return false;
@@ -3940,48 +3905,34 @@ async function loadDataForDate(dateString) {
     const loadMessageElement = d("load-message-alt");
 
     if (!dateString) {
-        if (loadMessageElement) showMessage(loadMessageElement, "يرجى اختيار تاريخ للتحميل.", true);
-        console.log("[فشل] لم يتم تحديد تاريخ.");
+        showMessage(loadMessageElement, "يرجى اختيار تاريخ للتحميل.", true);
         return false;
     }
-
-    console.log(`[خطوة 1] جاري جلب البيانات من Firebase لليوم المحدد...`);
 
     try {
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
         const docSnap = await window.getDoc(docRef);
-        
-        // --- رسائل التشخيص ---
-        console.log(`[خطوة 2] هل تم العثور على بيانات لليوم المحدد؟ -> ${docSnap.exists()}`);
-        // ----------------------
 
         if (docSnap.exists()) {
-            // --- الحالة أ: تم العثور على بيانات لليوم المحدد ---
-            console.log("[الحالة أ] تم العثور على بيانات. سيتم مسح الحالة الحالية ثم تحميل البيانات الجديدة.");
-            resetState();
+            console.log("[الحالة أ] تم العثور على بيانات. سيتم تحميلها مباشرة.");
             loadState(docSnap.data(), dateString);
             showMessage(loadMessageElement, `تم تحميل البيانات بنجاح لتاريخ ${formatDateForDisplay(dateString)}.`, false);
         } else {
-            // --- الحالة ب: لا توجد بيانات لهذا اليوم، قم بالترحيل من الملخص ---
-            console.log("[الحالة ب] لا توجد بيانات لهذا اليوم. سنحاول الآن الترحيل من ملخص آخر يوم عمل.");
-            
+            console.log("[الحالة ب] لا توجد بيانات. سنحاول الترحيل من ملخص آخر يوم عمل.");
             const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
             const summaryDocSnap = await window.getDoc(summaryDocRef);
 
-            // --- رسائل التشخيص ---
-            console.log(`[خطوة 3] هل تم العثور على ملف ملخص الأرصدة (latestBalances)؟ -> ${summaryDocSnap.exists()}`);
-            // ----------------------
-
             if (summaryDocSnap.exists()) {
                 const previousData = summaryDocSnap.data();
-                console.log(`[نجاح الترحيل] تم العثور على ملخص من يوم: ${previousData.summaryForDate}. سيتم ترحيل الأرصدة الآن.`);
+                console.log(`[نجاح الترحيل] تم العثور على ملخص من يوم: ${previousData.summaryForDate}.`);
                 
-                resetState();
+                resetState(); // تصفير الحالة الحالية بالكامل
 
-                // ترحيل الأرصدة فقط
+                // --- ★★★ بداية التعديل الجوهري ★★★ ---
+                // ترحيل الأرصدة النهائية فقط من الملخص
                 products = previousData.products || [];
                 suppliers = previousData.suppliers || [];
-                liquidity = parseFloat(previousData.liquidity) || 0;
+                accounts = previousData.accounts || [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0 }]; // الأهم
                 debtors = previousData.debtors || [];
                 liabilities = previousData.liabilities || [];
                 monthlyLiabilities = previousData.monthlyLiabilities || [];
@@ -3990,8 +3941,9 @@ async function loadDataForDate(dateString) {
                 pendingPurchases = previousData.pendingPurchases || [];
                 pendingReturns = previousData.pendingReturns || [];
                 pendingReturnsValue = previousData.pendingReturnsValue || 0;
+                // --- ★★★ نهاية التعديل الجوهري ★★★ ---
 
-                // تصفير بيانات اليوم الجديد
+                // تصفير بيانات اليوم الجديد (المصاريف، الأرباح، إلخ)
                 expenses = 0;
                 totalProfit = 0;
                 operationLog = [`[${new Date().toLocaleTimeString('ar-EG')}] ترحيل أرصدة: تم ترحيل الأرصدة من ملخص يوم ${formatDateForDisplay(previousData.summaryForDate)}.`];
@@ -3999,13 +3951,12 @@ async function loadDataForDate(dateString) {
                 salesToday = [];
                 purchaseInvoices = [];
                 completedReturns = [];
-
+                
                 showMessage(loadMessageElement, `تم ترحيل الأرصدة من آخر يوم عمل إلى تاريخ ${formatDateForDisplay(dateString)}.`, false);
             } else {
-                console.log("[فشل الترحيل] لم يتم العثور على ملف ملخص الأرصدة. سيتم البدء بيوم جديد فارغ.");
+                console.log("[فشل الترحيل] لم يتم العثور على ملف ملخص. سيتم البدء بيوم جديد فارغ.");
                 resetState();
                 accounts.push({ id: 'main', name: 'الخزينة الرئيسية', balance: 0.00 });
-                accounts.push({ id: 'bank', name: 'حساب البنك', balance: 0.00 });
                 showMessage(loadMessageElement, `لا توجد بيانات سابقة. تم البدء بيوم جديد فارغ.`, false, true);
             }
         }
@@ -4013,11 +3964,6 @@ async function loadDataForDate(dateString) {
         currentLoadedDate = dateString;
         if (d("load-date-alt")) d("load-date-alt").value = dateString;
         updateLoadDateDayName(dateString, d("load-date-day-name-alt"));
-        
-        // --- رسائل التشخيص ---
-        console.log("[خطوة 4] تم الانتهاء من منطق التحميل/الترحيل. سيتم الآن تحديث واجهة المستخدم (updateUI).");
-        console.log(`--- [نهاية] العملية ---`);
-        // ----------------------
         
         updateUI();
         return true;
@@ -4027,11 +3973,7 @@ async function loadDataForDate(dateString) {
         showMessage(loadMessageElement, "حدث خطأ أثناء التعامل مع البيانات. راجع الـ Console.", true);
         return false;
     }
-}
-// =======================================================
-// END: دالة تحميل البيانات (نسخة التشخيص)
-// =======================================================
-// =======================================================
+}// =======================================================
 // =======================================================
         function exportData() {
              console.log("Export button clicked. currentLoadedDate:", currentLoadedDate);
