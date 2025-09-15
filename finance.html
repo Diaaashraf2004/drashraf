@@ -3754,6 +3754,7 @@ function resetReturnForm() {
 // =======================================================
 // ✅ انسخ هذا الكود بالكامل والصقه مكان الدالة القديمة
 // ✅ الكود الجديد والصحيح
+// ✅ الكود الجديد والصحيح
 async function saveCurrentStateByDate(dateString) {
     if (!window.currentUser) {
         showGlobalMessage("خطأ: يجب تسجيل الدخول للحفظ.", true);
@@ -3762,7 +3763,6 @@ async function saveCurrentStateByDate(dateString) {
     const userId = window.currentUser.uid;
     console.log(`Saving data to Firebase for date: ${dateString} for user: ${userId}`);
 
-    // الكائن الأول: الحفظ الكامل لبيانات اليوم
     const stateToSave = {
         month: dateString.substring(0, 7),
         products, suppliers, accounts, expenses, debtors, liabilities, monthlyLiabilities,
@@ -3779,10 +3779,7 @@ async function saveCurrentStateByDate(dateString) {
         await window.setDoc(docRef, stateToSave);
 
         // ... (كود النسخ الاحتياطي يبقى كما هو) ...
-        const timestamp = new Date().toISOString();
-        const backupKey = `goodsMgmt_backup_${dateString}_${timestamp}`;
-        saveData(backupKey, stateToSave);
-        
+
         // --- ★★★ بداية التعديل الجوهري ★★★ ---
         // الكائن الثاني: ملخص الأرصدة للترحيل (النسخة الصحيحة)
         const latestBalancesSummary = {
@@ -3893,7 +3890,6 @@ function toggleAutoSave() {
         
         // =======================================================
 // START: دالة تحميل البيانات الجديدة (من الإنترنت)
-// =======================================================
 // ✅ الكود الجديد والصحيح
 async function loadDataForDate(dateString) {
     console.log(`\n--- [بداية] عملية تحميل بيانات لتاريخ: ${dateString} ---`);
@@ -3973,7 +3969,7 @@ async function loadDataForDate(dateString) {
         showMessage(loadMessageElement, "حدث خطأ أثناء التعامل مع البيانات. راجع الـ Console.", true);
         return false;
     }
-}// =======================================================
+}
 // =======================================================
         function exportData() {
              console.log("Export button clicked. currentLoadedDate:", currentLoadedDate);
