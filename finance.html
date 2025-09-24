@@ -3752,9 +3752,6 @@ function resetReturnForm() {
         // =======================================================
 // START: دالة الحفظ الجديدة (المتصلة بالإنترنت)
 // =======================================================
-// ✅ انسخ هذا الكود بالكامل والصقه مكان الدالة القديمة
-// ✅ الكود الجديد والصحيح
-// ✅ الكود الجديد والصحيح
 async function saveCurrentStateByDate(dateString) {
     if (!window.currentUser) {
         showGlobalMessage("خطأ: يجب تسجيل الدخول للحفظ.", true);
@@ -3778,10 +3775,31 @@ async function saveCurrentStateByDate(dateString) {
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
         await window.setDoc(docRef, stateToSave);
 
-        // ... (كود النسخ الاحتياطي يبقى كما هو) ...
+        // ★★★ بداية الكود المضاف لإصلاح النسخ الاحتياطية ★★★
+        // 1. إنشاء نسخة احتياطية للطوارئ في التخزين المحلي
+        const backupTimestamp = new Date().toISOString();
+        const backupKey = `goodsMgmt_backup_${dateString}_${backupTimestamp}`;
+        saveData(backupKey, stateToSave); // نستخدم نفس دالة الحفظ المحلية
+        console.log(`Emergency local backup saved with key: ${backupKey}`);
 
-        // --- ★★★ بداية التعديل الجوهري ★★★ ---
-        // الكائن الثاني: ملخص الأرصدة للترحيل (النسخة الصحيحة)
+        // 2. تنظيف النسخ الاحتياطية القديمة لنفس اليوم
+        let dayBackups = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith(`goodsMgmt_backup_${dateString}_`)) {
+                dayBackups.push(key);
+            }
+        }
+        if (dayBackups.length > MAX_DAILY_BACKUPS) {
+            dayBackups.sort(); // فرز النسخ من الأقدم للأحدث
+            const backupsToRemove = dayBackups.slice(0, dayBackups.length - MAX_DAILY_BACKUPS);
+            backupsToRemove.forEach(key => {
+                localStorage.removeItem(key);
+                console.log(`Removed old emergency backup: ${key}`);
+            });
+        }
+        // ★★★ نهاية الكود المضاف ★★★
+
         const latestBalancesSummary = {
             products, suppliers, accounts, debtors, liabilities, monthlyLiabilities, 
             pendingSales, serialNumbersLog, inboxTasks,
@@ -3791,8 +3809,6 @@ async function saveCurrentStateByDate(dateString) {
             summaryForDate: dateString,
             lastUpdated: new Date().toISOString()
         };
-        // --- ★★★ نهاية التعديل الجوهري ★★★ ---
-
         const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
         await window.setDoc(summaryDocRef, latestBalancesSummary);
         console.log(`Successfully updated latestBalances summary from date: ${dateString}`);
