@@ -5329,10 +5329,16 @@ async function performDirectSearch() {
         showMessage(reportMessage, "حدث خطأ أثناء البحث. راجع الـ Console.", true);
     }
 }
-// دالة مساعدة لاستخراج المبلغ من تفاصيل السجل
+// =======================================================
+// START: دالة تحليل المصروفات (النسخة النهائية الآمنة)
+// =======================================================
 function parseAmountFromLogDetails(details) {
+    // ★★★ السطر الجديد المضاف للإصلاح ★★★
+    // يتحقق أولاً إذا كانت التفاصيل موجودة وهي نص قبل المتابعة
+    if (typeof details !== 'string') return 0;
+
     // تبحث عن أي نمط مثل "بقيمة 100.50 جنيه" أو "سحب 50" أو "خصم 200"
-    const match = details.match(/(?:بقيمة|سحب|خصم)\s*([\d\.,]+)/);
+    const match = details.match(/(?:بقيمة|سحب|خصم|مبلغ|بدفع)\s*([\d\.,]+)/);
     if (match && match[1]) {
         // تنظيف الرقم من الفواصل وتحويله
         return parseFloat(match[1].replace(/,/g, ''));
@@ -5354,12 +5360,8 @@ function parseAmountFromLogDetails(details) {
     return 0;
 }
 
-// الدالة الرئيسية لإنشاء التقرير (النسخة المعدلة)
 // =======================================================
-// START: دالة تقرير المصروفات (النسخة النهائية مع تجميع حسب التاريخ)
-// =======================================================
-// =======================================================
-// START: دالة تقرير المصروفات (النسخة النهائية فائقة السرعة)
+// START: دالة تقرير المصروفات (النسخة النهائية فائقة السرعة والآمنة)
 // =======================================================
 async function generateExpensesReport() {
     const monthInput = d('exp-report-month-year');
@@ -5384,19 +5386,21 @@ async function generateExpensesReport() {
     let allExpenses = [];
 
     try {
-        // ★★★ بداية التعديل الرئيسي لتحسين السرعة ★★★
-        
-        // 1. إنشاء مصفوفة من الوعود (Promises) لجلب كل الأيام دفعة واحدة
         const fetchPromises = datesInMonth.map(dateStr => fetchOnlineDataForDate(dateStr));
-        
-        // 2. انتظار وصول كل البيانات بشكل متوازٍ باستخدام Promise.all
         const allDaysData = await Promise.all(fetchPromises);
         
-        // 3. معالجة البيانات بعد وصولها بالكامل
         allDaysData.forEach((dayData, index) => {
             if (dayData && Array.isArray(dayData.log)) {
-                const dateStr = datesInMonth[index]; // الحصول على التاريخ الصحيح
+                const dateStr = datesInMonth[index];
                 dayData.log.forEach(log => {
+                    
+                    // ★★★ بداية الكود الجديد للإصلاح ★★★
+                    // نتأكد أن 'log' هو كائن ويحتوي على خاصية 'details' قبل المتابعة
+                    if (typeof log !== 'object' || !log.details) {
+                        return; // تجاهل هذا الإدخال في السجل لأنه ليس بصيغة المصروفات
+                    }
+                    // ★★★ نهاية الكود الجديد للإصلاح ★★★
+
                     let expense = null;
                     const amount = parseAmountFromLogDetails(log.details);
                     if (amount > 0) {
@@ -5417,15 +5421,13 @@ async function generateExpensesReport() {
             }
         });
 
-        // ★★★ نهاية التعديل الرئيسي ★★★
-
     } catch (error) {
         console.error("Error fetching expenses data in parallel:", error);
         showMessage(messageEl, "حدث خطأ أثناء جلب البيانات.", true);
         return;
     }
 
-    // عرض النتائج (هذا الجزء يبقى كما هو)
+    // (باقي كود عرض النتائج يبقى كما هو بدون تغيير)
     tableBody.innerHTML = '';
     if (allExpenses.length === 0) {
         showMessage(messageEl, `لا توجد مصروفات مسجلة للشهر المحدد.`, false, true);
@@ -5468,70 +5470,54 @@ async function generateExpensesReport() {
     summaryContainer.classList.remove('hidden');
     showMessage(messageEl, `تم عرض ${allExpenses.length} عملية مصروف.`, false);
 }
+
 // =======================================================
-// END: دالة تقرير المصروفات
-// =======================================================
-
-
-// =====================================================================
-// == بداية الكود الجديد والمحسّن لتقرير المبيعات (نسخة ضد التكرار) ==
-// =====================================================================
-
-// دالة جلب كل بيانات الشهر (الطريقة الأولى) - نسخة محدثة
 async function generateMonthlySalesReport() {
-    if (!reportMonthYearInput || !reportMessage) return;
-
+    if (!reportMonthYearInput || !reportMessage || !window.currentUser) return;
     currentMonthlySalesData = [];
     if (reportSearchInput) reportSearchInput.value = '';
     
     const yearMonth = reportMonthYearInput.value;
     if (!yearMonth) {
-        showMessage(reportMessage, "يرجى اختيار الشهر والسنة لعرض التقرير.", true); return;
+        showMessage(reportMessage, "يرجى اختيار الشهر والسنة.", true); return;
     }
 
-    showMessage(reportMessage, `جاري تحميل كل مبيعات شهر ${yearMonth} وتنظيف البيانات...`, false, true);
+    showMessage(reportMessage, `جاري تحميل تقرير شهر ${yearMonth} بسرعة فائقة...`, false, true);
+    displaySalesReport([]); // عرض جدول فارغ مبدئيًا
 
-    const datesInMonth = getMonthStartDateEndDate(yearMonth);
-    let fetchedSales = [];
+    try {
+        const userId = window.currentUser.uid;
+        const [year, month] = yearMonth.split('-');
+        const startDate = `${yearMonth}-01`;
+        const endDate = new Date(year, month, 0).toISOString().split('T')[0]; // آخر يوم في الشهر
 
-    for (const dateStr of datesInMonth) {
-        const dayData = await fetchOnlineDataForDate(dateStr);
-        let salesForThisDay = dayData ? (dayData.salesToday || dayData.salestoday || []) : [];
-        if (Array.isArray(salesForThisDay) && salesForThisDay.length > 0) {
-            salesForThisDay.forEach(sale => {
-                sale.saleDate = dateStr;
-                fetchedSales.push(sale);
-            });
+        const invoicesColRef = window.collection(window.db, "users", userId, "invoices");
+        const q = window.query(invoicesColRef, 
+            window.where("saleDate", ">=", startDate), 
+            window.where("saleDate", "<=", endDate),
+            window.orderBy("saleDate", "asc") // هذا السطر هو الذي كان يسبب الخطأ
+        );
+
+        const querySnapshot = await window.getDocs(q);
+        
+        let allMonthSales = [];
+        querySnapshot.forEach((doc) => {
+            allMonthSales.push(doc.data());
+        });
+
+        if (allMonthSales.length === 0) {
+            showMessage(reportMessage, `لا توجد مبيعات محفوظة للشهر المحدد.`, false, true);
+        } else {
+             showMessage(reportMessage, `تم عرض ${allMonthSales.length} عملية بيع لشهر ${yearMonth}.`, false);
         }
+        
+        currentMonthlySalesData = allMonthSales;
+        displaySalesReport(currentMonthlySalesData);
+
+    } catch (error) {
+        console.error("Error fetching monthly sales report with new method:", error);
+        showMessage(reportMessage, "حدث خطأ أثناء جلب التقرير.", true);
     }
-
-    if (fetchedSales.length === 0) {
-        showMessage(reportMessage, `لا توجد بيانات مبيعات محفوظة للشهر المحدد.`, false, true);
-        displaySalesReport([]); // اعرض جدول فارغ
-        return;
-    }
-
-    // --- التحسينات الجديدة ---
-    // 1. إزالة التكرار من البيانات
-    const uniqueSales = [];
-    const seen = new Set(); // لتتبع السجلات التي تمت رؤيتها
-    fetchedSales.forEach(sale => {
-        // نُنشئ مفتاحًا فريدًا لكل عملية بيع بناءً على التوقيت والمحتوى
-        const saleKey = `${sale.timestamp}-${sale.customerName}-${sale.grandTotal}`;
-        if (!seen.has(saleKey)) {
-            seen.add(saleKey);
-            uniqueSales.push(sale);
-        }
-    });
-
-    // 2. فرز دقيق للبيانات النظيفة بناءً على التوقيت الأصلي
-    uniqueSales.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    
-    // 3. تخزين وعرض البيانات النظيفة
-    currentMonthlySalesData = uniqueSales;
-    displaySalesReport(currentMonthlySalesData); 
-    
-    showMessage(reportMessage, `تم عرض ${currentMonthlySalesData.length} عملية بيع فريدة لشهر ${yearMonth}.`, false);
 }
 
 
@@ -8942,6 +8928,7 @@ if (d('liabilities-list-container')) {
     window.query = query;
     window.where = where;
     window.getDocs = getDocs;
+    window.orderBy = orderBy;
 
     const auth = getAuth(app);
     window.auth = auth;
