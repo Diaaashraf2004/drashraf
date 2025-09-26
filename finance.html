@@ -10,6 +10,47 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
+    /* --- START: NEW STYLES FOR BULK PAYMENT --- */
+.payment-list-container {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #e2e8f0;
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    background-color: #f9fafb;
+    margin-top: 0.5rem;
+}
+.payment-list-container label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    border-bottom: 1px solid #e5e7eb;
+}
+.payment-list-container label:last-child {
+    border-bottom: none;
+}
+.payment-list-container label:hover {
+    background-color: #e5e7eb;
+}
+.payment-list-container input[type="checkbox"] {
+    width: 1.1rem;
+    height: 1.1rem;
+    flex-shrink: 0;
+}
+.payment-summary {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background-color: #eff6ff;
+    border: 1px solid #93c5fd;
+    border-radius: 0.375rem;
+    text-align: center;
+    font-weight: 600;
+    color: #1e40af;
+}
+/* --- END: NEW STYLES FOR BULK PAYMENT --- */
 
         /* --- التنسيقات الأساسية --- */
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; margin: 0; padding: 0; }
@@ -1782,26 +1823,26 @@ input:checked:active + .slider:before {
                 </div>
 
                 <div class="mb-6 pb-4 border-b">
-                    <h3 class="text-lg font-medium text-gray-700 mb-3">استلام سداد</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                        <div>
-                            <label for="payment-debtor-select" class="block text-gray-700 text-sm font-bold mb-1">اختر الدين المراد سداده:<span class="required">*</span></label>
-                            <select id="payment-debtor-select" class="shadow-sm w-full">
-                                <option value="">-- اختر الدين --</option>
-                                </select>
-                        </div>
-                        <div>
-                            <label for="payment-amount" class="block text-gray-700 text-sm font-bold mb-1">المبلغ المسدد:<span class="required">*</span></label>
-                            <input type="number" id="payment-amount" value="0" min="0.01" step="0.01" class="shadow-sm w-full">
-<div class="form-group mt-2">
-    <label for="debt-payment-account" class="block text-sm font-bold mb-1">إيداع السداد في حساب:</label>
-    <select id="debt-payment-account" class="shadow-sm"></select>
+                   <h3 class="text-lg font-medium text-gray-700 mb-3">استلام سداد مجمع</h3>
+<div>
+    <label class="block text-gray-700 text-sm font-bold mb-1">اختر الديون المراد تحصيلها:<span class="required">*</span></label>
+    <div class="flex items-center mt-2 mb-1">
+    <input type="checkbox" id="toggle-all-debts" class="ml-2">
+    <label for="toggle-all-debts" class="text-sm font-medium text-gray-700 cursor-pointer">تحديد الكل / إلغاء تحديد الكل</label>
 </div>
-                        </div>
-                        
-                    </div>
-                    <button id="receive-payment-button" class="mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded w-full sm:w-auto">استلام المبلغ</button>
-                </div>
+    <div id="payment-debtor-list-container" class="payment-list-container">
+        <p class="text-center text-gray-500">لا توجد ديون متاحة للتحصيل.</p>
+    </div>
+    <div id="debt-payment-summary" class="payment-summary hidden">
+        الإجمالي المحدد: <span id="debt-payment-total">0.00 جنيه</span>
+    </div>
+    <div class="form-group mt-2">
+        <label for="debt-payment-account" class="block text-sm font-bold mb-1">إيداع السداد في حساب:<span class="required">*</span></label>
+        <select id="debt-payment-account" class="shadow-sm"></select>
+    </div>
+</div>
+<button id="receive-payment-button" class="mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded w-full sm:w-auto">استلام المبلغ المحدد</button>
+</div>
 
                 <div id="debts-message" class="section-message mt-3"></div>
                 <div id="debtors-list-container">
@@ -1833,23 +1874,26 @@ input:checked:active + .slider:before {
                         <button id="add-liability-button" class="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-2 px-4 rounded">تسجيل الالتزام</button>
                     </div>
                     <div>
-                        <h3 class="text-lg font-medium text-gray-700 mb-3">تسديد التزام</h3>
-                        <div class="mb-3">
-                            <label for="payment-creditor-name" class="block text-gray-700 text-sm font-bold mb-1">اسم الدائن:<span class="required">*</span></label>
-                            <select id="payment-creditor-name" class="shadow-sm">
-                                <option value="">-- اختر الدائن --</option>
-                                </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="liability-payment-amount" class="block text-gray-700 text-sm font-bold mb-1">المبلغ المسدد:<span class="required">*</span></label>
-                            <input type="number" id="liability-payment-amount" value="0" min="0.01" step="0.01" class="shadow-sm">
-                        </div>
-                        <div class="mb-3">
-    <label for="liability-payment-account" class="block text-gray-700 text-sm font-bold mb-1">خصم من حساب:</label>
-    <select id="liability-payment-account" class="shadow-sm"></select>
+                      <h3 class="text-lg font-medium text-gray-700 mb-3">تسديد التزام مجمع</h3>
+<div>
+    <label class="block text-gray-700 text-sm font-bold mb-1">اختر الالتزامات المراد تسديدها:<span class="required">*</span></label>
+    <div class="flex items-center mt-2 mb-1">
+    <input type="checkbox" id="toggle-all-liabilities" class="ml-2">
+    <label for="toggle-all-liabilities" class="text-sm font-medium text-gray-700 cursor-pointer">تحديد الكل / إلغاء تحديد الكل</label>
 </div>
-                        <button id="pay-liability-button" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded">تسديد دفعة</button>
-                    </div>
+    <div id="payment-creditor-list-container" class="payment-list-container">
+        <p class="text-center text-gray-500">لا توجد التزامات متاحة للتسديد.</p>
+    </div>
+    <div id="liability-payment-summary" class="payment-summary hidden">
+        الإجمالي المحدد: <span id="liability-payment-total">0.00 جنيه</span>
+    </div>
+    <div class="form-group mt-2">
+        <label for="liability-payment-account" class="block text-sm font-bold mb-1">خصم من حساب:<span class="required">*</span></label>
+        <select id="liability-payment-account" class="shadow-sm"></select>
+    </div>
+</div>
+<button id="pay-liability-button" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded">تسديد المبلغ المحدد</button>
+</div>
                 </div>
                 <div id="liabilities-message" class="section-message mt-3"></div>
                 <div id="liabilities-list-container" class="mt-6 border-t border-gray-200 pt-4">
@@ -3179,7 +3223,6 @@ function calculateTotalPurchasesToday() {
              const groupedDebts = debtors.reduce((acc, debt) => { const name = debt.name; if (!acc[name]) { acc[name] = { total: 0, items: [] }; } const amount = Number(debt.amount) || 0; if (amount > 0.001) { // Only include non-zero amounts
                   acc[name].total += amount; acc[name].items.push({ id: debt.id, reason: debt.reason || 'سبب غير محدد', amount: amount }); } return acc; }, {}); const sortedNames = Object.keys(groupedDebts).filter(name => groupedDebts[name].total > 0.001) // Filter out names with zero total
                  .sort((a, b) => a.localeCompare(b, 'ar')); if (sortedNames.length === 0) { debtorsListContainer.innerHTML = '<p class="text-center text-gray-500 py-4">لا توجد ديون مسجلة حاليًا بمبالغ ظاهرة.</p>'; return; } sortedNames.forEach(name => { const debtorData = groupedDebts[name]; const detailsElement = document.createElement('details'); detailsElement.className = 'mb-2 border border-gray-200 rounded overflow-hidden shadow-sm'; const summaryElement = document.createElement('summary'); summaryElement.className = 'p-3 bg-gray-50 hover:bg-gray-100 cursor-pointer flex justify-between items-center font-medium text-gray-800'; summaryElement.innerHTML = `<span>${name}</span><span class="text-purple-700 font-semibold">${formatCurrency(debtorData.total)}</span>`; const ulElement = document.createElement('ul'); ulElement.className = 'p-3 pt-2 border-t border-gray-200 bg-white'; debtorData.items.sort((a,b) => a.reason.localeCompare(b.reason, 'ar')).forEach(item => { const liElement = document.createElement('li'); liElement.className = 'text-sm text-gray-600 py-1.5 border-b border-gray-100 flex justify-between items-center'; liElement.innerHTML = `<span>${item.reason}</span><span class="font-mono text-xs">${formatCurrency(item.amount)}</span>`; ulElement.appendChild(liElement); }); detailsElement.appendChild(summaryElement); detailsElement.appendChild(ulElement); debtorsListContainer.appendChild(detailsElement); }); }
-        function updatePaymentDebtorDropdown(){ if(!paymentDebtorSelect) return; const currentSelection = paymentDebtorSelect.value; paymentDebtorSelect.innerHTML = '<option value="">-- اختر الدين --</option>'; const validDebts = debtors.filter(d => (Number(d.amount) || 0) > 0.001); const sortedDebtors = validDebts.sort((a, b) => { const nameCompare = a.name.localeCompare(b.name, 'ar'); if (nameCompare !== 0) return nameCompare; return (a.reason || '').localeCompare(b.reason || '', 'ar'); }); let hasSelection = false; sortedDebtors.forEach(debtor => { const option = document.createElement('option'); option.value = debtor.id; option.textContent = `${debtor.name} - ${debtor.reason || 'غير محدد'} (${formatCurrency(debtor.amount)})`; paymentDebtorSelect.appendChild(option); if (debtor.id === currentSelection) { hasSelection = true; } }); if (hasSelection) { paymentDebtorSelect.value = currentSelection; } else { paymentDebtorSelect.value = ""; } }
         function updateLiquidityLogDisplay(){if(!liquidityLogListContainer)return; if(liquidityLog.length === 0){liquidityLogListContainer.innerHTML = '<li class="text-center text-gray-500">لا توجد عمليات مسجلة على السيولة.</li>'} else {liquidityLogListContainer.innerHTML = [...liquidityLog].reverse().map(log => { const amountClass = log.type === 'add' ? 'add' : (log.type === 'remove' ? 'remove' : ''); // Adjust color for 'adjust' if needed later
             const amountSign = log.type === 'add' ? '+' : (log.type === 'remove' ? '-' : (log.amount >= 0 ? '+' : '')); // Show sign for adjustment based on value
             return `<li><div class="flex justify-between items-start"><div><span class="font-medium ${amountClass}">${amountSign}${formatCurrency(Math.abs(log.amount))}</span> <span class="text-sm details">(${log.description || 'بدون وصف'})</span><span class="block text-xs text-gray-400">${formatDateTime(log.timestamp)}</span></div><span class="text-sm details flex-shrink-0 ml-2">الرصيد: ${formatCurrency(log.currentBalance)}</span></div></li>`}).join('')}}
@@ -3222,13 +3265,68 @@ function calculateTotalPurchasesToday() {
         liabilitiesListContainer.appendChild(li);
     });
 }
-        function updatePaymentCreditorDropdown(){if(!paymentCreditorSelect)return; const currentSelection = paymentCreditorSelect.value; paymentCreditorSelect.innerHTML = '<option value="">-- اختر الدائن --</option>'; const validLiabilities = liabilities.filter(l => (Number(l.amount) || 0) > 0.001); const sortedLiabilities = [...validLiabilities].sort((a, b) => a.name.localeCompare(b.name, 'ar')); let hasSelection = false; sortedLiabilities.forEach(liability => { const option = document.createElement('option'); option.value = liability.id; // Use ID for selection
-             option.textContent = `${liability.name} (${formatCurrency(liability.amount)})`; paymentCreditorSelect.appendChild(option); if (liability.id === currentSelection) { hasSelection = true; } }); if (hasSelection) { paymentCreditorSelect.value = currentSelection; } else { paymentCreditorSelect.value = ""; } }
+       // =================================================================
+// START: NEW BULK PAYMENT FUNCTIONS
+// =================================================================
 
-        // --- << تعديل دالة تحديث المبيعات المؤقتة >> ---
-     
-     // =======================================================
-// START: دالة تحديث المبيعات المؤقتة (مع زر التحويل)
+function renderDebtorPaymentList() {
+    const container = d('payment-debtor-list-container');
+    if (!container) return;
+
+    const validDebts = debtors.filter(d => (Number(d.amount) || 0) > 0.001);
+    if (validDebts.length === 0) {
+        container.innerHTML = '<p class="text-center text-gray-500">لا توجد ديون متاحة للتحصيل.</p>';
+        return;
+    }
+
+    const sortedDebts = validDebts.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    container.innerHTML = sortedDebts.map(debt => `
+        <label>
+            <input type="checkbox" class="debt-payment-checkbox" data-debt-id="${debt.id}" data-amount="${debt.amount}">
+            <span class="flex-grow">${debt.name} - ${debt.reason || 'دين عام'}</span>
+            <strong class="font-mono">${formatCurrency(debt.amount)}</strong>
+        </label>
+    `).join('');
+}
+
+function renderLiabilityPaymentList() {
+    const container = d('payment-creditor-list-container');
+    if (!container) return;
+
+    const validLiabilities = liabilities.filter(l => (Number(l.amount) || 0) > 0.001);
+    if (validLiabilities.length === 0) {
+        container.innerHTML = '<p class="text-center text-gray-500">لا توجد التزامات متاحة للتسديد.</p>';
+        return;
+    }
+
+    const sortedLiabilities = validLiabilities.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    container.innerHTML = sortedLiabilities.map(liability => `
+        <label>
+            <input type="checkbox" class="liability-payment-checkbox" data-liability-id="${liability.id}" data-amount="${liability.amount}">
+            <span class="flex-grow">${liability.name}</span>
+            <strong class="font-mono">${formatCurrency(liability.amount)}</strong>
+        </label>
+    `).join('');
+}
+
+function calculateSelectedTotal(containerSelector, checkboxSelector, summaryEl, totalEl) {
+    const container = d(containerSelector);
+    if (!container || !summaryEl || !totalEl) return;
+
+    let total = 0;
+    const checkedItems = container.querySelectorAll(`${checkboxSelector}:checked`);
+    checkedItems.forEach(checkbox => {
+        total += parseFloat(checkbox.dataset.amount) || 0;
+    });
+
+    if (total > 0) {
+        totalEl.textContent = formatCurrency(total);
+        summaryEl.classList.remove('hidden');
+    } else {
+        summaryEl.classList.add('hidden');
+    }
+}
+
 // =======================================================
 function updatePendingSalesDisplay() {
     if (!pendingSalesListContainer || !pendingSalesSearchInput || !pendingSalesTotalCostSpan || !pendingSalesTotalProfitSpan) return;
@@ -3368,10 +3466,10 @@ function updateUI() {
     updateAdditionalCostsCheckboxes();
     updatePendingSalesDisplay();
     updateDebtorsListDisplay();
-    updatePaymentDebtorDropdown();
     updateLiquidityLogDisplay();
     updateLiabilitiesListDisplay();
-    updatePaymentCreditorDropdown();
+    renderDebtorPaymentList();
+renderLiabilityPaymentList();
     updateOffsetDatalists();
     pi_updateRecentPurchasesDisplay();
     pi_updatePendingPurchasesDisplay();
@@ -8095,106 +8193,155 @@ if (addDebtButton) {
     });
 }
   // استبدل هذا الكود بالكامل داخل دالة initializeApp
+// استبدل هذا الكود بالكامل داخل دالة initializeApp
 if (receivePaymentButton) {
     receivePaymentButton.addEventListener("click", () => {
-        saveStateToHistory();
-        const selectedDebtId = paymentDebtorSelect.value;
-        const payment = parseInputNumber(paymentAmountInput);
-
-        // --- ✅ كود جديد: قراءة الحساب المحدد للإيداع ---
+        const checkedDebts = d('payment-debtor-list-container').querySelectorAll('.debt-payment-checkbox:checked');
         const selectedAccountId = d('debt-payment-account').value;
         const account = accounts.find(acc => acc.id === selectedAccountId);
-        
-        if (!selectedDebtId || isNaN(payment) || payment <= 0) {
-            showMessage(debtsMessage, "يرجى اختيار الدين ومبلغ السداد الصحيح.", true);
+
+        if (checkedDebts.length === 0) {
+            showMessage(debtsMessage, "يرجى تحديد دين واحد على الأقل لتحصيله.", true);
             return;
         }
-
-        // --- ✅ كود جديد: التحقق من اختيار حساب ---
         if (!account) {
             showMessage(debtsMessage, "يرجى اختيار الحساب الذي سيتم إيداع المبلغ فيه.", true);
             return;
         }
 
-        const debtIndex = debtors.findIndex(d => d.id === selectedDebtId);
-        if (debtIndex === -1) { /* ... (باقي كود التحقق من وجود الدين) ... */ return; }
-        
-        const debtor = debtors[debtIndex];
-        if (payment > debtor.amount + 0.001) { /* ... (باقي كود التحقق من المبلغ) ... */ return; }
+        let totalPayment = 0;
+        let paidDebtIds = [];
+        let paidDebtorsSummary = new Map();
 
-        debtor.amount -= payment;
-        
-        // --- ✅ كود جديد: الإيداع في الحساب المحدد ---
-        account.balance += payment;
+        checkedDebts.forEach(checkbox => {
+            const amount = parseFloat(checkbox.dataset.amount);
+            totalPayment += amount;
+            paidDebtIds.push(checkbox.dataset.debtId);
+            const debt = debtors.find(d => d.id === checkbox.dataset.debtId);
+            if (debt) {
+                paidDebtorsSummary.set(debt.name, (paidDebtorsSummary.get(debt.name) || 0) + amount);
+            }
+        });
+
+        saveStateToHistory();
+
+        account.balance += totalPayment;
+        debtors = debtors.filter(d => !paidDebtIds.includes(d.id));
+
+        const summaryText = Array.from(paidDebtorsSummary.entries()).map(([name, amount]) => `${name} (${formatCurrency(amount)})`).join('، ');
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: totalPayment, description: `سداد مجمع من: ${summaryText}`, currentBalance: newTotalLiquidity });
+        logOperation("استلام سداد مجمع", `استلام ${formatCurrency(totalPayment)} في حساب "${account.name}" من: ${summaryText}.`);
 
-        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: payment, description: `سداد دين من ${debtor.name} إلى حساب "${account.name}"`, currentBalance: newTotalLiquidity });
-        logOperation("استلام سداد دين", `استلام ${formatCurrency(payment)} من "${debtor.name}" في حساب "${account.name}". المتبقي: ${formatCurrency(debtor.amount)}.`);
-        
-        if (debtor.amount < 0.001) {
-            debtors.splice(debtIndex, 1);
-            showMessage(debtsMessage, `تم استلام سداد كامل من "${debtor.name}".`);
-        } else {
-            showMessage(debtsMessage, `تم استلام دفعة من "${debtor.name}" بنجاح.`);
-        }
-        
+        showMessage(debtsMessage, `تم استلام دفعة مجمعة بقيمة ${formatCurrency(totalPayment)} بنجاح.`);
         updateUI();
-        paymentAmountInput.value = "0";
-        paymentDebtorSelect.value = "";
+        d('debt-payment-summary').classList.add('hidden');
     });
 }
                if (addLiabilityButton) { addLiabilityButton.addEventListener("click", () => {saveStateToHistory();
                      const name = creditorNameInput.value.trim(); const amount = parseInputNumber(addLiabilityAmountInput); const receivedCash = liabilityReceivedCashCheckbox.checked; if (!name) { showMessage(liabilitiesMessage, "يرجى إدخال اسم الدائن.", true); return; } if (isNaN(amount) || amount <= 0) { showMessage(liabilitiesMessage, "يجب أن يكون مبلغ الالتزام أكبر من صفر.", true); return; } const existingIndex = liabilities.findIndex(l => l.name === name); let logMsg = ""; if (existingIndex !== -1) { liabilities[existingIndex].amount = (Number(liabilities[existingIndex].amount) || 0) + amount; logMsg = `زيادة التزام قائم لـ "${name}" بمبلغ ${formatCurrency(amount)}. الإجمالي: ${formatCurrency(liabilities[existingIndex].amount)}`; showMessage(liabilitiesMessage, `تمت زيادة الالتزام لـ "${name}".`); } else { const newLiabilityId = generateId('liab'); const newLiability = { id: newLiabilityId, name: name, amount: amount }; liabilities.push(newLiability); logMsg = `تسجيل التزام جديد على الشركة لـ "${name}" بمبلغ ${formatCurrency(amount)}.`; showMessage(liabilitiesMessage, `تم تسجيل التزام جديد لـ "${name}".`); } if (receivedCash) { accounts.find(acc => acc.id === 'main').balance += amount; const liqLogEntry = { id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: amount, description: `استلام سيولة مقابل التزام لـ ${name}`, currentBalance: liquidity }; liquidityLog.push(liqLogEntry); logMsg += ` وتم استلام سيولة مقابله.`; } logOperation("تسجيل/زيادة التزام", logMsg); updateUI(); creditorNameInput.value = ""; addLiabilityAmountInput.value = "0"; liabilityReceivedCashCheckbox.checked = false; creditorNameInput.focus(); }); }
                  // استبدل هذا الكود بالكامل داخل دالة initializeApp
 if (payLiabilityButton) {
-    payLiabilityButton.addEventListener("click", () => {
-        saveStateToHistory();
-        const selectedLiabilityId = paymentCreditorSelect.value;
-        const payment = parseInputNumber(liabilityPaymentAmountInput);
+// Event listeners for bulk payment selections
+const debtPaymentContainer = d('payment-debtor-list-container');
+const liabilityPaymentContainer = d('payment-creditor-list-container');
 
-        // --- ✅ كود جديد: قراءة الحساب المحدد للدفع ---
+if(debtPaymentContainer){
+    debtPaymentContainer.addEventListener('change', () => {
+        calculateSelectedTotal('payment-debtor-list-container', '.debt-payment-checkbox', d('debt-payment-summary'), d('debt-payment-total'));
+
+        // Update "Select All" checkbox state
+        const allDebts = debtPaymentContainer.querySelectorAll('.debt-payment-checkbox');
+        const checkedDebts = debtPaymentContainer.querySelectorAll('.debt-payment-checkbox:checked');
+        d('toggle-all-debts').checked = allDebts.length > 0 && allDebts.length === checkedDebts.length;
+    });
+}
+
+if(liabilityPaymentContainer){
+    liabilityPaymentContainer.addEventListener('change', () => {
+        calculateSelectedTotal('payment-creditor-list-container', '.liability-payment-checkbox', d('liability-payment-summary'), d('liability-payment-total'));
+
+        // Update "Select All" checkbox state
+        const allLiabilities = liabilityPaymentContainer.querySelectorAll('.liability-payment-checkbox');
+        const checkedLiabilities = liabilityPaymentContainer.querySelectorAll('.liability-payment-checkbox:checked');
+        d('toggle-all-liabilities').checked = allLiabilities.length > 0 && allLiabilities.length === checkedLiabilities.length;
+    });
+}
+// =======================================================
+// START: NEW LOGIC FOR "SELECT ALL" CHECKBOXES
+// =======================================================
+const toggleAllDebtsCheckbox = d('toggle-all-debts');
+const toggleAllLiabilitiesCheckbox = d('toggle-all-liabilities');
+
+if (toggleAllDebtsCheckbox) {
+    toggleAllDebtsCheckbox.addEventListener('change', (e) => {
+        const isChecked = e.target.checked;
+        const debtCheckboxes = d('payment-debtor-list-container').querySelectorAll('.debt-payment-checkbox');
+        debtCheckboxes.forEach(checkbox => checkbox.checked = isChecked);
+        // Trigger calculation after changing
+        calculateSelectedTotal('payment-debtor-list-container', '.debt-payment-checkbox', d('debt-payment-summary'), d('debt-payment-total'));
+    });
+}
+
+if (toggleAllLiabilitiesCheckbox) {
+    toggleAllLiabilitiesCheckbox.addEventListener('change', (e) => {
+        const isChecked = e.target.checked;
+        const liabilityCheckboxes = d('payment-creditor-list-container').querySelectorAll('.liability-payment-checkbox');
+        liabilityCheckboxes.forEach(checkbox => checkbox.checked = isChecked);
+        // Trigger calculation after changing
+        calculateSelectedTotal('payment-creditor-list-container', '.liability-payment-checkbox', d('liability-payment-summary'), d('liability-payment-total'));
+    });
+}
+// =======================================================
+// END: NEW LOGIC FOR "SELECT ALL" CHECKBOXES
+// =======================================================
+
+    payLiabilityButton.addEventListener("click", () => {
+        const checkedLiabilities = d('payment-creditor-list-container').querySelectorAll('.liability-payment-checkbox:checked');
         const selectedAccountId = d('liability-payment-account').value;
         const account = accounts.find(acc => acc.id === selectedAccountId);
 
-        if (!selectedLiabilityId || isNaN(payment) || payment <= 0) {
-            showMessage(liabilitiesMessage, "يرجى اختيار الالتزام وإدخال مبلغ سداد صحيح.", true);
+        if (checkedLiabilities.length === 0) {
+            showMessage(liabilitiesMessage, "يرجى تحديد التزام واحد على الأقل لتسديده.", true);
             return;
         }
-        
-        // --- ✅ كود جديد: التحقق من اختيار الحساب ورصيده ---
         if (!account) {
             showMessage(liabilitiesMessage, "يرجى اختيار الحساب الذي سيتم الدفع منه.", true);
             return;
         }
-        if (payment > account.balance) {
-            showMessage(liabilitiesMessage, `المبلغ المسدد (${formatCurrency(payment)}) أكبر من رصيد حساب "${account.name}" (${formatCurrency(account.balance)}).`, true);
+
+        let totalPayment = 0;
+        let paidLiabilityIds = [];
+        let paidCreditorsSummary = new Map();
+
+        checkedLiabilities.forEach(checkbox => {
+            const amount = parseFloat(checkbox.dataset.amount);
+            totalPayment += amount;
+            paidLiabilityIds.push(checkbox.dataset.liabilityId);
+            const liability = liabilities.find(l => l.id === checkbox.dataset.liabilityId);
+            if(liability) {
+                paidCreditorsSummary.set(liability.name, (paidCreditorsSummary.get(liability.name) || 0) + amount);
+            }
+        });
+
+        if (totalPayment > account.balance) {
+            showMessage(liabilitiesMessage, `رصيد حساب "${account.name}" (${formatCurrency(account.balance)}) غير كافٍ لتسديد المبلغ المطلوب (${formatCurrency(totalPayment)}).`, true);
             return;
         }
 
-        const liabilityIndex = liabilities.findIndex(l => l.id === selectedLiabilityId);
-        if (liabilityIndex === -1) { /* ... (كود التحقق من وجود الالتزام) ... */ return; }
+        saveStateToHistory();
 
-        const liability = liabilities[liabilityIndex];
-        if (payment > liability.amount + 0.001) { /* ... (كود التحقق من المبلغ) ... */ return; }
-        
-        // --- ✅ كود جديد: الخصم من الحساب المحدد ---
-        account.balance -= payment;
-        liability.amount -= payment;
-        
+        account.balance -= totalPayment;
+        liabilities = liabilities.filter(l => !paidLiabilityIds.includes(l.id));
+
+        const summaryText = Array.from(paidCreditorsSummary.entries()).map(([name, amount]) => `${name} (${formatCurrency(amount)})`).join('، ');
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: payment, description: `تسديد التزام لـ ${liability.name} من حساب "${account.name}"`, currentBalance: newTotalLiquidity });
-        logOperation("تسديد التزام", `تسديد دفعة ${formatCurrency(payment)} إلى "${liability.name}" من حساب "${account.name}". المتبقي: ${formatCurrency(liability.amount)}.`);
-        
-        if (liability.amount < 0.001) {
-            liabilities.splice(liabilityIndex, 1);
-            showMessage(liabilitiesMessage, `تم تسديد كامل الالتزام لـ "${liability.name}".`);
-        } else {
-            showMessage(liabilitiesMessage, `تم تسديد دفعة إلى "${liability.name}" بنجاح.`);
-        }
-        
+        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: totalPayment, description: `تسديد التزام مجمع لـ: ${summaryText}`, currentBalance: newTotalLiquidity });
+        logOperation("تسديد التزام مجمع", `تسديد ${formatCurrency(totalPayment)} من حساب "${account.name}" إلى: ${summaryText}.`);
+
+        showMessage(liabilitiesMessage, `تم تسديد دفعة مجمعة بقيمة ${formatCurrency(totalPayment)} بنجاح.`);
         updateUI();
-        liabilityPaymentAmountInput.value = "0";
-        paymentCreditorSelect.value = "";
+        d('liability-payment-summary').classList.add('hidden');
     });
 }
                  if (performTwoPartyOffsetButton) { 
