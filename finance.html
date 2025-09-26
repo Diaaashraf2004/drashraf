@@ -6125,32 +6125,54 @@ function fc_populate_debt_treatment() {
         + validDebts.map(d => `<option value="${d.id}" data-amount="${d.amount}">${d.name} - ${d.reason} (${formatCurrency(d.amount)})</option>`).join('');
 }
 
-function fc_populate_month_select() {
-    if (!fc_month_select) return;
-    const months = new Set();
-    // Get all keys from localStorage
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key.startsWith(lsPrefix)) {
-            const dateStr = key.substring(lsPrefix.length);
-            const monthStr = dateStr.substring(0, 7); // YYYY-MM
-            months.add(monthStr);
-        }
-    }
+// =====================================================================
+// ★★★ START: NEW FIREBASE-ENABLED MONTH SELECT FUNCTION ★★★
+// =====================================================================
+async function fc_populate_month_select() {
+    if (!fc_month_select || !window.currentUser) return;
     
-    const sortedMonths = Array.from(months).sort().reverse();
-    fc_month_select.innerHTML = sortedMonths.map(month => {
-        const [year, m] = month.split('-');
-        const date = new Date(year, m - 1);
-        const monthName = date.toLocaleString('ar-EG', { month: 'long', year: 'numeric' });
-        return `<option value="${month}">${monthName}</option>`;
-    }).join('');
+    // إظهار رسالة تحميل مؤقتة للمستخدم
+    const tempOption = fc_month_select.querySelector('option');
+    if(tempOption) tempOption.textContent = "جاري جلب الشهور...";
 
-    // If there are months, populate lists for the first one
-    if (sortedMonths.length > 0) {
-        fc_populate_lists(sortedMonths[0]);
+    const userId = window.currentUser.uid;
+    const daysColRef = window.collection(window.db, "users", userId, "days");
+    const months = new Set();
+    
+    // إضافة الشهر الحالي دائمًا كخيار متاح
+    months.add(getTodayDateString().substring(0, 7)); 
+
+    try {
+        // جلب كل المستندات (الأيام) من قاعدة البيانات
+        const querySnapshot = await window.getDocs(daysColRef);
+        querySnapshot.forEach((doc) => {
+            // ID المستند هو التاريخ نفسه 'YYYY-MM-DD'
+            const monthStr = doc.id.substring(0, 7); // استخراج 'YYYY-MM'
+            months.add(monthStr);
+        });
+
+        const sortedMonths = Array.from(months).sort().reverse();
+        
+        // بناء القائمة المنسدلة بالشهور التي تم العثور عليها
+        fc_month_select.innerHTML = sortedMonths.map(month => {
+            const [year, m] = month.split('-');
+            const date = new Date(year, m - 1);
+            const monthName = date.toLocaleString('ar-EG', { month: 'long', year: 'numeric' });
+            return `<option value="${month}">${monthName}</option>`;
+        }).join('');
+
+        // تحميل بيانات أحدث شهر تلقائيًا
+        if (sortedMonths.length > 0) {
+            await fc_populate_lists(sortedMonths[0]); 
+        }
+    } catch (error) {
+        console.error("Error fetching available months from Firestore:", error);
+        fc_month_select.innerHTML = `<option value="">فشل جلب الشهور</option>`;
     }
 }
+// =====================================================================
+// ★★★ END: NEW FIREBASE-ENABLED MONTH SELECT FUNCTION ★★★
+// =====================================================================
 
  function fc_update_ui() {
     if (!d('fc-auto-cost-mode-radio')) return; // Check if the elements are rendered
