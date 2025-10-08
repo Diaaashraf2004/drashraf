@@ -10,6 +10,32 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
+    /* === START: Professional Inline Payment Form Styles === */
+.inline-payment-form {
+    background-color: #f0f5ff; /* خلفية زرقاء فاتحة جداً */
+    padding: 1rem;
+    margin-top: 0.75rem;
+    border-top: 2px solid #adc8ff;
+    border-radius: 0 0 0.375rem 0.375rem; /* حواف دائرية للأسفل فقط */
+    
+    /* Animation */
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease-in-out, padding 0.4s ease-in-out;
+}
+
+.inline-payment-form.visible {
+    max-height: 300px; /* ارتفاع كافٍ لإظهار النموذج */
+    padding: 1rem;
+}
+
+.inline-payment-form .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    align-items: end;
+}
+/* === END: Professional Inline Payment Form Styles === */
     /* --- START: NEW STYLES FOR BULK PAYMENT --- */
 .payment-list-container {
     max-height: 200px;
@@ -2491,9 +2517,64 @@ input:checked:active + .slider:before {
 <!-- END: Returns Section -->
 <!-- ======================================================= -->
         </footer>
+        <div id="partialLiabilityPaymentModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <span class="modal-close-btn">&times;</span>
+            <h2>تسديد دفعة جزئية من التزام</h2>
+        </div>
+        <div class="modal-body">
+            <p>الدائن: <strong id="partial-liability-creditor-name"></strong></p>
+            <p>إجمالي الالتزام الحالي: <strong id="partial-liability-total-amount"></strong></p>
+            <hr style="margin: 1rem 0;">
+            <div class="form-group">
+                <label for="partial-liability-payment-amount">المبلغ المراد تسديده:<span class="required">*</span></label>
+                <input type="number" id="partial-liability-payment-amount" placeholder="0.00" min="0.01" step="0.01">
+            </div>
+            <div class="form-group" style="margin-top: 1rem;">
+                <label for="partial-liability-payment-account">خصم المبلغ من حساب:<span class="required">*</span></label>
+                <select id="partial-liability-payment-account"></select>
+            </div>
+            <div id="partial-liability-payment-message" class="section-message" style="margin-top: 1rem;"></div>
+        </div>
+        <div class="modal-footer">
+            <button id="confirm-partial-liability-payment-btn" class="bg-green-500 hover:bg-green-600 text-white">تأكيد تسديد المبلغ</button>
+            <button type="button" class="modal-close-btn-footer">إلغاء</button>
+        </div>
+    </div>
 
-    </div><script>
+
+    </div>
+    <div id="partialDebtPaymentModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <span class="modal-close-btn">&times;</span>
+            <h2>استلام دفعة جزئية من دين</h2>
+        </div>
+        <div class="modal-body">
+            <p>المدين: <strong id="partial-debtor-name"></strong></p>
+            <p>سبب الدين: <strong id="partial-debt-reason"></strong></p>
+            <p>إجمالي الدين الحالي: <strong id="partial-debt-total-amount"></strong></p>
+            <hr style="margin: 1rem 0;">
+            <div class="form-group">
+                <label for="partial-debt-payment-amount">المبلغ المستلم:<span class="required">*</span></label>
+                <input type="number" id="partial-debt-payment-amount" placeholder="0.00" min="0.01" step="0.01">
+            </div>
+            <div class="form-group" style="margin-top: 1rem;">
+                <label for="partial-debt-payment-account">إيداع المبلغ في حساب:<span class="required">*</span></label>
+                <select id="partial-debt-payment-account"></select>
+            </div>
+            <div id="partial-debt-payment-message" class="section-message" style="margin-top: 1rem;"></div>
+        </div>
+        <div class="modal-footer">
+            <button id="confirm-partial-debt-payment-btn" class="bg-green-500 hover:bg-green-600 text-white">تأكيد استلام المبلغ</button>
+            <button type="button" class="modal-close-btn-footer">إلغاء</button>
+        </div>
+    </div>
+</div>
+<script>
     document.addEventListener("DOMContentLoaded", function() {
+        console.log("البرنامج بدأ بنجاح - الخطوة 1 تمت");
         // --- Global Error Handler ---
                 window.addEventListener('error', function(event) {
             console.error('!!! خطأ عام غير معالج تم اكتشافه !!!');
@@ -2623,7 +2704,7 @@ const lsAutoSaveKey = "goodsMgmt_autoSaveEnabled"; // مفتاح لحفظ تفض
             debtorNamesDatalistOffset, creditorNamesDatalistOffset,
             // Invoice Search Elements
             searchInvoiceNumberInput, searchByNumberBtn, searchCustomerNameInput,
-            searchByNameBtn, searchMessageContainer, searchResultsListContainer;
+            searchByNameBtn, searchMessageContainer, searchResultsListContainer, partialLiabilityPaymentModal, partialLiabilityPaymentMessage, partialDebtPaymentModal;
             // --- Financial Center (FC) Elements ---
 let fc_main_tabs, fc_tab_buttons, fc_tab_contents, fc_month_select, fc_expenses_list,
     fc_products_list, fc_total_expenses_display, fc_preview_container, fc_preview_results,
@@ -3219,16 +3300,146 @@ function calculateTotalPurchasesToday() {
         additionalCostsContainer.appendChild(label);
     });
 }
-        function updateDebtorsListDisplay(){ if(!debtorsListContainer) return; debtorsListContainer.innerHTML=''; // Clear previous content
-             const groupedDebts = debtors.reduce((acc, debt) => { const name = debt.name; if (!acc[name]) { acc[name] = { total: 0, items: [] }; } const amount = Number(debt.amount) || 0; if (amount > 0.001) { // Only include non-zero amounts
-                  acc[name].total += amount; acc[name].items.push({ id: debt.id, reason: debt.reason || 'سبب غير محدد', amount: amount }); } return acc; }, {}); const sortedNames = Object.keys(groupedDebts).filter(name => groupedDebts[name].total > 0.001) // Filter out names with zero total
-                 .sort((a, b) => a.localeCompare(b, 'ar')); if (sortedNames.length === 0) { debtorsListContainer.innerHTML = '<p class="text-center text-gray-500 py-4">لا توجد ديون مسجلة حاليًا بمبالغ ظاهرة.</p>'; return; } sortedNames.forEach(name => { const debtorData = groupedDebts[name]; const detailsElement = document.createElement('details'); detailsElement.className = 'mb-2 border border-gray-200 rounded overflow-hidden shadow-sm'; const summaryElement = document.createElement('summary'); summaryElement.className = 'p-3 bg-gray-50 hover:bg-gray-100 cursor-pointer flex justify-between items-center font-medium text-gray-800'; summaryElement.innerHTML = `<span>${name}</span><span class="text-purple-700 font-semibold">${formatCurrency(debtorData.total)}</span>`; const ulElement = document.createElement('ul'); ulElement.className = 'p-3 pt-2 border-t border-gray-200 bg-white'; debtorData.items.sort((a,b) => a.reason.localeCompare(b.reason, 'ar')).forEach(item => { const liElement = document.createElement('li'); liElement.className = 'text-sm text-gray-600 py-1.5 border-b border-gray-100 flex justify-between items-center'; liElement.innerHTML = `<span>${item.reason}</span><span class="font-mono text-xs">${formatCurrency(item.amount)}</span>`; ulElement.appendChild(liElement); }); detailsElement.appendChild(summaryElement); detailsElement.appendChild(ulElement); debtorsListContainer.appendChild(detailsElement); }); }
-        function updateLiquidityLogDisplay(){if(!liquidityLogListContainer)return; if(liquidityLog.length === 0){liquidityLogListContainer.innerHTML = '<li class="text-center text-gray-500">لا توجد عمليات مسجلة على السيولة.</li>'} else {liquidityLogListContainer.innerHTML = [...liquidityLog].reverse().map(log => { const amountClass = log.type === 'add' ? 'add' : (log.type === 'remove' ? 'remove' : ''); // Adjust color for 'adjust' if needed later
+        // =====================================================================
+function updateDebtorsListDisplay() {
+    if (!debtorsListContainer) return;
+    debtorsListContainer.innerHTML = ''; // Clear previous content
+
+    const groupedDebts = debtors.reduce((acc, debt) => {
+        const name = debt.name;
+        if (!acc[name]) {
+            acc[name] = { total: 0, items: [] };
+        }
+        const amount = Number(debt.amount) || 0;
+        if (amount > 0.001) { // Only include non-zero amounts
+            acc[name].total += amount;
+            acc[name].items.push({ id: debt.id, reason: debt.reason || 'سبب غير محدد', amount: amount });
+        }
+        return acc;
+    }, {});
+
+    const sortedNames = Object.keys(groupedDebts).filter(name => groupedDebts[name].total > 0.001)
+        .sort((a, b) => a.localeCompare(b, 'ar'));
+
+    if (sortedNames.length === 0) {
+        debtorsListContainer.innerHTML = '<p class="text-center text-gray-500 py-4">لا توجد ديون مسجلة حاليًا بمبالغ ظاهرة.</p>';
+        return;
+    }
+
+    sortedNames.forEach(name => {
+        const debtorData = groupedDebts[name];
+        const detailsElement = document.createElement('details');
+        detailsElement.className = 'mb-2 border border-gray-200 rounded overflow-hidden shadow-sm';
+
+        const summaryElement = document.createElement('summary');
+        summaryElement.className = 'p-3 bg-gray-50 hover:bg-gray-100 cursor-pointer flex justify-between items-center font-medium text-gray-800';
+        summaryElement.innerHTML = `<span>${name}</span><span class="text-purple-700 font-semibold">${formatCurrency(debtorData.total)}</span>`;
+
+        const ulElement = document.createElement('ul');
+        ulElement.className = 'p-3 pt-2 border-t border-gray-200 bg-white';
+
+        debtorData.items.sort((a, b) => a.reason.localeCompare(b.reason, 'ar')).forEach(item => {
+            const liElement = document.createElement('li');
+            liElement.className = 'text-sm text-gray-600 py-1.5 border-b border-gray-100 flex justify-between items-center flex-wrap gap-2';
+            
+            liElement.innerHTML = `
+                <div class="flex-grow">
+                    <span>${item.reason}</span>
+                    <span class="font-mono text-xs text-gray-500">${formatCurrency(item.amount)}</span>
+                </div>
+                <div class="actions flex-shrink-0">
+                    <button data-debt-id="${item.id}" class="pay-partial-debt-btn text-xs bg-teal-500 hover:bg-teal-600 text-white font-semibold py-1 px-2 rounded">تسديد جزئي</button>
+                </div>
+            `;
+            ulElement.appendChild(liElement);
+        });
+
+        detailsElement.appendChild(summaryElement);
+        detailsElement.appendChild(ulElement);
+        debtorsListContainer.appendChild(detailsElement);
+    });
+}
+
+
+
+function toggleInlinePaymentForm(debtorName) {
+    console.log(`toggleInlinePaymentForm called for: ${debtorName}`);
+
+    const targetGroup = document.querySelector(`.debtor-group[data-debtor-name="${debtorName}"]`);
+    if (!targetGroup) {
+        console.error("Error: Could not find the debtor group element!");
+        return;
+    }
+
+    const alreadyOpenForm = targetGroup.querySelector('.inline-payment-form');
+
+    // الخطوة 1: قم بإغلاق كل النماذج المفتوحة دائمًا
+    document.querySelectorAll('.inline-payment-form').forEach(form => form.remove());
+
+    // الخطوة 2: إذا كان النموذج الذي ضغطنا عليه مفتوحًا بالفعل، فإن الخطوة السابقة قد أغلقته بالفعل.
+    // لذلك، لا تفعل شيئًا آخر واخرج من الدالة.
+    if (alreadyOpenForm) {
+        console.log("Form was already open, now closing it.");
+        return;
+    }
+
+    // الخطوة 3: إذا وصلنا إلى هنا، فهذا يعني أن النموذج كان مغلقًا، والآن سنقوم بإنشائه وفتحه.
+    console.log("Form was closed, now creating and opening it.");
+
+    const totalDebt = debtors
+        .filter(d => d.name === debtorName)
+        .reduce((sum, debt) => sum + (Number(debt.amount) || 0), 0);
+
+    const formDiv = document.createElement('div');
+    formDiv.className = 'inline-payment-form';
+    formDiv.dataset.debtorName = debtorName;
+
+    let accountOptions = accounts.map(acc => `<option value="${acc.id}">${acc.name} (${formatCurrency(acc.balance)})</option>`).join('');
+
+    formDiv.innerHTML = `
+        <p class="text-sm font-semibold text-gray-700 mb-3">استلام دفعة من ${debtorName} (الإجمالي: ${formatCurrency(totalDebt)})</p>
+        <div class="form-grid">
+            <div class="form-group">
+                <label class="text-xs font-bold">المبلغ المحصّل:</label>
+                <input type="number" class="inline-debt-amount-input" placeholder="0.00" min="0.01" max="${totalDebt}" step="0.01" required>
+            </div>
+            <div class="form-group">
+                <label class="text-xs font-bold">إيداع في:</label>
+                <select class="inline-debt-account-select">
+                    <option value="">-- اختر حساب --</option>
+                    ${accountOptions}
+                </select>
+            </div>
+        </div>
+        <div class="section-message error mt-2" style="display:none;"></div>
+        <div class="flex gap-2 mt-4">
+            <button class="confirm-inline-debt-payment text-sm bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded">تأكيد</button>
+            <button type="button" class="cancel-inline-debt-payment text-sm bg-gray-400 hover:bg-gray-500 text-white font-bold py-1 px-3 rounded">إلغاء</button>
+        </div>
+    `;
+    
+    targetGroup.appendChild(formDiv);
+    
+    setTimeout(() => {
+        formDiv.classList.add('visible');
+        formDiv.querySelector('input[type="number"]').focus();
+    }, 10);
+}
+
+
+function handleConfirmInlineDebtPayment(debtorName, formElement) {
+    // ... (هذه الدالة لم تتغير)
+}
+// =====================================================================
+// == END: DEBUGGING Professional Partial Debt Payment Code ==
+// =====================================================================        
+         function updateLiquidityLogDisplay(){if(!liquidityLogListContainer)return; if(liquidityLog.length === 0){liquidityLogListContainer.innerHTML = '<li class="text-center text-gray-500">لا توجد عمليات مسجلة على السيولة.</li>'} else {liquidityLogListContainer.innerHTML = [...liquidityLog].reverse().map(log => { const amountClass = log.type === 'add' ? 'add' : (log.type === 'remove' ? 'remove' : ''); // Adjust color for 'adjust' if needed later
             const amountSign = log.type === 'add' ? '+' : (log.type === 'remove' ? '-' : (log.amount >= 0 ? '+' : '')); // Show sign for adjustment based on value
             return `<li><div class="flex justify-between items-start"><div><span class="font-medium ${amountClass}">${amountSign}${formatCurrency(Math.abs(log.amount))}</span> <span class="text-sm details">(${log.description || 'بدون وصف'})</span><span class="block text-xs text-gray-400">${formatDateTime(log.timestamp)}</span></div><span class="text-sm details flex-shrink-0 ml-2">الرصيد: ${formatCurrency(log.currentBalance)}</span></div></li>`}).join('')}}
-       function updateLiabilitiesListDisplay() {
+      function updateLiabilitiesListDisplay() {
     if (!liabilitiesListContainer) return;
-    liabilitiesListContainer.innerHTML = '';
+    liabilitiesListContainer.innerHTML = ''; // Clear previous content
+
     const validLiabilities = liabilities.filter(l => (Number(l.amount) || 0) > 0.001);
 
     if (validLiabilities.length === 0) {
@@ -3240,28 +3451,32 @@ function calculateTotalPurchasesToday() {
 
     sortedLiabilities.forEach(liability => {
         const li = document.createElement('li');
+        li.className = 'flex justify-between items-center py-2 border-b border-gray-100'; // Unified style for all items
         const isInvoiceLiability = liability.name.startsWith('متبقي فاتورة لـ:');
 
+        let nameHTML = `<span class="font-medium">${liability.name}</span>`; // Default name display
+
+        // If it's an invoice liability, make the name part clickable
         if (isInvoiceLiability && liability.purchaseInvoiceId) {
-            // Style for clickable invoice liabilities
-            li.className = 'flex justify-between items-center py-2 px-3 border rounded-md bg-indigo-50 hover:bg-indigo-100 cursor-pointer';
-            li.innerHTML = `
-                <div>
-                    <span class="font-semibold text-indigo-800">${liability.name}</span>
-                    <span class="block text-xs text-indigo-600">اضغط لعرض التفاصيل</span>
+            nameHTML = `
+                <div class="view-purchase-invoice-btn" style="cursor: pointer;" data-purchase-invoice-id="${liability.purchaseInvoiceId}">
+                    <span class="font-medium text-indigo-800">${liability.name}</span>
+                    <span class="block text-xs text-indigo-600">اضغط لعرض تفاصيل الفاتورة</span>
                 </div>
-                <span class="text-pink-700 font-semibold font-mono">${formatCurrency(liability.amount)}</span>
-            `;
-            li.dataset.purchaseInvoiceId = liability.purchaseInvoiceId; // Store the ID
-            li.classList.add('view-purchase-invoice-btn'); // Add a class for the event listener
-        } else {
-            // Style for regular liabilities
-            li.className = 'flex justify-between items-center py-1 border-b border-gray-100';
-            li.innerHTML = `
-                <span class="font-medium">${liability.name}</span>
-                <span class="text-pink-700 font-semibold">${formatCurrency(liability.amount)}</span>
             `;
         }
+
+        // The rest of the layout is now the same for all liability types
+        li.innerHTML = `
+            <div class="flex-grow pr-4">
+                ${nameHTML}
+            </div>
+            <div class="actions flex-shrink-0 flex items-center gap-4">
+                <span class="text-pink-700 font-semibold">${formatCurrency(liability.amount)}</span>
+                <button data-liability-id="${liability.id}" class="pay-liability-btn text-xs bg-teal-500 hover:bg-teal-600 text-white font-semibold py-1 px-3 rounded">تسديد</button>
+            </div>
+        `;
+
         liabilitiesListContainer.appendChild(li);
     });
 }
@@ -7826,8 +8041,28 @@ if (productDeductLiquidityCheckbox) {
                          } else if (target.classList.contains('manage-serials-btn')) { // **** جديد: التعامل مع زر إدارة السيريالات ****
                              openManageSerialsModal(productName);
                          }
+                     
                      });
                  }
+// =======================================================
+// START: Debt Actions Event Listener (FIXED)
+// =======================================================
+if (debtorsListContainer) {
+    debtorsListContainer.addEventListener('click', (e) => {
+        const payButton = e.target.closest('.pay-partial-debt-btn');
+        if (payButton) {
+            const debtId = payButton.dataset.debtId;
+            if (debtId) {
+                openPartialDebtPaymentModal(debtId);
+            }
+        }
+    });
+}
+// =======================================================
+// END: Debt Actions Event Listener
+// =======================================================
+                 
+
                  // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 // ★★★ بداية الكود الجديد الذي ستلصقه (يشمل 3 دوال) ★★★
 // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
@@ -9061,6 +9296,238 @@ if (d('liabilities-list-container')) {
             window.appInitialized = false;
         }
     });
+    // --- START: PARTIAL LIABILITY PAYMENT LOGIC ---
+
+partialLiabilityPaymentModal = d('partialLiabilityPaymentModal');
+ partialLiabilityPaymentMessage = d('partial-liability-payment-message');
+
+// Function to open the partial liability payment modal
+function openPartialLiabilityPaymentModal(liabilityId) {
+    const liability = liabilities.find(l => l.id === liabilityId);
+    if (!liability) {
+        showGlobalMessage("خطأ: لم يتم العثور على الالتزام المحدد.", true);
+        return;
+    }
+
+    const accountSelect = d('partial-liability-payment-account');
+    accountSelect.innerHTML = '<option value="">-- اختر الحساب --</option>';
+    accounts.forEach(acc => {
+        accountSelect.innerHTML += `<option value="${acc.id}">${acc.name} (${formatCurrency(acc.balance)})</option>`;
+    });
+
+    d('partial-liability-creditor-name').textContent = liability.name;
+    d('partial-liability-total-amount').textContent = formatCurrency(liability.amount);
+    d('partial-liability-payment-amount').value = '';
+    d('partial-liability-payment-amount').max = liability.amount;
+    d('confirm-partial-liability-payment-btn').dataset.liabilityId = liability.id;
+    
+    showMessage(partialLiabilityPaymentMessage, "");
+    partialLiabilityPaymentModal.style.display = 'block';
+}
+
+// Function to close the modal
+function closePartialLiabilityPaymentModal() {
+    partialLiabilityPaymentModal.style.display = 'none';
+}
+
+// Event listener for the new "Pay" button (using event delegation on the body)
+document.body.addEventListener('click', (e) => {
+    const payButton = e.target.closest('#liabilities-list .pay-liability-btn');
+    if (payButton) {
+        const liabilityId = payButton.dataset.liabilityId;
+        if (liabilityId) {
+            openPartialLiabilityPaymentModal(liabilityId);
+        }
+    }
+});
+
+// Event listener for the modal's confirm button
+d('confirm-partial-liability-payment-btn').addEventListener('click', () => {
+    const liabilityId = d('confirm-partial-liability-payment-btn').dataset.liabilityId;
+    const liabilityIndex = liabilities.findIndex(l => l.id === liabilityId);
+    if (liabilityIndex === -1) {
+        showMessage(partialLiabilityPaymentMessage, "خطأ: لم يتم العثور على الالتزام.", true);
+        return;
+    }
+
+    const amountToPay = parseInputNumber(d('partial-liability-payment-amount'));
+    const accountId = d('partial-liability-payment-account').value;
+    const account = accounts.find(acc => acc.id === accountId);
+    const liability = liabilities[liabilityIndex];
+
+    // Validation
+    if (isNaN(amountToPay) || amountToPay <= 0) {
+        showMessage(partialLiabilityPaymentMessage, "الرجاء إدخال مبلغ صحيح أكبر من صفر.", true);
+        return;
+    }
+    if (amountToPay > liability.amount + 0.001) {
+        showMessage(partialLiabilityPaymentMessage, "المبلغ المدفوع أكبر من قيمة الالتزام.", true);
+        return;
+    }
+    if (!account) {
+        showMessage(partialLiabilityPaymentMessage, "الرجاء اختيار حساب للدفع منه.", true);
+        return;
+    }
+    if (amountToPay > account.balance) {
+        showMessage(partialLiabilityPaymentMessage, `رصيد حساب "${account.name}" غير كافٍ.`, true);
+        return;
+    }
+    
+    saveStateToHistory("تسديد جزء من التزام");
+
+    // Process payment
+    liability.amount -= amountToPay;
+    account.balance -= amountToPay;
+
+    logOperation("تسديد جزء من التزام", `تسديد ${formatCurrency(amountToPay)} من التزام "${liability.name}" من حساب "${account.name}".`);
+    
+    // Remove liability if it's fully paid
+    if (liability.amount < 0.01) {
+        liabilities.splice(liabilityIndex, 1);
+    }
+    
+    updateUI();
+    closePartialLiabilityPaymentModal();
+    showGlobalMessage(`تم تسديد مبلغ ${formatCurrency(amountToPay)} بنجاح.`, false);
+});
+
+// Event listeners for closing the modal
+partialLiabilityPaymentModal.querySelectorAll('.modal-close-btn, .modal-close-btn-footer').forEach(btn => {
+    btn.addEventListener('click', closePartialLiabilityPaymentModal);
+});
+window.addEventListener('click', (event) => {
+    if (event.target == partialLiabilityPaymentModal) {
+        closePartialLiabilityPaymentModal();
+    }
+});
+
+// --- END: PARTIAL LIABILITY PAYMENT LOGIC ---
+// --- START: PARTIAL DEBT PAYMENT LOGIC ---
+
+ partialDebtPaymentModal = d('partialDebtPaymentModal');
+ partialDebtPaymentMessage = d('partial-debt-payment-message');
+
+// Function to open the partial debt payment modal
+function openPartialDebtPaymentModal(debtId) {
+    const debt = debtors.find(d => d.id === debtId);
+    if (!debt) {
+        showGlobalMessage("خطأ: لم يتم العثور على الدين المحدد.", true);
+        return;
+    }
+
+    const accountSelect = d('partial-debt-payment-account');
+    accountSelect.innerHTML = '<option value="">-- اختر الحساب --</option>';
+    accounts.forEach(acc => {
+        accountSelect.innerHTML += `<option value="${acc.id}">${acc.name} (${formatCurrency(acc.balance)})</option>`;
+    });
+
+    d('partial-debtor-name').textContent = debt.name;
+    d('partial-debt-reason').textContent = debt.reason || 'دين عام';
+    d('partial-debt-total-amount').textContent = formatCurrency(debt.amount);
+    
+    const amountInput = d('partial-debt-payment-amount');
+    amountInput.value = '';
+    amountInput.max = debt.amount;
+    
+    d('confirm-partial-debt-payment-btn').dataset.debtId = debt.id;
+    
+    showMessage(partialDebtPaymentMessage, "");
+    partialDebtPaymentModal.style.display = 'block';
+    amountInput.focus();
+}
+
+// Function to close the modal
+function closePartialDebtPaymentModal() {
+    partialDebtPaymentModal.style.display = 'none';
+}
+
+// ✅✅✅ الكود الجديد والصحيح لجميع النقرات في قائمة الديون ✅✅✅
+if (debtorsListContainer) {
+    debtorsListContainer.addEventListener('click', (e) => {
+        const payPartialButton = e.target.closest('.pay-partial-debt-btn');
+        const receiveAllButton = e.target.closest('.receive-all-debt-btn');
+
+        if (payPartialButton) {
+            console.log("Pay Partial Button Clicked!"); // للتأكد من أن الزر يعمل
+            const debtId = payPartialButton.dataset.debtId;
+            if (debtId) {
+                openPartialDebtPaymentModal(debtId);
+            }
+            return; // أوقف التنفيذ هنا لمنع التعارض
+        }
+
+        if (receiveAllButton) {
+            console.log("Receive All Button Clicked!"); // للتأكد من أن الزر يعمل
+            const debtorName = receiveAllButton.dataset.debtorName;
+            if (debtorName) {
+                toggleInlinePaymentForm(debtorName);
+            }
+            return; // أوقف التنفيذ هنا
+        }
+    });
+}
+
+// Event listener for the modal's confirm button
+d('confirm-partial-debt-payment-btn').addEventListener('click', () => {
+    const debtId = d('confirm-partial-debt-payment-btn').dataset.debtId;
+    const debtIndex = debtors.findIndex(d => d.id === debtId);
+    if (debtIndex === -1) {
+        showMessage(partialDebtPaymentMessage, "خطأ: لم يتم العثور على الدين.", true);
+        return;
+    }
+
+    const amountToPay = parseInputNumber(d('partial-debt-payment-amount'));
+    const accountId = d('partial-debt-payment-account').value;
+    const account = accounts.find(acc => acc.id === accountId);
+    const debt = debtors[debtIndex];
+
+    // Validation
+    if (isNaN(amountToPay) || amountToPay <= 0) {
+        showMessage(partialDebtPaymentMessage, "الرجاء إدخال مبلغ صحيح أكبر من صفر.", true);
+        return;
+    }
+    if (amountToPay > debt.amount + 0.001) { // Add tolerance for floating point issues
+        showMessage(partialDebtPaymentMessage, "المبلغ المدفوع أكبر من قيمة الدين.", true);
+        return;
+    }
+    if (!account) {
+        showMessage(partialDebtPaymentMessage, "الرجاء اختيار الحساب الذي سيتم إيداع المبلغ فيه.", true);
+        return;
+    }
+    
+    saveStateToHistory(); // For Undo functionality
+
+    // Process payment
+    debt.amount -= amountToPay;
+    account.balance += amountToPay;
+
+    const summaryText = `سداد جزئي من ${debt.name} (${debt.reason})`;
+    logOperation("استلام سداد جزئي", `استلام ${formatCurrency(amountToPay)} في حساب "${account.name}" من دين "${debt.name}".`);
+    
+    const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+    liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: amountToPay, description: summaryText, currentBalance: newTotalLiquidity });
+
+    // Remove debt if it's fully paid
+    if (debt.amount < 0.01) {
+        debtors.splice(debtIndex, 1);
+    }
+    
+    updateUI();
+    closePartialDebtPaymentModal();
+    showGlobalMessage(`تم استلام مبلغ ${formatCurrency(amountToPay)} بنجاح.`, false);
+});
+
+// Event listeners for closing the modal
+partialDebtPaymentModal.querySelectorAll('.modal-close-btn, .modal-close-btn-footer').forEach(btn => {
+    btn.addEventListener('click', closePartialDebtPaymentModal);
+});
+window.addEventListener('click', (event) => {
+    if (event.target == partialDebtPaymentModal) {
+        closePartialDebtPaymentModal();
+    }
+});
+
+// --- END: PARTIAL DEBT PAYMENT LOGIC ---
 
 }); // End DOMContentLoaded
 </script>
