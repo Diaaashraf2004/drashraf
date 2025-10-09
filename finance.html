@@ -2589,8 +2589,8 @@ input:checked:active + .slider:before {
             //     showGlobalMessage('حدث خطأ غير متوقع في البرنامج. يرجى مراجعة الـ console لمزيد من التفاصيل ومحاولة تحديث الصفحة.', true);
             // }
         });
-const lsAutoBackupPrefix = "goodsMgmt_auto_backup_"; // مفتاح لنسخة الطوارئ
-const MAX_DAILY_BACKUPS = 15; // الحد الأقصى لعدد نسخ الطوارئ في اليوم
+let backupSlotIndex = 0; // متغير جديد لتتبع خانة النسخ الاحتياطي
+const MAX_BACKUP_SLOTS = 10; // سنحتفظ بـ 5 نسخ فقط كحد أقصى
         // اختيارياً: يمكنك أيضاً التقاط الأخطاء في الـ Promises التي لم يتم التعامل معها
         window.addEventListener('unhandledrejection', function(event) {
             console.error('!!! خطأ Promise غير معالج تم اكتشافه !!!');
@@ -4088,30 +4088,15 @@ async function saveCurrentStateByDate(dateString) {
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
         await window.setDoc(docRef, stateToSave);
 
-        // ★★★ بداية الكود المضاف لإصلاح النسخ الاحتياطية ★★★
-        // 1. إنشاء نسخة احتياطية للطوارئ في التخزين المحلي
-        const backupTimestamp = new Date().toISOString();
-        const backupKey = `goodsMgmt_backup_${dateString}_${backupTimestamp}`;
-        saveData(backupKey, stateToSave); // نستخدم نفس دالة الحفظ المحلية
-        console.log(`Emergency local backup saved with key: ${backupKey}`);
+       // ★★★ بداية الكود الجديد لنظام النسخ الاحتياطي الدوّار ★★★
+        // 1. إنشاء نسخة احتياطية للطوارئ في الخانة الحالية
+        const backupKey = `goodsMgmt_backup_${dateString}_slot_${backupSlotIndex}`;
+        saveData(backupKey, stateToSave);
+        console.log(`Emergency local backup saved to slot: ${backupSlotIndex}`);
 
-        // 2. تنظيف النسخ الاحتياطية القديمة لنفس اليوم
-        let dayBackups = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key.startsWith(`goodsMgmt_backup_${dateString}_`)) {
-                dayBackups.push(key);
-            }
-        }
-        if (dayBackups.length > MAX_DAILY_BACKUPS) {
-            dayBackups.sort(); // فرز النسخ من الأقدم للأحدث
-            const backupsToRemove = dayBackups.slice(0, dayBackups.length - MAX_DAILY_BACKUPS);
-            backupsToRemove.forEach(key => {
-                localStorage.removeItem(key);
-                console.log(`Removed old emergency backup: ${key}`);
-            });
-        }
-        // ★★★ نهاية الكود المضاف ★★★
+        // 2. الانتقال إلى الخانة التالية للدورة القادمة
+        backupSlotIndex = (backupSlotIndex + 1) % MAX_BACKUP_SLOTS;
+        // ★★★ نهاية الكود الجديد ★★★
 
         const latestBalancesSummary = {
             products, suppliers, accounts, debtors, liabilities, monthlyLiabilities, 
@@ -4134,44 +4119,44 @@ async function saveCurrentStateByDate(dateString) {
         showGlobalMessage("حدث خطأ أثناء محاولة حفظ البيانات على الإنترنت.", true);
     }
 }
-// دالة لفتح نافذة سجل النسخ الاحتياطية
 function openBackupHistoryModal() {
-    const targetDate = currentLoadedDate || getTodayDateString();
-    const modal = d('backupHistoryModal');
-    const listContainer = d('backup-history-list');
-    
-    if (!modal || !listContainer) return;
+    const targetDate = currentLoadedDate || getTodayDateString();
+    const modal = d('backupHistoryModal');
+    const listContainer = d('backup-history-list');
+    
+    if (!modal || !listContainer) return;
 
-    let dayBackups = [];
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key.startsWith(`goodsMgmt_backup_${targetDate}_`)) {
-            dayBackups.push(key);
-        }
-    }
+    let backups = [];
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.startsWith(`goodsMgmt_backup_${targetDate}_slot_`)) {
+            const backupData = fetchData(key, null);
+            if (backupData && backupData.savedAt) {
+                backups.push({ key: key, time: new Date(backupData.savedAt) });
+            }
+        }
+    }
 
-    dayBackups.sort().reverse(); // الفرز العكسي لعرض الأحدث أولاً
+    // فرز النسخ حسب وقت الحفظ الفعلي (الأحدث أولاً)
+    backups.sort((a, b) => b.time - a.time);
 
-    if (dayBackups.length === 0) {
-        listContainer.innerHTML = '<p class="text-center text-gray-500">لا توجد نسخ احتياطية تلقائية لهذا اليوم.</p>';
-    } else {
-        listContainer.innerHTML = dayBackups.map(key => {
-            const timestamp = key.split('_').pop(); // استخراج الوقت من اسم المفتاح
-            const backupDate = new Date(timestamp);
-            const formattedTime = backupDate.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            
-            return `
-                <div class="flex justify-between items-center p-2 bg-gray-50 rounded border">
-                    <span class="font-semibold text-gray-700">نسخة الساعة: ${formattedTime}</span>
-                    <button data-backup-key="${key}" class="restore-backup-btn text-xs bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded">
-                        استعادة
-                    </button>
-                </div>
-            `;
-        }).join('');
-    }
-    
-    modal.style.display = 'block';
+    if (backups.length === 0) {
+        listContainer.innerHTML = '<p class="text-center text-gray-500">لا توجد نسخ احتياطية تلقائية لهذا اليوم.</p>';
+    } else {
+        listContainer.innerHTML = backups.map(backup => {
+            const formattedTime = backup.time.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            return `
+                <div class="flex justify-between items-center p-2 bg-gray-50 rounded border">
+                    <span class="font-semibold text-gray-700">نسخة الساعة: ${formattedTime}</span>
+                    <button data-backup-key="${backup.key}" class="restore-backup-btn text-xs bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded">
+                        استعادة
+                    </button>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    modal.style.display = 'block';
 }
 
 // دالة لإغلاق نافذة سجل النسخ الاحتياطية
