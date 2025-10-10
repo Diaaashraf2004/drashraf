@@ -2766,6 +2766,35 @@ async function fetchOnlineDataForDate(dateString) {
 }
         function saveData(key, data){ console.log(`saveData: Saving data for key: ${key}`); try { localStorage.setItem(key, JSON.stringify(data)) } catch(e) { console.error(`Error saving data for key "${key}":`, e); showGlobalMessage("حدث خطأ أثناء حفظ البيانات. قد يكون التخزين ممتلئًا.", true) } }
         function formatCurrency(amount){ const numAmount = Number(amount); return isNaN(numAmount) ? '0.00 جنيه' : `${numAmount.toFixed(2)} جنيه` }
+       /**
+ * Searches recursively through an object or array and replaces all 'undefined' values with 'null'.
+ * Firebase does not support 'undefined' values.
+ * @param {any} obj The object or array to clean.
+ * @returns {any} The cleaned object or array.
+ */
+function sanitizeDataForFirebase(obj) {
+    if (obj === null || typeof obj !== 'object') {
+        return obj;
+    }
+
+    if (Array.isArray(obj)) {
+        return obj.map(item => sanitizeDataForFirebase(item));
+    }
+
+    const newObj = {};
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            const value = obj[key];
+            if (value === undefined) {
+                newObj[key] = null; // <--- هذا هو السطر المهم: تحويل undefined إلى null
+            } else {
+                newObj[key] = sanitizeDataForFirebase(value);
+            }
+        }
+    }
+    return newObj;
+}
+       
         function formatDateTime(isoString){ if(!isoString) return ''; try { return new Date(isoString).toLocaleString('ar-EG', {timeZone: 'Africa/Cairo', year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true}) } catch(e) { return isoString } }
         function showMessage(messageElement, text, isError = false, isInfo = false){ if (!messageElement) { /* console.warn("showMessage called with invalid element"); */ return } messageElement.innerHTML = text; // Use innerHTML to render <br> if needed
              messageElement.className = 'section-message'; // Reset classes first
@@ -4083,10 +4112,12 @@ async function saveCurrentStateByDate(dateString) {
         savedAt: new Date().toISOString(),
         savedForDate: dateString
     };
+    const sanitizedState = sanitizeDataForFirebase(stateToSave);
+
 
     try {
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
-        await window.setDoc(docRef, stateToSave);
+        await window.setDoc(docRef, sanitizedState);
 
        // ★★★ بداية الكود الجديد لنظام النسخ الاحتياطي الدوّار ★★★
         // 1. إنشاء نسخة احتياطية للطوارئ في الخانة الحالية
@@ -4107,8 +4138,9 @@ async function saveCurrentStateByDate(dateString) {
             summaryForDate: dateString,
             lastUpdated: new Date().toISOString()
         };
+        const sanitizedSummary = sanitizeDataForFirebase(latestBalancesSummary);
         const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
-        await window.setDoc(summaryDocRef, latestBalancesSummary);
+        await window.setDoc(summaryDocRef, sanitizedSummary);
         console.log(`Successfully updated latestBalances summary from date: ${dateString}`);
 
         currentLoadedDate = dateString;
