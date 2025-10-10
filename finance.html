@@ -4119,15 +4119,23 @@ async function saveCurrentStateByDate(dateString) {
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
         await window.setDoc(docRef, sanitizedState);
 
-      // ★★★ بداية الكود المحدّث لإنشاء نسخة احتياطية خفيفة ★★★
+     
+     
+     
+     
+     
+     
+     // ★★★ بداية الكود المحدّث لإنشاء نسخة احتياطية خفيفة ★★★
         // 1. نقوم بإنشاء نسخة من البيانات لحذف الأجزاء الكبيرة منها
         const leanStateToBackup = {
-            ...stateToSave // هذا السطر ينسخ كل البيانات أولاً
+            ...stateToSave // هذا السطر ينسخ كل شيء من البيانات الأصلية
         };
 
         // 2. نحذف السجلات الكبيرة من النسخة المؤقتة فقط
         delete leanStateToBackup.log; // حذف سجل العمليات العام
         delete leanStateToBackup.liquidityLog; // حذف سجل السيولة التفصيلي
+        delete leanStateToBackup.salesToday;       // حذف قائمة المبيعات اليومية
+        delete leanStateToBackup.purchaseInvoices; // حذف قائمة المشتريات اليومية
 
         // 3. نحفظ النسخة "الخفيفة" فقط على جهازك
         const backupKey = `goodsMgmt_backup_${dateString}_slot_${backupSlotIndex}`;
@@ -4137,7 +4145,6 @@ async function saveCurrentStateByDate(dateString) {
         // 4. الانتقال إلى الخانة التالية كالمعتاد
         backupSlotIndex = (backupSlotIndex + 1) % MAX_BACKUP_SLOTS;
         // ★★★ نهاية الكود المحدّث ★★★
-
         const latestBalancesSummary = {
             products, suppliers, accounts, debtors, liabilities, monthlyLiabilities, 
             pendingSales, serialNumbersLog, inboxTasks,
