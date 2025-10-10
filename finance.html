@@ -4119,15 +4119,24 @@ async function saveCurrentStateByDate(dateString) {
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
         await window.setDoc(docRef, sanitizedState);
 
-       // ★★★ بداية الكود الجديد لنظام النسخ الاحتياطي الدوّار ★★★
-        // 1. إنشاء نسخة احتياطية للطوارئ في الخانة الحالية
-        const backupKey = `goodsMgmt_backup_${dateString}_slot_${backupSlotIndex}`;
-        saveData(backupKey, stateToSave);
-        console.log(`Emergency local backup saved to slot: ${backupSlotIndex}`);
+      // ★★★ بداية الكود المحدّث لإنشاء نسخة احتياطية خفيفة ★★★
+        // 1. نقوم بإنشاء نسخة من البيانات لحذف الأجزاء الكبيرة منها
+        const leanStateToBackup = {
+            ...stateToSave // هذا السطر ينسخ كل البيانات أولاً
+        };
 
-        // 2. الانتقال إلى الخانة التالية للدورة القادمة
-        backupSlotIndex = (backupSlotIndex + 1) % MAX_BACKUP_SLOTS;
-        // ★★★ نهاية الكود الجديد ★★★
+        // 2. نحذف السجلات الكبيرة من النسخة المؤقتة فقط
+        delete leanStateToBackup.log; // حذف سجل العمليات العام
+        delete leanStateToBackup.liquidityLog; // حذف سجل السيولة التفصيلي
+
+        // 3. نحفظ النسخة "الخفيفة" فقط على جهازك
+        const backupKey = `goodsMgmt_backup_${dateString}_slot_${backupSlotIndex}`;
+        saveData(backupKey, leanStateToBackup); 
+        console.log(`Lean emergency backup saved to slot: ${backupSlotIndex}`);
+
+        // 4. الانتقال إلى الخانة التالية كالمعتاد
+        backupSlotIndex = (backupSlotIndex + 1) % MAX_BACKUP_SLOTS;
+        // ★★★ نهاية الكود المحدّث ★★★
 
         const latestBalancesSummary = {
             products, suppliers, accounts, debtors, liabilities, monthlyLiabilities, 
