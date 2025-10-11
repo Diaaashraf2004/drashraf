@@ -2719,6 +2719,57 @@ let fc_main_tabs, fc_tab_buttons, fc_tab_contents, fc_month_select, fc_expenses_
 
         // --- الدوال المساعدة (Helper Functions) ---
 // دالة مساعدة لإضافة مبلغ إلى السيولة وتسجيله في السجل
+
+// ✅✅✅ دالة جديدة لمسح كل البيانات في الجلسة الحالية ✅✅✅
+function resetAllData() {
+    console.log("resetAllData called - Clearing ALL current session data.");
+
+    // تصفير كل متغيرات الحالة الرئيسية
+    products = [];
+    suppliers = [];
+    // إعادة تعيين الحسابات إلى حساب افتراضي واحد أو تركها فارغة
+    accounts = [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0.00 }]; 
+    expenses = 0;
+    debtors = [];
+    liabilities = [];
+    monthlyLiabilities = []; // إذا كنت تريد مسحها أيضًا
+    totalProfit = 0;
+    operationLog = [];
+    pendingSales = [];
+    liquidityLog = [];
+    salesToday = [];
+    serialNumbersLog = [];
+    purchaseInvoices = [];
+    pendingPurchases = [];
+    completedReturns = [];
+    pendingReturns = [];
+    pendingReturnsValue = 0;
+    
+    // تصفير حالات التعديل
+    editingPendingSaleId = null;
+    editingProductName = null;
+    editingSupplierId = null;
+    editingMonthlyLiabilityId = null;
+    
+    // تصفير سجل التراجع/الإعادة
+    stateHistory = [];
+    redoHistory = [];
+    updateUndoRedoButtons();
+
+    // مسح الرسائل
+    const messageElements = document.querySelectorAll('.section-message, .error-message');
+    messageElements.forEach(el => {
+        el.textContent = '';
+        el.classList.remove('visible', 'error', 'success', 'info');
+    });
+    
+    // إضافة سجل يفيد بالتصفير الشامل
+    logOperation("تصفير شامل", "تم مسح جميع بيانات الجلسة الحالية.");
+
+    // تحديث الواجهة بالكامل لتعكس الحالة الفارغة
+    updateUI(); 
+    showGlobalMessage("تم تصفير جميع بيانات الجلسة الحالية بنجاح.", false, true);
+}
 function addAmountToDefaultAccount(amount, description) {
     if (isNaN(amount) || amount <= 0) {
         console.error("خطأ: لا يمكن إضافة مبلغ غير صحيح للسيولة.");
@@ -3058,18 +3109,20 @@ function calculateConsignmentValue() {
         return sum + saleCost;
     }, 0);
 }
-    // ✅ الدالة الأولى: نسخة محسّنة من loadState
-// ✅ الكود الجديد والصحيح
+    // ✅✅✅ الكود النهائي والصحيح لدالة loadState (لحل مشكلة الاستيراد) ✅✅✅
 function loadState(data, dateString) {
     resetState(); // ابدأ دائمًا بحالة نظيفة
 
     products = data.products || [];
     suppliers = data.suppliers || [];
     
-    // منطق جديد ومبسط للتعامل مع الحسابات
-    accounts = (data.accounts && Array.isArray(data.accounts) && data.accounts.length > 0) 
-        ? data.accounts 
-        : [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0 }]; // حالة احتياطية
+    // هذا الجزء يعالج السيولة القديمة والجديدة وهو صحيح
+    if (data.accounts && Array.isArray(data.accounts) && data.accounts.length > 0) {
+        accounts = data.accounts;
+    } else {
+        console.log("Migrating old 'liquidity' value to new 'accounts' system.");
+        accounts = [{ id: 'main', name: 'الخزينة الرئيسية', balance: parseFloat(data.liquidity) || 0 }];
+    }
 
     expenses = parseFloat(data.expenses) || 0;
     debtors = data.debtors || [];
@@ -3081,66 +3134,48 @@ function loadState(data, dateString) {
     liquidityLog = data.liquidityLog || [];
     salesToday = data.salesToday || [];
     serialNumbersLog = data.serialNumbersLog || [];
+
+    // --- ✅ الأسطر الحاسمة التي كانت مفقودة وتسببت في مشكلة الاستيراد ---
     purchaseInvoices = data.purchaseInvoices || []; 
     pendingPurchases = data.pendingPurchases || [];
     completedReturns = data.completedReturns || [];
     pendingReturns = data.pendingReturns || [];
     pendingReturnsValue = data.pendingReturnsValue || 0;
+    // --- ✅ نهاية الجزء المضاف ---
 
     currentLoadedDate = dateString;
 
-    // تصفير سجل التراجع/الإعادة عند تحميل يوم جديد
+    // تصفير سجل التراجع/الإعادة
     stateHistory = []; 
     redoHistory = [];
     updateUndoRedoButtons();
 }
-
-     // ✅ الدالة الأولى: نسخة جديدة وشاملة من resetState
+// ✅✅✅ الكود الجديد والصحيح لدالة resetState ✅✅✅
 function resetState() {
-    console.log("resetState called - All state variables are being cleared.");
+    console.log("resetState called - Clearing DAILY transactions only.");
 
-    // State variables
-    products = [];
-    suppliers = [];
-    accounts = []; // <-- ✅ هذا هو السطر الأساسي الذي يحل المشكلة
-    liquidity = 0; // للتوافق مع الإصدارات القديمة
+    // تصفير بيانات العمليات اليومية فقط
     expenses = 0;
-    debtors = [];
-    liabilities = [];
-    monthlyLiabilities = [];
     totalProfit = 0;
     operationLog = [];
-    pendingSales = [];
-    goodsOnConsignmentValue = 0;
     liquidityLog = [];
     salesToday = [];
-    serialNumbersLog = [];
     purchaseInvoices = [];
-    pendingPurchases = [];
     completedReturns = [];
-    pendingReturns = [];
-    pendingReturnsValue = 0;
     
-
-    // Editing state
+    // تصفير حالات التعديل
     editingPendingSaleId = null;
     editingProductName = null;
     editingSupplierId = null;
     editingMonthlyLiabilityId = null;
-
     currentLoadedDate = null;
 
-    // Undo/Redo History
+    // تصفير سجل التراجع/الإعادة
     stateHistory = [];
     redoHistory = [];
     updateUndoRedoButtons();
 
-    // Reset UI Forms
-    resetProductForm();
-    resetSupplierForm();
-    resetMonthlyLiabilityForm();
-
-    // Clear any previous messages on reset
+    // مسح الرسائل
     const messageElements = document.querySelectorAll('.section-message, .error-message');
     messageElements.forEach(el => {
         el.textContent = '';
@@ -4090,9 +4125,8 @@ function resetReturnForm() {
     d('return-at-sale-price').checked = false;
     returnSourceData = null; 
 }
-        // --- حفظ وتحميل وتصدير واستيراد ---
-        // =======================================================
-// START: دالة الحفظ الجديدة (المتصلة بالإنترنت)
+  // =======================================================
+// START: دالة الحفظ النهائية (متصلة بالإنترنت ومكتملة للترحيل)
 // =======================================================
 async function saveCurrentStateByDate(dateString) {
     if (!window.currentUser) {
@@ -4114,46 +4148,46 @@ async function saveCurrentStateByDate(dateString) {
     };
     const sanitizedState = sanitizeDataForFirebase(stateToSave);
 
-
     try {
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
         await window.setDoc(docRef, sanitizedState);
 
-     
-     
-     
-     
-     
-     
-     // ★★★ بداية الكود المحدّث لإنشاء نسخة احتياطية خفيفة ★★★
-        // 1. نقوم بإنشاء نسخة من البيانات لحذف الأجزاء الكبيرة منها
-        const leanStateToBackup = {
-            ...stateToSave // هذا السطر ينسخ كل شيء من البيانات الأصلية
-        };
-
-        // 2. نحذف السجلات الكبيرة من النسخة المؤقتة فقط
-        delete leanStateToBackup.log; // حذف سجل العمليات العام
-        delete leanStateToBackup.liquidityLog; // حذف سجل السيولة التفصيلي
-        delete leanStateToBackup.salesToday;       // حذف قائمة المبيعات اليومية
-        delete leanStateToBackup.purchaseInvoices; // حذف قائمة المشتريات اليومية
-
-        // 3. نحفظ النسخة "الخفيفة" فقط على جهازك
+        // نسخة احتياطية خفيفة على الجهاز (هذا الجزء سليم)
+        const leanStateToBackup = { ...stateToSave };
+        delete leanStateToBackup.log;
+        delete leanStateToBackup.liquidityLog;
+        delete leanStateToBackup.salesToday;
+        delete leanStateToBackup.purchaseInvoices;
         const backupKey = `goodsMgmt_backup_${dateString}_slot_${backupSlotIndex}`;
-        saveData(backupKey, leanStateToBackup); 
+        saveData(backupKey, leanStateToBackup);
         console.log(`Lean emergency backup saved to slot: ${backupSlotIndex}`);
-
-        // 4. الانتقال إلى الخانة التالية كالمعتاد
         backupSlotIndex = (backupSlotIndex + 1) % MAX_BACKUP_SLOTS;
-        // ★★★ نهاية الكود المحدّث ★★★
+
+        // --- ✅ بداية الإصلاح الجوهري: إنشاء ملخص كامل وشامل ---
+        // هذا الملخص هو ما سيتم استخدامه لترحيل الأرصدة لليوم التالي
         const latestBalancesSummary = {
-            products, suppliers, accounts, debtors, liabilities, monthlyLiabilities, 
-            pendingSales, serialNumbersLog, inboxTasks,
-            pendingPurchases, 
-            pendingReturns,
-            pendingReturnsValue,
+            // الأرصدة النهائية التي يجب ترحيلها
+            products, 
+            suppliers, 
+            accounts, // <-- ✅ ترحيل نظام الخزائن بالكامل
+            debtors, 
+            liabilities, 
+            monthlyLiabilities, 
+            pendingSales, 
+            serialNumbersLog, 
+            inboxTasks,
+            
+            // --- ✅ الأسطر الجديدة والمهمة التي تضمن ترحيل الأقسام الجديدة ---
+            pendingPurchases,    // <-- ✅ ترحيل المشتريات المعلقة
+            pendingReturns,      // <-- ✅ ترحيل المرتجعات المعلقة
+            pendingReturnsValue, // <-- ✅ ترحيل قيمة المرتجعات المعلقة
+            
+            // بيانات تعريفية للملخص
             summaryForDate: dateString,
             lastUpdated: new Date().toISOString()
         };
+        // --- ✅ نهاية الإصلاح الجوهري ---
+
         const sanitizedSummary = sanitizeDataForFirebase(latestBalancesSummary);
         const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
         await window.setDoc(summaryDocRef, sanitizedSummary);
@@ -4162,6 +4196,7 @@ async function saveCurrentStateByDate(dateString) {
         currentLoadedDate = dateString;
         updateUI();
         showGlobalMessage(`تم حفظ البيانات بنجاح على الإنترنت لتاريخ: ${formatDateForDisplay(dateString)}`, false);
+
     } catch (error) {
         console.error("Error saving data to Firebase: ", error);
         showGlobalMessage("حدث خطأ أثناء محاولة حفظ البيانات على الإنترنت.", true);
@@ -4246,13 +4281,7 @@ function toggleAutoSave() {
         saveData(lsAutoSaveKey, false); // حفظ تفضيل المستخدم
     }
 }
-// =======================================================
-// END: دالة الحفظ الجديدة
-// =======================================================
-        
-        // =======================================================
-// START: دالة تحميل البيانات الجديدة (من الإنترنت)
-// ✅ الكود الجديد والصحيح
+// ✅✅✅ الكود النهائي والصحيح لدالة loadDataForDate (لحل مشكلة الترحيل) ✅✅✅
 async function loadDataForDate(dateString) {
     console.log(`\n--- [بداية] عملية تحميل بيانات لتاريخ: ${dateString} ---`);
     if (!window.currentUser) {
@@ -4272,10 +4301,13 @@ async function loadDataForDate(dateString) {
         const docSnap = await window.getDoc(docRef);
 
         if (docSnap.exists()) {
+            // الحالة أ: تحميل يوم موجود بالفعل (لا مشكلة هنا)
             console.log("[الحالة أ] تم العثور على بيانات. سيتم تحميلها مباشرة.");
             loadState(docSnap.data(), dateString);
             showMessage(loadMessageElement, `تم تحميل البيانات بنجاح لتاريخ ${formatDateForDisplay(dateString)}.`, false);
+        
         } else {
+            // الحالة ب: يوم جديد، سنقوم بالترحيل
             console.log("[الحالة ب] لا توجد بيانات. سنحاول الترحيل من ملخص آخر يوم عمل.");
             const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
             const summaryDocSnap = await window.getDoc(summaryDocRef);
@@ -4284,13 +4316,12 @@ async function loadDataForDate(dateString) {
                 const previousData = summaryDocSnap.data();
                 console.log(`[نجاح الترحيل] تم العثور على ملخص من يوم: ${previousData.summaryForDate}.`);
                 
-                resetState(); // تصفير الحالة الحالية بالكامل
-
-                // --- ★★★ بداية التعديل الجوهري ★★★ ---
-                // ترحيل الأرصدة النهائية فقط من الملخص
+                // --- ✅✅✅ بداية الإصلاح الجذري والنهائي لعملية الترحيل ✅✅✅ ---
+                
+                // 1. ترحيل الأرصدة النهائية بالكامل من الملخص
                 products = previousData.products || [];
                 suppliers = previousData.suppliers || [];
-                accounts = previousData.accounts || [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0 }]; // الأهم
+                accounts = previousData.accounts || [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0 }];
                 debtors = previousData.debtors || [];
                 liabilities = previousData.liabilities || [];
                 monthlyLiabilities = previousData.monthlyLiabilities || [];
@@ -4299,22 +4330,32 @@ async function loadDataForDate(dateString) {
                 pendingPurchases = previousData.pendingPurchases || [];
                 pendingReturns = previousData.pendingReturns || [];
                 pendingReturnsValue = previousData.pendingReturnsValue || 0;
-                // --- ★★★ نهاية التعديل الجوهري ★★★ ---
+                inboxTasks = previousData.inboxTasks || [];
 
-                // تصفير بيانات اليوم الجديد (المصاريف، الأرباح، إلخ)
+                // 2. تصفير البيانات اليومية فقط بشكل يدوي وآمن
                 expenses = 0;
                 totalProfit = 0;
-                operationLog = [`[${new Date().toLocaleTimeString('ar-EG')}] ترحيل أرصدة: تم ترحيل الأرصدة من ملخص يوم ${formatDateForDisplay(previousData.summaryForDate)}.`];
+                operationLog = [];
                 liquidityLog = [];
                 salesToday = [];
                 purchaseInvoices = [];
                 completedReturns = [];
                 
+                // 3. إضافة سجل يفيد بحدوث عملية الترحيل
+                operationLog.push({
+                    timestamp: new Date().toISOString(),
+                    type: "ترحيل أرصدة",
+                    details: `تم ترحيل الأرصدة من ملخص يوم ${formatDateForDisplay(previousData.summaryForDate)}.`
+                });
+                // --- ✅✅✅ نهاية الإصلاح الجذري والنهائي ✅✅✅ ---
+
                 showMessage(loadMessageElement, `تم ترحيل الأرصدة من آخر يوم عمل إلى تاريخ ${formatDateForDisplay(dateString)}.`, false);
             } else {
+                // الحالة ج: لا يوجد أي بيانات سابقة على الإطلاق
                 console.log("[فشل الترحيل] لم يتم العثور على ملف ملخص. سيتم البدء بيوم جديد فارغ.");
-                resetState();
-                accounts.push({ id: 'main', name: 'الخزينة الرئيسية', balance: 0.00 });
+                // هنا نستخدم resetState لأننا فعلاً نريد البدء من الصفر
+                resetState(); 
+                accounts = [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0.00 }];
                 showMessage(loadMessageElement, `لا توجد بيانات سابقة. تم البدء بيوم جديد فارغ.`, false, true);
             }
         }
@@ -4338,14 +4379,37 @@ async function loadDataForDate(dateString) {
              const dateToExport = currentLoadedDate || getTodayDateString(); // Use loaded date or today if none loaded
               // Recalculate totals just before export to ensure consistency
               const { totalInventoryValue, totalCapital, totalDebtsValue, totalLiabilitiesValue } = calculateTotals();
-              const stateToExport = {
-                  products, suppliers, liquidity, expenses, debtors, liabilities,
-                  profit: totalProfit, log: operationLog, pendingSales,
-                  liquidityLog, salesToday,
-                  serialNumbersLog, // **** تضمين سجل السيريالات في التصدير ****
-                  savedAt: new Date().toISOString(),
-                  savedForDate: dateToExport
-              };
+             // ✅✅✅ استبدل هذا البلوك بالكامل داخل دالة exportData ✅✅✅
+const stateToExport = {
+    // البيانات الأساسية
+    products, 
+    suppliers, 
+    accounts, // <-- ✅ الأهم: تصدير نظام الخزائن الجديد بدلاً من المتغير القديم
+    expenses, 
+    debtors, 
+    liabilities, 
+    monthlyLiabilities,
+    
+    // بيانات العمليات والسجلات
+    profit: totalProfit, 
+    log: operationLog, 
+    pendingSales,
+    liquidityLog, 
+    salesToday, 
+    serialNumbersLog, 
+    inboxTasks,
+
+    // البيانات الجديدة التي كانت مفقودة
+    purchaseInvoices, 
+    pendingPurchases, 
+    completedReturns, 
+    pendingReturns,
+    pendingReturnsValue,
+
+    // بيانات تعريفية للملف
+    savedAt: new Date().toISOString(),
+    savedForDate: dateToExport
+};
               const jsonString = JSON.stringify(stateToExport, null, 2);
               const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
               const url = URL.createObjectURL(blob);
@@ -7877,8 +7941,15 @@ if (d('redo-button')) { d('redo-button').addEventListener('click', redo); }
                  if (loadDataButtonAlt) { loadDataButtonAlt.addEventListener("click", async () => { const dateToLoad = loadDateInputAlt ? loadDateInputAlt.value : null; const loadResult = loadDataForDate(dateToLoad); if(loadResult) updateUI(); }); } // Update UI only if loadDataForDate indicates a change happened
                  if (loadDateInputAlt) { loadDateInputAlt.addEventListener('change', (e) => { const dateValue = e.target.value; updateLoadDateDayName(dateValue, loadDateDayNameDisplayAlt); }); }
                  if (clearLogButton) { clearLogButton.addEventListener("click", () => { if (confirm("هل أنت متأكد من رغبتك في مسح سجل عمليات اليوم الحالي المعروض؟ لن يتم حفظ هذا التغيير إلا بالضغط على زر الحفظ.")) { operationLog = []; updateLogDisplay(); showGlobalMessage("تم مسح سجل اليوم الحالي من العرض. اضغط 'حفظ' لتثبيت التغيير.", false, true); } }); }
-                 if (resetButtonAlt) { resetButtonAlt.addEventListener("click", () => { if (confirm("تحذير: سيؤدي هذا إلى مسح جميع البيانات المعروضة حاليًا على الشاشة (لن يتم حذف أي بيانات محفوظة سابقًا). هل أنت متأكد؟")) { resetState(); updateUI(); showGlobalMessage("تم تصفير الواجهة. يمكنك البدء من جديد أو تحميل بيانات تاريخ آخر.", false, true); } }); }
-               
+                // 🎯🎯🎯 الكود المعدل للزر الأحمر 🎯🎯🎯
+if (resetButtonAlt) { 
+    resetButtonAlt.addEventListener("click", () => { 
+        // رسالة تأكيد جديدة وأكثر وضوحًا
+        if (confirm("تحذير خطير: سيتم مسح كل البيانات المعروضة على الشاشة نهائيًا (المخزون، الموردين، الديون، إلخ) والبدء من جديد. هذا الإجراء لا يمكن التراجع عنه. هل أنت متأكد؟")) { 
+            resetAllData(); // 👈🏻 يستدعي الدالة الجديدة الشاملة
+        } 
+    }); 
+}
                  if (printButtonAlt) { printButtonAlt.addEventListener("click", () => { document.body.classList.add('print-report'); // Add class for print styling
                       const reportHTML = generateReportHTML(); const printWindow = window.open('', '_blank', 'height=600,width=800'); if (printWindow) { printWindow.document.open(); printWindow.document.write(reportHTML); printWindow.document.close(); setTimeout(() => { try { printWindow.focus(); printWindow.print(); // printWindow.close(); // Optional: close after printing
                       } catch (e) { console.error("Print error:", e); showGlobalMessage("حدث خطأ أثناء محاولة الطباعة.", true); } finally { document.body.classList.remove('print-report'); // Remove class after printing attempt
