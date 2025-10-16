@@ -3894,75 +3894,51 @@ function updatePendingReturnsDisplay() {
     `).join('');
 }
 
-// =======================================================
-// START: دالة تأكيد استلام المرتجع (النسخة النهائية والمصححة)
-// =======================================================
-// =======================================================
-// START: دالة تأكيد استلام المرتجع (النسخة النهائية والمصححة)
-// =======================================================
+// ✅✅✅ الكود الجديد والصحيح لدالة handleConfirmReceipt ✅✅✅
 function handleConfirmReceipt(pendingId) {
     saveStateToHistory();
     const returnIndex = pendingReturns.findIndex(r => r.id === pendingId);
-    if (returnIndex === -1) return;
-
-    const ret = pendingReturns.splice(returnIndex, 1)[0]; 
-
-    if (ret.source !== 'pendingSale' && ret.returnedAmount > liquidity) {
-        showGlobalMessage(`فشل تأكيد الاستلام: السيولة غير كافية (${formatCurrency(liquidity)}) لإرجاع مبلغ ${formatCurrency(ret.returnedAmount)}.`, true);
-        pendingReturns.push(ret);
+    if (returnIndex === -1) {
+        showGlobalMessage("خطأ: لم يتم العثور على المرتجع المعلق.", true);
         return;
     }
 
-    // تحديث المخزون بناءً على الخيار المحفوظ
+    const ret = pendingReturns.splice(returnIndex, 1)[0];
+
+    // --- ✅ بداية الإصلاح: هذه الدالة الآن لوجيستية فقط ---
+
+    // 1. تحديث المخزون باستخدام التكلفة الصحيحة المحفوظة
     ret.items.forEach(item => {
+        // item.costPrice هنا يحتوي على القيمة الصحيحة التي تم حسابها في الخطوة السابقة
         if (ret.returnAtSalePrice) {
             const newProductName = `${item.name} - ${ret.customerName} (مرتجع)`;
-            products.push({
-                name: newProductName,
-                quantity: item.quantity,
-                costPrice: (ret.returnedAmount / item.quantity) || 0,
-                supplierId: ""
-            });
+            products.push({ name: newProductName, quantity: item.quantity, costPrice: item.costPrice });
         } else {
-            const productIndex = products.findIndex(p => p.name === item.name);
-            if (productIndex !== -1) {
-                products[productIndex].quantity += item.quantity;
+            const pIndex = products.findIndex(p => p.name === item.name);
+            if (pIndex !== -1) {
+                // منطق حساب المتوسط الصحيح
+                const existing = products[pIndex];
+                const oldTotalValue = (existing.costPrice || 0) * (existing.quantity || 0);
+                const newTotalValue = item.costPrice * item.quantity;
+                existing.quantity += item.quantity;
+                existing.costPrice = (oldTotalValue + newTotalValue) / existing.quantity;
             } else {
-                products.push({ name: item.name, quantity: item.quantity, costPrice: (item.costOfGoods / item.quantity) || 0, supplierId: '' });
+                // إضافة المنتج بتكلفته الصحيحة لأول مرة
+                products.push({ name: item.name, quantity: item.quantity, costPrice: item.costPrice || 0 });
             }
         }
     });
 
-    // تنفيذ العمليات المالية
-    if (ret.source !== 'pendingSale') {
-        // ✅✅✅ بداية التعديل الجوهري والنهائي ✅✅✅
-        // يتم خصم الربح فقط وفقط إذا لم يكن الإرجاع بسعر البيع
-        if (!ret.returnAtSalePrice) {
-            const profitToReverse = ret.returnedAmount - ret.costOfGoods;
-            totalProfit -= profitToReverse;
-            logOperation("عكس أرباح مرتجع", `عكس أرباح بقيمة ${formatCurrency(profitToReverse)}.`);
-        }
-        // ✅✅✅ نهاية التعديل الجوهري والنهائي ✅✅✅
-
-        liquidity -= ret.returnedAmount;
-
-        liquidityLog.push({
-            id: `liq-${Date.now()}`,
-            timestamp: new Date().toISOString(),
-            type: "remove",
-            amount: ret.returnedAmount,
-            description: `إتمام استلام مرتجع من ${ret.customerName}`,
-            currentBalance: liquidity
-        });
-        
-        logOperation("استلام بضاعة مرتجعة", `تم استلام ${ret.items.map(i => i.quantity + 'x ' + i.name).join(', ')}. تم خصم ${formatCurrency(ret.returnedAmount)} من السيولة.`);
-    } else {
-        logOperation("استلام بضاعة مرتجعة (من بيع مؤقت)", `تم استلام ${ret.items.map(i => i.quantity + 'x ' + i.name).join(', ')} في المخزن.`);
-    }
-
+    // 2. نقل المرتجع إلى قائمة المكتملة
     completedReturns.push({ ...ret, status: 'Completed', timestamp: new Date().toISOString() });
+
+    // 3. تسجيل العملية كإجراء لوجيستي
+    logOperation("تأكيد استلام مرتجع", `تم تأكيد استلام ${ret.items.map(i=> i.quantity + 'x ' + i.name).join(', ')} في المخزن.`);
     
+    // --- ✅ نهاية الإصلاح: تم حذف كل العمليات المالية من هنا ---
+
     updateUI();
+    showGlobalMessage("تم تأكيد استلام البضاعة وتحديث المخزون بنجاح.", false);
 }
 
 
@@ -3986,17 +3962,14 @@ function updateReturnFormVisibility() {
         amountGroup.classList.remove('hidden');
         accountGroup.classList.remove('hidden');
     }
-}// =======================================================
-// الكود الجديد والمعدل بالكامل
-// الكود الجديد (الصحيح)
-// الكود الجديد (الصحيح)
+}
+// ✅✅✅ الكود الجديد والصحيح لدالة handleManualReturn ✅✅✅
 function handleManualReturn() {
     saveStateToHistory();
     const returnMessage = d('return-message');
     const productName = d('return-product-select').value || d('return-manual-product-name').value.trim();
     const quantity = parseInputNumber(d('return-quantity'));
     const customerName = d('return-customer-name').value.trim() || 'عميل';
-    
     const returnedAmount = parseInputNumber(d('return-sale-price-input'));
     const financialType = document.querySelector('input[name="return-financial-type"]:checked').value;
     const receiveNow = d('return-receive-now').checked;
@@ -4007,7 +3980,7 @@ function handleManualReturn() {
     if (!productName || isNaN(quantity) || quantity <= 0) {
         showMessage(returnMessage, "يرجى إدخال اسم المنتج وكمية صحيحة.", true); return;
     }
-    if (financialType !== 'stock' && (isNaN(returnedAmount) || returnedAmount <= 0)) {
+    if (financialType !== 'stock' && (isNaN(returnedAmount) || returnedAmount < 0)) {
         showMessage(returnMessage, "يرجى إدخال مبلغ صحيح للمرتجع.", true); return;
     }
     if (financialType === 'cash' && !account) {
@@ -4016,62 +3989,52 @@ function handleManualReturn() {
     
     const productData = products.find(p => p.name === productName);
     const costOfGoods = (productData?.costPrice || 0) * quantity;
-    
+    let logDetails = "";
+
+    // --- ✅ بداية الإصلاح: تنفيذ الإجراء المالي فوراً ---
+    if (financialType === 'cash') {
+        if (returnedAmount > account.balance) { showMessage(returnMessage, `رصيد حساب "${account.name}" غير كافٍ.`, true); return; }
+        account.balance -= returnedAmount;
+        logDetails = `إرجاع نقدي ${formatCurrency(returnedAmount)} للعميل "${customerName}" من حساب "${account.name}".`;
+    } else if (financialType === 'credit') {
+        liabilities.push({ id: generateId('liab'), name: `رصيد مرتجع للعميل: ${customerName}`, amount: returnedAmount });
+        logDetails = `تسجيل رصيد للعميل "${customerName}" بقيمة ${formatCurrency(returnedAmount)}.`;
+    }
+
+    if ((financialType === 'cash' || financialType === 'credit') && !returnAtSalePrice) {
+        const profitToReverse = returnedAmount - costOfGoods;
+        totalProfit -= profitToReverse;
+        logOperation("عكس أرباح مرتجع", `عكس أرباح بقيمة ${formatCurrency(profitToReverse)}.`);
+    }
+    // --- ✅ نهاية الإصلاح ---
+
     if (receiveNow) {
-        // --- منطق الإرجاع الفوري (لن يتغير) ---
-        let logDetails = "";
-        if (financialType === 'cash') {
-            if (returnedAmount > account.balance) {
-                showMessage(returnMessage, `رصيد حساب "${account.name}" غير كافٍ.`, true);
-                return;
-            }
-            account.balance -= returnedAmount;
-            logDetails = `إرجاع نقدي ${formatCurrency(returnedAmount)} للعميل "${customerName}" من حساب "${account.name}".`;
-        } else if (financialType === 'credit') {
-            const liabilityName = `رصيد مرتجع للعميل: ${customerName}`;
-            liabilities.push({ id: generateId('liab'), name: liabilityName, amount: returnedAmount });
-            logDetails = `تسجيل رصيد للعميل "${customerName}" بقيمة ${formatCurrency(returnedAmount)}.`;
-        } else if (financialType === 'stock') {
-            logDetails = `إرجاع ${quantity}x "${productName}" للمخزون بقيمة تقديرية ${formatCurrency(returnedAmount)} (بدون حركة نقدية).`;
-        }
-        
+        // ... (منطق الإرجاع الفوري للمخزون)
         const newUnitCost = (returnedAmount / quantity) || 0;
-        if (returnAtSalePrice || financialType === 'stock') {
-            const newProductName = `${productName} - ${customerName} (مرتجع ملغي)`;
-            products.push({ name: newProductName, quantity, costPrice: newUnitCost });
+        if (returnAtSalePrice) {
+            products.push({ name: `${productName} - ${customerName} (مرتجع)`, quantity, costPrice: newUnitCost });
         } else {
             const pIndex = products.findIndex(p => p.name === productName);
             if (pIndex !== -1) {
-                const existing = products[pIndex];
-                const oldTotalValue = (existing.costPrice || 0) * (existing.quantity || 0);
-                existing.quantity += quantity;
-                existing.costPrice = (oldTotalValue + (newUnitCost * quantity)) / existing.quantity;
+                products[pIndex].quantity += quantity;
             } else {
-                products.push({ name: productName, quantity, costPrice: (costOfGoods / quantity) || newUnitCost });
+                products.push({ name: productName, quantity, costPrice: (costOfGoods / quantity) || 0 });
             }
         }
-        
-        logOperation("مرتجع", logDetails);
         completedReturns.push({ id: generateId('ret'), items: [{ name: productName, quantity }], customerName, returnedAmount, timestamp: new Date().toISOString() });
+        logOperation("مرتجع فوري", logDetails + " وتم استلام البضاعة.");
         showMessage(returnMessage, "تم تسجيل المرتجع واستلامه بالمخزن بنجاح.", false);
-        
     } else {
-        // --- ★★★ منطق تسجيل المرتجع كـ "قيد الاستلام" (التعديل المهم) ★★★ ---
-        
-        // ✅ الخطوة 1: زيادة قيمة المرتجعات المعلقة فوراً
-        pendingReturnsValue += returnedAmount;
-
+        // --- منطق تسجيل المرتجع كـ "قيد الاستلام" ---
+        pendingReturnsValue += returnedAmount; // ✅✅ إنشاء الأصل المعلق
         pendingReturns.push({
             id: generateId('pend-ret'),
-            items: [{ name: productName, quantity, costPrice: (costOfGoods / quantity) || 0 }],
-            customerName, returnedAmount, costOfGoods,
-            financialType: financialType,
+            items: [{ name: productName, quantity, costPrice: (returnedAmount / quantity) || 0 }],
+            customerName, returnedAmount,
             returnAtSalePrice: returnAtSalePrice,
-            accountId: selectedAccountId
         });
-        
-        logOperation("مرتجع قيد الاستلام", `تسجيل مرتجع من "${customerName}" بقيمة ${formatCurrency(returnedAmount)}. زادت قيمة الأصول المعلقة.`);
-        showMessage(returnMessage, "تم تسجيل المرتجع كـ 'قيد الاستلام' بنجاح.", false, true);
+        logOperation("مرتجع قيد الاستلام", logDetails + " والبضاعة قيد الاستلام.");
+        showMessage(returnMessage, "تم تسجيل المرتجع كـ 'قيد الاستلام' بنجاح. تم تنفيذ الإجراء المالي.", false, true);
     }
     
     resetReturnForm();
@@ -6849,59 +6812,51 @@ function handleInvoiceReturnConfirmation(invoiceId, invoiceNumber) {
     updateUI();
 }
 
-/**
- * Confirms receipt of a pending return, updating stock and profit.
- */
-// =======================================================
-// START: دالة تأكيد استلام المرتجع (النسخة النهائية والمصححة)
-// الكود الجديد (الصحيح)
-// الكود الجديد (الصحيح)
+// ✅✅✅ الكود الجديد والصحيح لدالة handleConfirmReceipt ✅✅✅
 function handleConfirmReceipt(pendingId) {
     saveStateToHistory();
     const returnIndex = pendingReturns.findIndex(r => r.id === pendingId);
-    if (returnIndex === -1) return;
-
-    const ret = pendingReturns.splice(returnIndex, 1)[0];
-    
-    // ✅ الخطوة 1: خصم القيمة من "الأصول المعلقة" لأنها ستصبح الآن جزءًا من المخزون الفعلي
-    pendingReturnsValue -= ret.returnedAmount;
-    
-    // باقي الكود الذي لديك يبقى كما هو (يتم تحديث المخزون والإجراء المالي)
-    const account = accounts.find(acc => acc.id === ret.accountId);
-    if (ret.financialType === 'cash' && (!account || ret.returnedAmount > account.balance)) {
-        showGlobalMessage(`فشل تأكيد الاستلام: رصيد حساب "${account?.name || 'المحدد'}" غير كافٍ.`, true);
-        pendingReturns.push(ret); // إرجاع العنصر للقائمة
-        pendingReturnsValue += ret.returnedAmount; // إرجاع القيمة للأصول المعلقة لأن العملية فشلت
+    if (returnIndex === -1) {
+        showGlobalMessage("خطأ: لم يتم العثور على المرتجع المعلق.", true);
         return;
     }
 
-    if (ret.financialType === 'cash' && ret.returnedAmount > 0) {
-        account.balance -= ret.returnedAmount;
-        logOperation("مرتجع نقدي (مؤكد)", `إرجاع ${formatCurrency(ret.returnedAmount)} للعميل "${ret.customerName}" من حساب "${account.name}".`);
-    } else if (ret.financialType === 'credit' && ret.returnedAmount > 0) {
-        const liabilityName = `رصيد مرتجع للعميل: ${ret.customerName}`;
-        liabilities.push({ id: generateId('liab'), name: liabilityName, amount: ret.returnedAmount });
-        logOperation("مرتجع كرصيد (مؤكد)", `تسجيل رصيد للعميل "${ret.customerName}" بقيمة ${formatCurrency(ret.returnedAmount)}.`);
-    }
+    const ret = pendingReturns.splice(returnIndex, 1)[0];
 
+    // --- ✅ بداية الإصلاح: هذه الدالة الآن لوجيستية فقط ---
+
+    // 1. خصم القيمة من "الأصول المعلقة"
+    pendingReturnsValue -= ret.returnedAmount;
+
+    // 2. تحديث المخزون (إضافة القيمة إلى أصل المخزون)
     ret.items.forEach(item => {
-        const newUnitCost = (ret.returnedAmount / item.quantity) || 0;
         if (ret.returnAtSalePrice) {
-            products.push({ name: `${item.name} - ${ret.customerName} (مرتجع)`, quantity: item.quantity, costPrice: newUnitCost });
+            const newProductName = `${item.name} - ${ret.customerName} (مرتجع)`;
+            products.push({ name: newProductName, quantity: item.quantity, costPrice: item.costPrice });
         } else {
             const pIndex = products.findIndex(p => p.name === item.name);
             if (pIndex !== -1) {
-                products[pIndex].quantity += item.quantity;
+                const existing = products[pIndex];
+                const oldTotalValue = (existing.costPrice || 0) * (existing.quantity || 0);
+                const newTotalValue = item.costPrice * item.quantity;
+                existing.quantity += item.quantity;
+                existing.costPrice = (oldTotalValue + newTotalValue) / existing.quantity;
             } else {
                 products.push({ name: item.name, quantity: item.quantity, costPrice: item.costPrice || 0 });
             }
         }
     });
-    
-    logOperation("تأكيد استلام مرتجع", `تم تأكيد استلام ${ret.items.map(i=> i.quantity + 'x ' + i.name).join(', ')} في المخزن.`);
+
+    // 3. نقل المرتجع إلى قائمة المكتملة
     completedReturns.push({ ...ret, status: 'Completed', timestamp: new Date().toISOString() });
+
+    // 4. تسجيل العملية كإجراء لوجيستي فقط
+    logOperation("تأكيد استلام مرتجع", `تم تأكيد استلام ${ret.items.map(i=> i.quantity + 'x ' + i.name).join(', ')} في المخزن.`);
     
+    // --- ✅ نهاية الإصلاح: تم حذف كل العمليات المالية من هنا ---
+
     updateUI();
+    showGlobalMessage("تم تأكيد استلام البضاعة وتحديث المخزون بنجاح.", false);
 }
 
 /**
