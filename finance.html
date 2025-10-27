@@ -6113,7 +6113,7 @@ async function performDirectSearch() {
     }
 }
 
-// =====================================================================
+// --- >>> START: انسخ هذا الكود بالكامل والصقه مكان دالة handlePendingSaleActions القديمة <<< ---
 async function handlePendingSaleActions(event) {
     const button = event.target.closest('button');
     if (!button) return;
@@ -6121,6 +6121,7 @@ async function handlePendingSaleActions(event) {
     const pendingId = button.dataset.pendingId;
     if (!pendingId) return;
 
+    // --- زر تحويل البيع المؤقت إلى مرتجع ---
     if (button.classList.contains('initiate-return-from-pending')) {
         initiateReturnFromPendingSale(pendingId);
         return;
@@ -6132,10 +6133,10 @@ async function handlePendingSaleActions(event) {
         return;
     }
     
-    const sale = { ...pendingSales[saleIndex] }; // اعمل نسخة من البيانات لتجنب المشاكل
+    const sale = { ...pendingSales[saleIndex] }; // اعمل نسخة من البيانات
 
+    // --- زر تأكيد البيع المؤقت (وفتح الفاتورة) ---
     if (button.classList.contains('confirm-pending')) {
-        // --- ✅ بداية الإصلاح ---
         if (confirm(`سيتم الآن فتح نافذة الفاتورة لتأكيد هذه العملية واختيار حساب الإيداع. هل تريد المتابعة؟`)) {
             isInvoiceFromPending = true;
             pendingSaleOriginData = sale; 
@@ -6145,67 +6146,143 @@ async function handlePendingSaleActions(event) {
             if(inv_customerNameInput) inv_customerNameInput.value = sale.customerName || '';
             if (sale.invoiceData) { // إذا كان البيع المؤقت من فاتورة مفصلة أصلاً
                 if(inv_customerAddressInput) inv_customerAddressInput.value = sale.invoiceData.customerAddress || '';
-                // يمكنك إضافة ملء باقي البيانات هنا مثل الهاتف والملاحظات إذا أردت
+                // (ملء باقي البيانات مثل الهاتف والملاحظات والشحن)
+                if(inv_warrantyInput && sale.invoiceData.warranty) inv_warrantyInput.value = sale.invoiceData.warranty;
+                if(inv_notesTextarea && sale.invoiceData.notes) inv_notesTextarea.value = sale.invoiceData.notes;
+                if(inv_shippingCostInput) inv_shippingCostInput.value = sale.invoiceData.shippingCost || 0;
             }
             
-            // المنطق الجديد لملء بنود الفاتورة بشكل صحيح
-            if (sale.items) {
-                // الحالة 1: إذا كان البيع المؤقت فاتورة مفصلة بالفعل، أضف بنودها كما هي
-                sale.items.forEach(item => {
-                    if (item) {
-                        inv_itemNameInput.value = item.name;
-                        inv_itemQtyInput.value = item.quantity;
-                        inv_itemPriceInput.value = item.unitPrice; // استخدم السعر الدقيق للوحدة
-                        inv_addInvoiceItem();
+            // ملء بنود الفاتورة
+            if (inv_invoiceItemsBody) {
+                inv_invoiceItemsBody.innerHTML = ''; // أفرغ البنود القديمة
+                if (sale.items) {
+                    // الحالة 1: فاتورة مفصلة
+                    sale.items.forEach(item => {
+                        if (item) {
+                            // نستدعي دالة inv_addInvoiceItem بشكل غير مباشر (بملء الحقول والضغط)
+                            // أو (الأفضل) نملأ الجدول مباشرة
+                            const subtotal = item.quantity * item.unitPrice;
+                            const newRow = document.createElement('tr');
+                            newRow.classList.add('invoice-item-row');
+                            newRow.dataset.itemName = item.name;
+                            newRow.dataset.itemQty = item.quantity;
+                            newRow.dataset.itemPrice = (item.unitPrice || 0).toFixed(2);
+                            newRow.dataset.itemSubtotal = (subtotal || 0).toFixed(2);
+                            newRow.dataset.itemCost = (item.costPrice || 0).toFixed(2);
+                            newRow.dataset.itemSerial = item.serial || null; // احتفظ بالسيريال إذا كان موجودًا
+                            newRow.innerHTML = `
+                                <td class="item-name">
+                                    ${item.name}
+                                    ${item.serial ? `<span class="serial-display no-print">(S/N: ${item.serial})</span><span class="serial-display-print">(S/N: ${item.serial})</span>` : ''}
+                                </td>
+                                <td class="item-qty">${item.quantity}</td>
+                                <td class="item-price">${formatCurrency(item.unitPrice)}</td>
+                                <td class="item-subtotal">${formatCurrency(subtotal)}</td>
+                                <td class="no-print"><button type="button" class="remove-item-btn" title="حذف البند">×</button></td>
+                            `;
+                            inv_invoiceItemsBody.appendChild(newRow);
+                        }
+                    });
+                } else if (sale.mainProduct) {
+                    // الحالة 2: بيع سريع (ادمجه في بند واحد)
+                    let description = `${sale.mainProduct.quantity}x ${sale.mainProduct.name}`;
+                    if (sale.additionalItems && sale.additionalItems.length > 0) {
+                        const additionalDesc = sale.additionalItems.map(item => `${item.quantity}x ${item.name}`).join('، ');
+                        description += ` (مع: ${additionalDesc})`;
                     }
-                });
-            } else if (sale.mainProduct) {
-                // الحالة 2: إذا كان البيع المؤقت "بيعاً سريعاً"، ادمج كل البنود في سطر واحد بوصف كامل
-                let description = `${sale.mainProduct.quantity}x ${sale.mainProduct.name}`;
-                if (sale.additionalItems && sale.additionalItems.length > 0) {
-                    const additionalDesc = sale.additionalItems.map(item => `${item.quantity}x ${item.name}`).join('، ');
-                    description += ` (مع: ${additionalDesc})`;
+                    const mainCost = (sale.mainProduct.costPrice || 0) * sale.mainProduct.quantity;
+                    const addCost = (sale.additionalItems || []).reduce((sum, i) => sum + (i.costPrice || 0) * i.quantity, 0);
+                    const subtotal = sale.totalSellPrice;
+                    const newRow = document.createElement('tr');
+                    newRow.classList.add('invoice-item-row');
+                    newRow.dataset.itemName = description;
+                    newRow.dataset.itemQty = 1;
+                    newRow.dataset.itemPrice = sale.totalSellPrice.toFixed(2);
+                    newRow.dataset.itemSubtotal = subtotal.toFixed(2);
+                    newRow.dataset.itemCost = (mainCost + addCost).toFixed(2);
+                    newRow.innerHTML = `
+                        <td class="item-name">${description}</td>
+                        <td class="item-qty">1</td>
+                        <td class="item-price">${formatCurrency(sale.totalSellPrice)}</td>
+                        <td class="item-subtotal">${formatCurrency(subtotal)}</td>
+                        <td class="no-print"><button type="button" class="remove-item-btn" title="حذف البند">×</button></td>
+                    `;
+                    inv_invoiceItemsBody.appendChild(newRow);
                 }
-
-                inv_itemNameInput.value = description;
-                inv_itemQtyInput.value = 1; // التعامل مع الحزمة كلها كقطعة واحدة
-                inv_itemPriceInput.value = sale.totalSellPrice; // السعر الإجمالي للحزمة
-                inv_addInvoiceItem(); // إضافة البند المدمج مرة واحدة
             }
             
-            // إزالة البيع المؤقت الأصلي من القائمة
-            saveStateToHistory();
-            pendingSales.splice(saleIndex, 1);
-            updateUI();
+            // حساب الإجماليات وتحديث الملحقات القابلة للخصم
+            inv_calculateTotals();
+            inv_updateDeductibleCostsCheckboxes(); // هذه الدالة ستعرض الملحقات المتاحة
+            
+            // لا تقم بحذف البيع المؤقت الآن، سيتم حذفه عند الحفظ النهائي
+            // saveStateToHistory();
+            // pendingSales.splice(saleIndex, 1);
+            // updateUI();
         }
-        // --- ✅ نهاية الإصلاح ---
 
+    // --- زر إلغاء البيع المؤقت ---
     } else if (button.classList.contains('cancel-pending')) {
         if (confirm(`هل أنت متأكد من إلغاء هذا البيع المؤقت وإرجاع البضاعة للمخزون؟`)) {
             saveStateToHistory();
             const saleCost = calculateSinglePendingSaleCost(sale);
-            const itemsToReturn = sale.items ? sale.items.concat(sale.additionalItems || []) : [sale.mainProduct, ...(sale.additionalItems || [])];
+
+            // <<< --- هذا هو السطر المعدل --- >>>
+            // يجمع البنود الأساسية (items) والبنود المخصومة (deductedItems) معًا لإرجاعها
+            let itemsToReturn = [];
+            if (sale.items) {
+                // فاتورة مفصلة: أرجع البنود الأساسية + البنود المخصومة
+                itemsToReturn = (sale.items || []).concat(sale.deductedItems || sale.invoiceData?.deductedItems || []);
+            } else if (sale.mainProduct) {
+                // بيع سريع: أرجع المنتج الرئيسي + الملحقات
+                itemsToReturn = [sale.mainProduct, ...(sale.additionalItems || [])];
+            }
+            // <<< --- نهاية السطر المعدل --- >>>
             
             itemsToReturn.forEach(item => {
-                if(!item) return;
+                if(!item) return; // تجاهل أي عناصر فارغة
                 const productIndex = products.findIndex(p => p.name === item.name);
                 if (productIndex !== -1) {
                     products[productIndex].quantity += (Number(item.quantity) || 0);
                 } else {
-                    products.push({ ...item, quantity: (Number(item.quantity) || 0) });
+                    // إذا لم يكن المنتج موجودًا (ربما تم حذفه؟)، أعد إضافته
+                    products.push({ 
+                        name: item.name, 
+                        quantity: (Number(item.quantity) || 0), 
+                        costPrice: item.costPrice || 0, // استخدم التكلفة المسجلة
+                        supplierId: item.supplierId || '',
+                        isBundle: false, // افترض أنه ليس حزمة
+                        components: []
+                    });
                 }
+                // --- إرجاع حالة السيريال إلى 'in_stock' ---
+                 if (item.serial) {
+                     const serialIndex = serialNumbersLog.findIndex(log => log.serial === item.serial && log.status === 'pending_sale');
+                     if (serialIndex !== -1) {
+                         serialNumbersLog[serialIndex].status = 'in_stock';
+                         console.log(`Serial ${item.serial} status reverted to 'in_stock'.`);
+                     } else {
+                         console.warn(`Could not find serial ${item.serial} with status 'pending_sale' to revert.`);
+                     }
+                 }
             });
 
-            pendingSales.splice(saleIndex, 1);
+            pendingSales.splice(saleIndex, 1); // احذف البيع المؤقت
             logOperation("إلغاء بيع مؤقت", `تم إلغاء بيع مؤقت. تم إرجاع بضاعة (تكلفة ${formatCurrency(saleCost)}) للمخزون.`);
-            updateUI();
+            updateUI(); // حدث الواجهة
+            showMessage(globalMessage, "تم إلغاء البيع المؤقت وإرجاع كل البضاعة للمخزون.", false, true);
         }
+    // --- زر تعديل البيع المؤقت ---
     } else if (button.classList.contains('edit-pending')) {
-        // هذا الزر يحتاج لدالة updatePendingSale التي لم يتم إضافتها بعد.
-        // سنتركها الآن لأنها لا تسبب خطأ حاليًا.
-        openPendingSaleForEdit(pendingId); 
+        // (هذا المنطق خاص بالبيع السريع فقط، قد يحتاج لتعديل ليدعم الفواتير المفصلة)
+        if (sale.mainProduct) {
+            openPendingSaleForEdit(pendingId); 
+        } else {
+            alert("لا يمكن تعديل فاتورة مفصلة مؤقتة حاليًا. يرجى إلغاؤها وإنشاء واحدة جديدة أو تأكيدها.");
+        }
     }
 }
+// --- >>> END: انسخ هذا الكود بالكامل والصقه مكان دالة handlePendingSaleActions القديمة <<< ---
 // =======================================================
             function openPendingSaleForEdit(pendingId) {
     const sale = pendingSales.find(s => s.id === pendingId);
