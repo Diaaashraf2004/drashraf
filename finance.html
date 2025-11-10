@@ -1343,6 +1343,20 @@ input:checked:active + .slider:before {
                                 <option value="">-- اختر المورد --</option>
                                 </select>
                         </div>
+                        <div class="mb-4">
+    <label for="product-supplier" class="block text-gray-700 text-sm font-bold mb-2">المورد (اختياري):</label>
+    <select id="product-supplier" class="shadow-sm">
+        <option value="">-- اختر المورد --</option>
+    </select>
+</div>
+
+<div class="mb-4">
+    <label for="product-category" class="block text-gray-700 text-sm font-bold mb-2">القسم (اختياري):</label>
+    <input type="text" id="product-category" placeholder="مثال: اكسسوارات، شاشات" class="shadow-sm" list="category-names-list">
+    <datalist id="category-names-list"></datalist>
+</div>
+<div class="mb-4 col-span-full md:col-span-1">
+    <label for="product-deduct-liquidity" class="inline-flex items-center cursor-pointer mt-2">
                          <div class="mb-4 col-span-full md:col-span-1">
                             <label for="product-deduct-liquidity" class="inline-flex items-center cursor-pointer mt-2">
                                 <input type="checkbox" id="product-deduct-liquidity" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-offset-0 focus:ring-indigo-200 focus:ring-opacity-50 ml-2">
@@ -1383,6 +1397,19 @@ input:checked:active + .slider:before {
                         <div id="inventory-consignment-value-display" class="text-lg font-semibold text-yellow-600">قيمة مؤقتة: 0.00 جنيه</div>
                         <div id="inventory-total-profit" class="text-lg font-semibold text-green-600">إجمالي الربح: 0.00 جنيه</div>
                     </div>
+                    <div id="inventory-controls" class="grid grid-cols-1 md:grid-cols-2 gap-4 my-4 p-4 bg-gray-50 rounded-lg border">
+    <div class="form-group">
+        <label for="inventory-search" class="block text-sm font-medium text-gray-700 mb-1">بحث بالاسم:</label>
+        <input type="text" id="inventory-search" placeholder="ابحث عن منتج..." class="shadow-sm">
+    </div>
+    <div class="form-group">
+        <label for="inventory-category-filter" class="block text-sm font-medium text-gray-700 mb-1">تصفية بالقسم:</label>
+        <select id="inventory-category-filter" class="shadow-sm">
+            <option value="all">كل الأقسام</option>
+            </select>
+    </div>
+    </div>
+
                     <div id="product-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         <p class="text-center text-gray-500 col-span-full">لا توجد بضائع حتى الآن.</p>
                     </div>
@@ -2714,6 +2741,7 @@ let fc_main_tabs, fc_tab_buttons, fc_tab_contents, fc_month_select, fc_expenses_
     reportClearSearchBtn,
     salesReportSearchContainer, reportDirectSearchBtn; 
     let openBackupHistoryButton, autoBackupMessage, backupHistoryModal, backupHistoryList;
+    let productCategoryInput, categoryDatalist, inventorySearchInput, inventoryCategoryFilter;
 
 
 
@@ -3291,45 +3319,91 @@ function calculateTotalPurchasesToday() {
         // *** JavaScript - (Corresponding to original Part 6) Starts Here ***
 
         // --- دوال تحديث الواجهة (UI Updates) ---
-        function updateProductListDisplay(){
-             const productList = d("product-list");
-             const productNamesDatalist = d("product-names-list");
-             if(!productList || !productNamesDatalist) { return; }
+    // === 3. استبدل الدالة القديمة بالكامل بهذه الدالة ===
+function updateProductListDisplay() {
+    // التأكد من تحميل كل العناصر قبل المتابعة
+    if (!productList || !productNamesDatalist || !inventorySearchInput || !inventoryCategoryFilter || !categoryDatalist) {
+        // console.warn("Product list UI elements not fully loaded yet.");
+        return;
+    }
 
-             if(products.length === 0){
-                 productList.innerHTML = '<p class="text-center text-gray-500 col-span-full">لا توجد بضائع حتى الآن.</p>';
-                 productNamesDatalist.innerHTML = '';
-             } else {
-                 const sortedProducts = [...products].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-                 const productsHTML = sortedProducts.map(product => {
-                     const supplier = suppliers.find(s => s.id === product.supplierId);
-                     // حساب عدد السيريالات المسجلة لهذا المنتج
-                     const registeredSerialsCount = serialNumbersLog.filter(s => s.productName === product.name).length;
-                     const quantity = Number(product.quantity) || 0;
-                     const unregisteredCount = quantity - registeredSerialsCount;
+    // --- 1. تحديث قائمة الأقسام (للفلترة وللإكمال التلقائي) ---
+    // استخراج كل الأقسام الفريدة من قائمة المنتجات الكاملة
+    const allCategories = [...new Set(products.map(p => p.category || '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
+    
+    // تحديث قائمة الفلترة <select>
+    const currentCategoryFilter = inventoryCategoryFilter.value; // حفظ الاختيار الحالي
+    inventoryCategoryFilter.innerHTML = '<option value="all">كل الأقسام</option>'; // إعادة تعيين القائمة
+    allCategories.forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        inventoryCategoryFilter.appendChild(option);
+    });
+    inventoryCategoryFilter.value = currentCategoryFilter; // إعادة الاختيار الحالي إن كان لا يزال موجوداً
 
-                     return `<div class="bg-gray-50 rounded-lg shadow p-4 border border-gray-200 flex flex-col justify-between">
-                                 <div>
-                                     <h3 class="text-lg font-semibold text-gray-800 mb-2">${product.name || 'غير مسمى'}</h3>
-                                     <p class="text-gray-600 text-sm">الكمية الإجمالية: <span class="font-semibold text-blue-500">${quantity}</span></p>
-                                     <p class="text-gray-600 text-sm">السيريالات المسجلة: <span class="font-semibold text-green-600">${registeredSerialsCount}</span></p>
-                                     ${unregisteredCount > 0 ? `<p class="text-xs text-red-500">قطع غير مسجلة: ${unregisteredCount}</p>` : ''}
-                                     <p class="text-gray-600 text-sm">المورد: <span class="font-semibold text-cyan-600">${supplier ? supplier.name : '-'}</span></p>
-                                     <p class="text-gray-600 text-sm">متوسط التكلفة: <span class="font-semibold text-purple-500">${formatCurrency(product.costPrice)}</span></p>
-                                     <p class="text-gray-600 text-sm">إجمالي التكلفة: <span class="font-semibold text-gray-700">${formatCurrency(quantity * (Number(product.costPrice) || 0))}</span></p>
-                                 </div>
-                                 <div class="mt-3 pt-3 border-t border-gray-200 flex justify-end gap-2 product-actions">
-                                     <button data-product-name="${product.name}" class="manage-serials-btn text-xs font-semibold py-1 px-2 rounded">إدارة السيريالات</button>
-                                     <button data-product-name="${product.name}" class="edit-product-btn text-xs bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold py-1 px-2 rounded border border-yellow-500">تعديل</button>
-                                     <button data-product-name="${product.name}" class="delete-product-btn text-xs bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded border border-red-600">حذف</button>
-                                 </div>
-                             </div>`
-                 }).join('');
-                 productList.innerHTML = productsHTML;
-                 productNamesDatalist.innerHTML = sortedProducts.map(p => `<option value="${p.name}"></option>`).join('');
-             }
-          }
-        function updateLogDisplay(){if(!operationLogList){return;} if(operationLog.length === 0){operationLogList.innerHTML = '<li class="text-center text-gray-500 list-none">لا توجد عمليات مسجلة بعد.</li>';} else {operationLogList.innerHTML = [...operationLog].reverse().map(log => `<li class=""><span class="font-semibold text-gray-700">${log.type}:</span> <span class="text-gray-600">${log.details}</span><span class="block text-xs text-gray-400">${formatDateTime(log.timestamp)}</span></li>`).join('');} }
+    // تحديث قائمة الإكمال التلقائي <datalist> في نموذج الإضافة
+    categoryDatalist.innerHTML = allCategories.map(cat => `<option value="${cat}"></option>`).join('');
+
+    // --- 2. الحصول على قيم التصفية الحالية ---
+    const searchTerm = inventorySearchInput.value.trim().toLowerCase();
+    const selectedCategory = inventoryCategoryFilter.value;
+
+    // --- 3. تصفية المنتجات بناءً على البحث والقسم ---
+    const filteredProducts = products.filter(product => {
+        const nameMatch = !searchTerm || product.name.toLowerCase().includes(searchTerm);
+        const categoryMatch = (selectedCategory === 'all') || (product.category === selectedCategory);
+        return nameMatch && categoryMatch;
+    });
+
+    // --- 4. عرض المنتجات المفلترة ---
+    if (filteredProducts.length === 0) {
+        if (products.length === 0) {
+            productList.innerHTML = '<p class="text-center text-gray-500 col-span-full">لا توجد بضائع حتى الآن.</p>';
+        } else {
+            productList.innerHTML = '<p class="text-center text-gray-500 col-span-full">لا توجد منتجات تطابق البحث أو التصفية.</p>';
+        }
+    } else {
+        // فرز المنتجات المفلترة أبجديًا
+        const sortedProducts = [...filteredProducts].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+        
+        // بناء HTML
+        const productsHTML = sortedProducts.map(product => {
+            const supplier = suppliers.find(s => s.id === product.supplierId);
+            const registeredSerialsCount = serialNumbersLog.filter(s => s.productName === product.name).length;
+            const quantity = Number(product.quantity) || 0;
+            const unregisteredCount = quantity - registeredSerialsCount;
+            
+            // إضافة كود HTML لعرض القسم (إذا كان موجودًا)
+            const categoryHTML = product.category ? `<p class="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full inline-block mt-2">${product.category}</p>` : '';
+
+            // كود بطاقة المنتج مع إضافة القسم
+            return `<div class="bg-gray-50 rounded-lg shadow p-4 border border-gray-200 flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800 mb-2">${product.name || 'غير مسمى'}</h3>
+                            <p class="text-gray-600 text-sm">الكمية الإجمالية: <span class="font-semibold text-blue-500">${quantity}</span></p>
+                            <p class="text-gray-600 text-sm">السيريالات المسجلة: <span class="font-semibold text-green-600">${registeredSerialsCount}</span></p>
+                            ${unregisteredCount > 0 ? `<p class="text-xs text-red-500">قطع غير مسجلة: ${unregisteredCount}</p>` : ''}
+                            <p class="text-gray-600 text-sm">المورد: <span class="font-semibold text-cyan-600">${supplier ? supplier.name : '-'}</span></p>
+                            <p class="text-gray-600 text-sm">متوسط التكلفة: <span class="font-semibold text-purple-500">${formatCurrency(product.costPrice)}</span></p>
+                            <p class="text-gray-600 text-sm">إجمالي التكلفة: <span class="font-semibold text-gray-700">${formatCurrency(quantity * (Number(product.costPrice) || 0))}</span></p>
+                            ${categoryHTML}
+                        </div>
+                        <div class="mt-3 pt-3 border-t border-gray-200 flex justify-end gap-2 product-actions">
+                            <button data-product-name="${product.name}" class="manage-serials-btn text-xs font-semibold py-1 px-2 rounded">إدارة السيريالات</button>
+                            <button data-product-name="${product.name}" class="edit-product-btn text-xs bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-semibold py-1 px-2 rounded border border-yellow-500">تعديل</button>
+                            <button data-product-name="${product.name}" class="delete-product-btn text-xs bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-2 rounded border border-red-600">حذف</button>
+                        </div>
+                    </div>`;
+        }).join('');
+        
+        productList.innerHTML = productsHTML;
+    }
+    
+    // --- 5. تحديث قائمة الإكمال التلقائي لاسم المنتج (يجب أن تستخدم القائمة الكاملة دائمًا) ---
+    productNamesDatalist.innerHTML = products.map(p => `<option value="${p.name}"></option>`).join('');
+}
+ function updateLogDisplay(){if(!operationLogList){return;} if(operationLog.length === 0){operationLogList.innerHTML = '<li class="text-center text-gray-500 list-none">لا توجد عمليات مسجلة بعد.</li>';} else {operationLogList.innerHTML = [...operationLog].reverse().map(log => `<li class=""><span class="font-semibold text-gray-700">${log.type}:</span> <span class="text-gray-600">${log.details}</span><span class="block text-xs text-gray-400">${formatDateTime(log.timestamp)}</span></li>`).join('');} }
       function updateAdditionalCostsCheckboxes() {
     if (!additionalCostsContainer || !sellProductNameInput) return;
     const mainProductName = sellProductNameInput.value.trim().toLowerCase();
@@ -4578,6 +4652,7 @@ function processMonthlyLiabilities() {
              if(productQuantityInput) productQuantityInput.value = "0";
              if(productCostPriceInput) productCostPriceInput.value = "0";
              if(productSupplierSelect) productSupplierSelect.value = "";
+             if(productCategoryInput) productCategoryInput.value = "";
              if(productDeductLiquidityCheckbox) productDeductLiquidityCheckbox.checked = false; // Reset checkbox
              if(serialNumberEntryContainer) serialNumberEntryContainer.classList.add('hidden'); // Hide serial field
              if(productSerialNumbersTextarea) productSerialNumbersTextarea.value = ''; // Clear serial field
@@ -7874,6 +7949,10 @@ completedReturnsList = d('completed-returns-list');
                  cancelEditProductButton = d("cancel-edit-product-button");
                  productFormTitle = d("product-form-title");
                  productNamesDatalist = d("product-names-list");
+                 productCategoryInput = d('product-category');
+categoryDatalist = d('category-names-list');
+inventorySearchInput = d('inventory-search');
+inventoryCategoryFilter = d('inventory-category-filter');
                  sellProductNameInput = d("sell-product-name");
                  sellCustomerNameInput = d("sell-customer-name");
                  sellQuantityInput = d("sell-quantity");
@@ -8156,6 +8235,7 @@ if (addProductButton) {
         const quantity = parseInputNumber(productQuantityInput);
         const costPrice = parseInputNumber(productCostPriceInput);
         const supplierId = productSupplierSelect.value;
+        const category = productCategoryInput.value.trim();
         const deductLiquidity = productDeductLiquidityCheckbox.checked;
 
         // --- ✅ كود جديد يبدأ هنا ---
@@ -8189,6 +8269,7 @@ if (addProductButton) {
             
             // تحديث بيانات المنتج
             products[productIndex].name = name;
+            products[productIndex].category = category;
             products[productIndex].quantity = quantity;
             products[productIndex].costPrice = costPrice;
             products[productIndex].supplierId = supplierId;
@@ -8223,6 +8304,7 @@ if (addProductButton) {
                 existing.quantity = totalQuantity;
                 existing.costPrice = ((oldQuantity * oldCostPrice) + (newQuantity * newCostPriceInput)) / totalQuantity;
                 existing.supplierId = supplierId || existing.supplierId;
+                existing.category = category || existing.category;
                 showMessage(productMessage, `تم تحديث المنتج "${name}".`);
 
             } else {
@@ -8239,7 +8321,8 @@ if (addProductButton) {
                      logOperation("شراء بضاعة جديدة", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء ${newQuantity}x ${name}.`);
                 }
 
-                products.push({ name, quantity: newQuantity, costPrice, supplierId: supplierId || "" });
+                products.push({ name, quantity: newQuantity, costPrice, supplierId: supplierId || "", category: category });
+
                 showMessage(productMessage, "تمت إضافة المنتج الجديد بنجاح.");
             }
             resetProductForm();
@@ -8298,6 +8381,7 @@ if (productDeductLiquidityCheckbox) {
                                  productQuantityInput.value = productToEdit.quantity;
                                  productCostPriceInput.value = productToEdit.costPrice;
                                  productSupplierSelect.value = productToEdit.supplierId || "";
+                                 productCategoryInput.value = productToEdit.category || "";
                                  addProductButton.textContent = "تحديث المنتج";
                                  addProductButton.classList.remove('bg-green-500', 'hover:bg-green-600');
                                  addProductButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
@@ -8331,6 +8415,8 @@ if (productDeductLiquidityCheckbox) {
                      
                      });
                  }
+                 if (inventorySearchInput) { inventorySearchInput.addEventListener('input', updateProductListDisplay); }
+if (inventoryCategoryFilter) { inventoryCategoryFilter.addEventListener('change', updateProductListDisplay); }
 // =======================================================
 // START: Debt Actions Event Listener (FIXED)
 // =======================================================
