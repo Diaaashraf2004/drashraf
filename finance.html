@@ -4967,31 +4967,31 @@ if (available < qtyToDeduct) {
                  return isValid;
              }
 
-// --- >>> START: انسخ هذا الكود بالكامل والصقه مكان دالة handleSaveInvoice القديمة <<< ---
 async function handleSaveInvoice() {
-    saveStateToHistory(); // حفظ الحالة قبل البدء
+    saveStateToHistory(); 
     const isPending = d('inv_markAsPending').checked;
 
-    console.log(`[handleSaveInvoice] Starting... isPending = ${isPending}`); // تتبع البداية
+    console.log(`[handleSaveInvoice] Starting... isPending = ${isPending}`);
 
     if (!inv_validateForm()) {
         console.log("[handleSaveInvoice] Validation failed!");
         return;
     }
 
-    // --- Retrieve selected account ---
+    // --- التحقق من الحساب ---
     const selectedAccountId = d('inv_payment_account').value;
     const account = accounts.find(acc => acc.id === selectedAccountId);
     if (!isPending && !account) {
         showMessage(d('inv_validationError'), "يرجى اختيار الحساب الذي سيتم إيداع المبلغ فيه.", true);
-        console.log("[handleSaveInvoice] Validation failed: Account not selected for final sale.");
         return;
     }
 
-    // --- Collect Invoice Data ---
+    // --- تجميع البيانات ---
     const customerName = inv_customerNameInput.value.trim();
     const customerAddress = inv_customerAddressInput ? inv_customerAddressInput.value.trim() : '';
     const phones = inv_invoiceForm ? Array.from(inv_invoiceForm.querySelectorAll('input[name="phone[]"]')).map(input => input.value.trim()).filter(phone => phone) : [];
+    
+    // بنود الفاتورة الأساسية
     const invoiceItems = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => ({
         name: row.dataset.itemName,
         quantity: parseInt(row.dataset.itemQty),
@@ -5000,77 +5000,62 @@ async function handleSaveInvoice() {
         costPrice: parseFloat(row.dataset.itemCost),
         serial: row.dataset.itemSerial || null
     })) : [];
+
     const shippingCost = parseInputNumber(inv_shippingCostInput) || 0;
     const warranty = inv_warrantyInput ? inv_warrantyInput.value.trim() : '';
     const notes = inv_notesTextarea ? inv_notesTextarea.value.trim() : '';
     const totalGoods = invoiceItems.reduce((sum, item) => sum + item.subtotal, 0);
     const grandTotal = totalGoods + shippingCost;
-    const deductibleCheckboxes = inv_deductibleCostsContainer ? inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked') : [];
+
+    // --- [إصلاح] حساب التكاليف الإضافية المخصومة ---
     const deductedItemsData = [];
     let totalDeductedCost = 0;
-    deductibleCheckboxes.forEach(checkbox => {
-        const name = checkbox.value;
-        const cost = parseFloat(checkbox.dataset.cost) || 0;
-        const parentLabel = checkbox.closest('label');
-        const quantityInput = parentLabel.querySelector('.inv-deducted-item-quantity');
-        const qtyToDeduct = parseInt(quantityInput?.value || '0');
-        if (qtyToDeduct > 0) {
-            deductedItemsData.push({ name: name, quantity: qtyToDeduct, costPrice: cost });
-            totalDeductedCost += (cost * qtyToDeduct);
-        }
-    });
+    
+    if (inv_deductibleCostsContainer) {
+        const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
+        checkedBoxes.forEach(checkbox => {
+            const name = checkbox.value;
+            const cost = parseFloat(checkbox.dataset.cost) || 0; // قراءة التكلفة
+            const parentLabel = checkbox.parentElement; // استخدام parentElement بدلاً من closest لضمان الدقة
+            const quantityInput = parentLabel.querySelector('.inv-deducted-item-quantity');
+            const qtyToDeduct = parseInt(quantityInput?.value || '0');
+            
+            if (qtyToDeduct > 0) {
+                deductedItemsData.push({ name: name, quantity: qtyToDeduct, costPrice: cost });
+                totalDeductedCost += (cost * qtyToDeduct);
+                console.log(`Adding deductible cost: ${name}, Qty: ${qtyToDeduct}, UnitCost: ${cost}, Total: ${cost * qtyToDeduct}`);
+            }
+        });
+    }
+
+    // حساب التكلفة والربح
     const costOfSoldItems = invoiceItems.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
-    const finalInvoiceProfit = totalGoods - costOfSoldItems - totalDeductedCost;
-    // --- End Data Collection ---
+    const totalInvoiceCost = costOfSoldItems + totalDeductedCost; // إجمالي التكلفة (بضاعة + هدايا)
+    const finalInvoiceProfit = totalGoods - totalInvoiceCost; // الربح يقل بزيادة التكاليف المخصومة
+
+    // --- النهاية ---
 
     if (isPending) {
-        // --- Logic for Saving as Pending ---
-        console.log("[handleSaveInvoice] Saving as PENDING invoice...");
-
-        // Update serial statuses to 'pending_sale'
+        // --- حفظ كبيع مؤقت ---
         invoiceItems.forEach(item => {
              if (item.serial) {
-                 const serialIndex = serialNumbersLog.findIndex(log => log.serial === item.serial && log.status === 'in_invoice_temp');
-                 if (serialIndex !== -1) {
-                     serialNumbersLog[serialIndex].status = 'pending_sale';
-                     console.log(`   - Serial ${item.serial} status updated to 'pending_sale'.`);
-                 } else {
-                    const inStockIndex = serialNumbersLog.findIndex(log => log.serial === item.serial && log.status === 'in_stock');
-                    if (inStockIndex !== -1) {
-                        serialNumbersLog[inStockIndex].status = 'pending_sale';
-                        console.log(`   - Serial ${item.serial} (was in_stock) status updated to 'pending_sale'.`);
-                    } else {
-                       console.warn(`   - Could not find serial ${item.serial} with status 'in_invoice_temp' or 'in_stock' to mark as pending.`);
-                    }
-                 }
+                 const serialIndex = serialNumbersLog.findIndex(log => log.serial === item.serial && (log.status === 'in_invoice_temp' || log.status === 'in_stock'));
+                 if (serialIndex !== -1) serialNumbersLog[serialIndex].status = 'pending_sale';
              }
          });
 
-        // Deduct inventory (even for pending) <<< --- الخصم يحدث هنا للمؤقت --- >>>
+        // خصم المخزون (للمؤقت)
         let requiredQuantitiesPending = {};
         invoiceItems.forEach(item => { requiredQuantitiesPending[item.name] = (requiredQuantitiesPending[item.name] || 0) + item.quantity; });
         deductedItemsData.forEach(item => { requiredQuantitiesPending[item.name] = (requiredQuantitiesPending[item.name] || 0) + item.quantity; });
-        console.log("   - Products to deduct (Pending):", JSON.stringify(requiredQuantitiesPending));
+        
         Object.keys(requiredQuantitiesPending).forEach(itemName => {
-             // <<< --- استخدم البحث المحسن هنا أيضًا احتياطيًا --- >>>
-            const normalizedItemName = itemName.trim().toLowerCase();
-            const productIndex = products.findIndex(p => p.name.trim().toLowerCase() === normalizedItemName);
-            if (productIndex !== -1) {
-                 const requiredQty = requiredQuantitiesPending[itemName];
-                 if (products[productIndex].quantity >= requiredQty) {
-                    products[productIndex].quantity -= requiredQty;
-                    console.log(`     - Deducted ${requiredQty} from "${products[productIndex].name}" (matched "${itemName}"). New Qty: ${products[productIndex].quantity}`);
-                 } else {
-                     console.error(`     - CRITICAL ERROR during PENDING save: Inventory quantity mismatch for "${products[productIndex].name}". Required: ${requiredQty}, Available: ${products[productIndex].quantity}. Deduction skipped.`);
-                     // يمكنك إظهار خطأ للمستخدم هنا وإيقاف العملية
-                     // showMessage(globalMessage, `خطأ: كمية "${products[productIndex].name}" غير كافية للحفظ كمؤقت.`, true);
-                     // return; // uncomment to stop if error
-                 }
-            } else {
-                 console.warn(`     - Could not find product matching "${itemName}" (normalized: "${normalizedItemName}") to deduct inventory for PENDING save.`);
+            const productIndex = products.findIndex(p => p.name.toLowerCase() === itemName.toLowerCase());
+            if (productIndex !== -1 && products[productIndex].quantity >= requiredQuantitiesPending[itemName]) {
+                products[productIndex].quantity -= requiredQuantitiesPending[itemName];
             }
         });
-        products = products.filter(p => (Number(p.quantity) || 0) > 0.001); // Remove empty products
+        products = products.filter(p => (Number(p.quantity) || 0) > 0.001);
 
         const pendingSaleData = {
             id: `pending-${Date.now()}`,
@@ -5081,118 +5066,54 @@ async function handleSaveInvoice() {
             items: invoiceItems,
             shippingCost: shippingCost,
             totalSellPrice: grandTotal,
-            totalCost: costOfSoldItems + totalDeductedCost,
-            potentialProfit: finalInvoiceProfit,
+            totalCost: totalInvoiceCost, // تم تحديث التكلفة هنا
+            potentialProfit: finalInvoiceProfit, // تم تحديث الربح هنا
             status: 'pending',
             warranty: warranty,
             notes: notes,
-            deductedItems: deductedItemsData,
-             invoiceData: { /* ... نفس البيانات ... */ }
+            deductedItems: deductedItemsData, // حفظ العناصر المخصومة
+            invoiceData: { customerAddress, phones, warranty, notes, shippingCost, deductedItems: deductedItemsData }
         };
         pendingSales.push(pendingSaleData);
-        logOperation("فاتورة مؤقتة", `تسجيل فاتورة مفصلة كبيع مؤقت لـ ${customerName}. الإجمالي المتوقع: ${formatCurrency(grandTotal)}.`);
+        logOperation("فاتورة مؤقتة", `فاتورة مؤقتة لـ ${customerName}. الربح المتوقع: ${formatCurrency(finalInvoiceProfit)}.`);
         showMessage(globalMessage, `تم حفظ الفاتورة كـ "بيع مؤقت" بنجاح.`, false);
 
-    } else { // <<< Confirming FINAL sale >>>
-        console.log("[handleSaveInvoice] Confirming FINAL invoice...");
-        console.log(`   - Grand Total: ${grandTotal}, Cost: ${costOfSoldItems + totalDeductedCost}, Profit: ${finalInvoiceProfit}`);
-
-        // <<< --- START: الشرط المضاف لمنع الخصم المزدوج --- >>>
+    } else { 
+        // --- حفظ كفاتورة نهائية ---
         if (!isInvoiceFromPending) {
-            console.log("   - This is a NEW invoice, deducting inventory now.");
-            // --- Track inventory before deduction ---
+            // خصم المخزون
             let requiredQuantities = {};
             invoiceItems.forEach(item => { requiredQuantities[item.name] = (requiredQuantities[item.name] || 0) + item.quantity; });
             deductedItemsData.forEach(item => { requiredQuantities[item.name] = (requiredQuantities[item.name] || 0) + item.quantity; });
-            console.log("   - Products to deduct:", JSON.stringify(requiredQuantities));
-            console.log("   - Inventory state *BEFORE* deduction:");
+            
             Object.keys(requiredQuantities).forEach(itemName => {
-                const product = products.find(p => p.name === itemName);
-                console.log(`     - ${itemName}: ${JSON.stringify(product)}`);
-            });
-
-            // --- عملية خصم المخزون (نسخة محسنة للمقارنة) ---
-            Object.keys(requiredQuantities).forEach(itemName => {
-                const requiredQty = requiredQuantities[itemName];
-                const normalizedItemName = itemName.trim().toLowerCase();
-                const productIndex = products.findIndex(p => p.name.trim().toLowerCase() === normalizedItemName);
-
-                if (productIndex !== -1) {
-                    if (products[productIndex].quantity >= requiredQty) {
-                        products[productIndex].quantity -= requiredQty;
-                        console.log(`     - Deducted ${requiredQty} from "${products[productIndex].name}" (matched "${itemName}"). New Qty: ${products[productIndex].quantity}`);
-                    } else {
-                         console.error(`     - CRITICAL ERROR: Inventory quantity mismatch for "${products[productIndex].name}". Required: ${requiredQty}, Available: ${products[productIndex].quantity}. Deduction skipped.`);
-                         // يمكنك إيقاف العملية هنا إذا أردت
-                         // throw new Error("Inventory mismatch during final deduction.");
-                    }
-                } else {
-                     console.warn(`     - Could not find product matching "${itemName}" (normalized: "${normalizedItemName}") to deduct from inventory.`);
+                const productIndex = products.findIndex(p => p.name.toLowerCase() === itemName.toLowerCase());
+                if (productIndex !== -1 && products[productIndex].quantity >= requiredQuantities[itemName]) {
+                    products[productIndex].quantity -= requiredQuantities[itemName];
                 }
             });
-            products = products.filter(p => (Number(p.quantity) || 0) > 0.001); // Remove empty products
-            // --- نهاية عملية خصم المخزون ---
-
-             // --- Track inventory after deduction ---
-             console.log("   - Inventory state *AFTER* deduction:");
-             Object.keys(requiredQuantities).forEach(itemName => {
-                 const product = products.find(p => p.name === itemName); // Might be undefined if removed
-                 console.log(`     - ${itemName}: ${JSON.stringify(product)}`);
-             });
-
-        } else { // <<< --- ELSE: إذا كانت جاية من مؤقت، المخزون اتخصم بالفعل --- >>>
-             console.log("   - Invoice is from pending, inventory already deducted. Skipping deduction.");
+            products = products.filter(p => (Number(p.quantity) || 0) > 0.001);
         }
-        // <<< --- END: نهاية الشرط --- >>>
 
-        // --- Update serial statuses ---
+        // تحديث السيريالات
         invoiceItems.forEach(item => {
            if (item.serial) {
-                const serialIndex = serialNumbersLog.findIndex(log => log.serial === item.serial && (log.status === 'in_invoice_temp' || log.status === 'pending_sale'));
-                if (serialIndex !== -1) {
-                    serialNumbersLog[serialIndex].status = 'sold';
-                    console.log(`   - Serial ${item.serial} status updated to 'sold'.`);
-                } else {
-                    const inStockIndex = serialNumbersLog.findIndex(log => log.serial === item.serial && log.status === 'in_stock');
-                    if (inStockIndex !== -1) {
-                        serialNumbersLog[inStockIndex].status = 'sold';
-                        console.warn(`   - Serial ${item.serial} was 'in_stock', directly marked as 'sold'.`);
-                    } else {
-                      console.error(`   - CRITICAL: Could not find serial ${item.serial} to mark as sold. Status might be incorrect: ${serialNumbersLog.find(l => l.serial === item.serial)?.status}`);
-                    }
-                }
+               const serialIndex = serialNumbersLog.findIndex(log => log.serial === item.serial);
+               if (serialIndex !== -1) serialNumbersLog[serialIndex].status = 'sold';
            }
         });
 
-        // --- Update Liquidity and Profit ---
-        const initialAccountBalance = account.balance;
+        // تحديث السيولة والربح
         account.balance += grandTotal;
-        const initialTotalProfit = totalProfit;
         totalProfit += finalInvoiceProfit;
-        console.log(`   - Account '${account.name}' balance updated from ${initialAccountBalance} to ${account.balance}`);
-        console.log(`   - Total Profit updated from ${initialTotalProfit} to ${totalProfit}`);
 
-        // --- Remove original pending sale if applicable ---
+        // حذف الأصل المؤقت إذا وجد
         if (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.id) {
-            const idToRemove = String(pendingSaleOriginData.id).trim();
-            console.log(`   - Attempting to remove pending sale with trimmed ID: [${idToRemove}]`);
-            console.log("   - Current pendingSales IDs BEFORE findIndex:", pendingSales.map(s => `[${String(s.id).trim()}]`));
-
-            const originalPendingIndex = pendingSales.findIndex(s => String(s.id).trim() === idToRemove);
-            console.log(`   - Result of findIndex using trimmed IDs: ${originalPendingIndex}`);
-
-            if (originalPendingIndex !== -1) {
-                pendingSales.splice(originalPendingIndex, 1);
-                console.log(`   - Original pending sale ${idToRemove} REMOVED successfully.`);
-                console.log("   - Current pendingSales IDs AFTER splice:", pendingSales.map(s => s.id));
-            } else {
-                 console.warn(`   - FAILED to find original pending sale ${idToRemove} to remove.`);
-            }
-        } else {
-            console.log("   - This was a new invoice or origin data/ID missing, no pending sale to remove.");
+            const originalPendingIndex = pendingSales.findIndex(s => String(s.id).trim() === String(pendingSaleOriginData.id).trim());
+            if (originalPendingIndex !== -1) pendingSales.splice(originalPendingIndex, 1);
         }
 
-        // --- Create Invoice Record ---
+        // إنشاء سجل الفاتورة
         const todayStr = currentLoadedDate ? currentLoadedDate.replace(/-/g, '') : getTodayDateString().replace(/-/g, '');
         let maxSeq = 0;
         if (Array.isArray(salesToday)) {
@@ -5202,77 +5123,48 @@ async function handleSaveInvoice() {
                     if (seqPart > maxSeq) maxSeq = seqPart;
                 }
             });
-        } else {
-            console.warn("salesToday is not an array when calculating maxSeq!");
-            salesToday = [];
         }
         const nextSeq = (maxSeq + 1).toString().padStart(3, '0');
         const generatedInvoiceNumber = `${todayStr}-${nextSeq}`;
 
         const invoiceRecord = {
-            id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv-from-pend') : `inv-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv-from-pend') : `inv-${Date.now()}`,
             invoiceNumber: generatedInvoiceNumber,
             type: isInvoiceFromPending ? 'invoice-from-pending' : 'invoice',
             timestamp: new Date().toISOString(),
             saleDate: currentLoadedDate || getTodayDateString(),
-            customerName: customerName,
-            customerAddress: customerAddress,
-            phones: phones,
-            items: invoiceItems,
-            shippingCost: shippingCost,
-            totalGoodsPrice: totalGoods,
-            grandTotal: grandTotal,
-            warranty: warranty,
-            notes: notes,
-            deductedItems: deductedItemsData,
-            totalCost: costOfSoldItems + totalDeductedCost,
-            profit: finalInvoiceProfit,
+            customerName, customerAddress, phones, items: invoiceItems,
+            shippingCost, totalGoodsPrice: totalGoods, grandTotal,
+            warranty, notes, 
+            deductedItems: deductedItemsData, // حفظ العناصر المخصومة
+            totalCost: totalInvoiceCost, // التكلفة تشمل البضاعة المباعة + الهدايا المخصومة
+            profit: finalInvoiceProfit, 
             accountId: selectedAccountId
         };
         salesToday.push(invoiceRecord);
+        
+        await saveInvoiceToFirestore(invoiceRecord);
 
-        // --- Debug Log before saving ---
-        console.log("--- DEBUG: Data being sent to Firestore ---");
-        try {
-            console.log(JSON.stringify(invoiceRecord, null, 2));
-        } catch (e) {
-            console.error("Error stringifying invoiceRecord:", e);
-            console.log("Raw invoiceRecord object:", invoiceRecord);
-        }
-        console.log("--- END DEBUG ---");
-
-        await saveInvoiceToFirestore(invoiceRecord); // Save to Firestore
-
-        // --- Update Liquidity Log ---
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
         liquidityLog.push({
              id: `liq-${Date.now()}`,
              timestamp: new Date().toISOString(),
              type: "add",
              amount: grandTotal,
-             description: `فاتورة ${generatedInvoiceNumber} لـ ${customerName} إلى "${account.name}"`,
+             description: `فاتورة ${generatedInvoiceNumber} لـ ${customerName}`,
              currentBalance: newTotalLiquidity,
              accountId: selectedAccountId
          });
 
-        logOperation("إنشاء فاتورة بيع", `تم إنشاء فاتورة ${generatedInvoiceNumber} لـ ${customerName}. الإجمالي: ${formatCurrency(grandTotal)}. الربح: ${formatCurrency(finalInvoiceProfit)}. تم الإيداع في "${account.name}".`);
-        console.log(`[handleSaveInvoice] Final invoice ${generatedInvoiceNumber} processed.`);
-        showGlobalMessage(`تم إنشاء وحفظ الفاتورة رقم ${generatedInvoiceNumber} بنجاح.`, false);
-    } // <<< نهاية جزء التأكيد >>>
+        logOperation("إنشاء فاتورة", `فاتورة ${generatedInvoiceNumber}. الربح: ${formatCurrency(finalInvoiceProfit)} (بعد خصم تكاليف إضافية: ${formatCurrency(totalDeductedCost)}).`);
+        showMessage(globalMessage, `تم حفظ الفاتورة رقم ${generatedInvoiceNumber} بنجاح.`, false);
+    }
 
-    // --- Final Steps ---
-    isInvoiceFromPending = false; // Reset flag
+    isInvoiceFromPending = false;
     pendingSaleOriginData = null;
-    console.log("[handleSaveInvoice] Calling updateUI...");
-    updateUI(); // <<< Update UI and recalculate totals
-    console.log("[handleSaveInvoice] Closing modal...");
-    inv_closeModal(); // Close modal
-    console.log("[handleSaveInvoice] Finished.");
+    updateUI();
+    inv_closeModal();
 }
-// --- >>> END: انسخ هذا الكود بالكامل والصقه مكان دالة handleSaveInvoice القديمة <<< ---
-            // (سيتم استكمال JavaScript في الجزء التالي 8ب)
-// (استكمالاً للجزء 8أ)
-
             // (استكمالاً للجزء 8أ)
 function printPendingSaleAsInvoice(pendingId) {
     console.log("printPendingSaleAsInvoice function started for ID:", pendingId);
@@ -5525,10 +5417,13 @@ function printPendingSaleAsInvoice(pendingId) {
                 if(inv_grandTotalPriceSpan) inv_grandTotalPriceSpan.textContent = formatCurrency(grandTotal);
             }
 
-          function inv_updateDeductibleCostsCheckboxes() {
+         function inv_updateDeductibleCostsCheckboxes() {
     if (!inv_deductibleCostsContainer) return;
     inv_deductibleCostsContainer.innerHTML = '';
+    
     const itemsInInvoice = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => row.dataset.itemName.toLowerCase()) : [];
+    
+    // استبعاد المنتجات الموجودة في الفاتورة الحالية والمنتجات التي كميتها 0
     const availableForDeduction = products.filter(p =>
         !itemsInInvoice.includes(p.name.toLowerCase()) && (Number(p.quantity) || 0) > 0
     );
@@ -5541,29 +5436,25 @@ function printPendingSaleAsInvoice(pendingId) {
     availableForDeduction.sort((a, b) => a.name.localeCompare(b.name, 'ar')).forEach(product => {
         const qtyAvailable = Number(product.quantity) || 0;
         const cost = Number(product.costPrice) || 0;
-        const label = document.createElement('label');
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.value = product.name;
-        checkbox.dataset.cost = cost;
-        checkbox.dataset.available = qtyAvailable;
-        checkbox.id = `inv_deductcost_${generateId(product.name)}`;
+        const uniqueId = `inv_deductcost_${generateId(product.name)}`;
         
-        // --- بداية التعديل ---
+        const label = document.createElement('label');
         label.style.display = 'flex';
         label.style.alignItems = 'center';
-        label.style.gap = '8px'; // إضافة مسافة بين العناصر
-        label.htmlFor = checkbox.id;
+        label.style.gap = '8px';
+        label.style.marginBottom = '5px';
+        label.style.cursor = 'pointer';
+        label.htmlFor = uniqueId;
         
-        label.appendChild(checkbox);
-        label.innerHTML += `
-            <span style="flex-grow: 1;">
-                 ${product.name} (تكلفة: ${formatCurrency(cost)}, متاح: ${qtyAvailable})
+        // بناء HTML بشكل آمن يضمن وجود البيانات
+        label.innerHTML = `
+            <input type="checkbox" id="${uniqueId}" value="${product.name}" data-cost="${cost}" data-available="${qtyAvailable}">
+            <span style="flex-grow: 1; font-size: 0.9em;">
+                 ${product.name} <span class="text-gray-500 text-xs">(ت: ${formatCurrency(cost)} | م: ${qtyAvailable})</span>
             </span>
-            <span style="flex-shrink: 0; font-size: 0.9em; color: #555; margin-right: 5px;">الكمية:</span>
-            <input type="number" class="inv-deducted-item-quantity" min="1" value="1" style="width: 60px; text-align: center; flex-shrink: 0; border: 1px solid #ccc; border-radius: 4px; padding: 2px;">
+            <span style="flex-shrink: 0; font-size: 0.8em; color: #555;">خصم:</span>
+            <input type="number" class="inv-deducted-item-quantity" min="1" max="${qtyAvailable}" value="1" style="width: 50px; text-align: center; flex-shrink: 0; border: 1px solid #ccc; border-radius: 4px; padding: 2px; font-size: 0.9em;" onclick="event.preventDefault()">
         `;
-        // --- نهاية التعديل ---
         
         inv_deductibleCostsContainer.appendChild(label);
     });
