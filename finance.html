@@ -2093,36 +2093,33 @@ input:checked:active + .slider:before {
     </div>
 </section>
 
-            <section id="search-section" class="widget-card content-section hidden">
-                <h2>البحث عن فاتورة (لليوم الحالي)</h2>
-                <p class="text-sm text-gray-600 mb-4">
-                    ابحث عن الفواتير التي تم إنشاؤها أو تأكيدها في اليوم المحدد حالياً (البيانات المعروضة).
-                </p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label for="search-invoice-number" class="block text-gray-700 text-sm font-bold mb-1">البحث برقم الفاتورة:</label>
-                        <div class="flex gap-2">
-                            <input type="text" id="search-invoice-number" placeholder="مثال: 20250501-001" class="shadow-sm flex-grow">
-                            <button id="search-by-number-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold px-3 rounded flex-shrink-0">بحث</button>
-                        </div>
-                    </div>
-                    <div>
-                        <label for="search-customer-name" class="block text-gray-700 text-sm font-bold mb-1">البحث باسم العميل:</label>
-                        <div class="flex gap-2">
-                            <input type="text" id="search-customer-name" placeholder="جزء من اسم العميل" class="shadow-sm flex-grow">
-                            <button id="search-by-name-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold px-3 rounded flex-shrink-0">بحث</button>
-                        </div>
-                    </div>
-                </div>
-                <div id="search-message" class="section-message text-sm mb-4"></div>
-                <div id="search-results-container" class="mt-4 border-t pt-4">
-                    <h3 class="text-lg font-medium text-gray-700 mb-3">نتائج البحث:</h3>
-                    <div id="search-results-list">
-                        <p class="text-center text-gray-500">أدخل معايير البحث واضغط "بحث".</p>
-                    </div>
-                </div>
-            </section>
+          <section id="search-section" class="widget-card content-section hidden">
+    <h2>البحث الشامل في الأرشيف</h2>
+    <p class="text-sm text-gray-600 mb-4">
+        ابحث في كل الفواتير المحفوظة (سحابياً ومحلياً). يمكنك البحث برقم الفاتورة، اسم العميل، أو حتى جزء من الاسم.
+    </p>
+    
+    <div class="flex flex-col sm:flex-row gap-2 mb-4">
+        <div class="flex-grow">
+            <label for="smart-search-input" class="block text-gray-700 text-sm font-bold mb-1">أدخل كلمة البحث:</label>
+            <input type="text" id="smart-search-input" placeholder="مثال: ضياء، 001، أحمد..." class="shadow-sm w-full p-2 border rounded">
+        </div>
+        <div class="flex items-end">
+            <button id="smart-search-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded w-full sm:w-auto flex items-center justify-center gap-2">
+                <i class="fas fa-search"></i> بحث شامل
+            </button>
+        </div>
+    </div>
 
+    <div id="search-message" class="section-message text-sm mb-4"></div>
+
+    <div id="search-results-container" class="mt-4 border-t pt-4">
+        <h3 class="text-lg font-medium text-gray-700 mb-3">نتائج البحث:</h3>
+        <div id="search-results-list" style="max-height: 500px; overflow-y: auto;">
+            <p class="text-center text-gray-500">أدخل كلمة البحث واضغط "بحث شامل".</p>
+        </div>
+    </div>
+</section>
             <section id="log-section" class="widget-card content-section hidden">
                 <h2>سجل العمليات العام (لليوم الحالي)</h2>
                 <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
@@ -2638,6 +2635,7 @@ let editingMonthlyLiabilityId = null; // لمعرفة الالتزام الذي 
 const lsLastProcessedMonthKey = "goodsMgmt_lastProcessedMonth"; // مفتاح لتخزين آخر شهر تمت معالجته
         let products = [];
              let returnSourceData = null; // سيخزن بيانات البيع المؤقت عند تحويله لمرتجع
+             let globalSearchResults = []; // متغير لتخزين نتائج البحث الشامل مؤقتاً
         let stateHistory = []; // لتخزين لقطات الحالات السابقة
 let redoHistory = [];  // لتخزين الحالات التي تم التراجع عنها
         let suppliers = [];
@@ -6361,16 +6359,51 @@ async function handlePendingSaleActions(event) {
                   showMessage(searchMessageContainer, `تم العثور على ${results.length} فاتورة/فواتير.`, false);
              }
             // Function to handle viewing invoice details (uses print logic)
-            function viewInvoiceDetails(invoiceId) {
-                 const invoice = salesToday.find(s => s.id === invoiceId);
-                 if (invoice) {
-                     // Use print logic to show details in a new window
-                     inv_printInvoice(invoice); // Pass the found invoice object
-                 } else {
-                     showGlobalMessage("لم يتم العثور على تفاصيل الفاتورة المطلوبة.", true);
-                 }
-              }
+         async function viewInvoiceDetails(invoiceId) {
+     // 1. محاولة العثور عليها في مبيعات اليوم الحالي
+     let invoice = salesToday.find(s => s.id === invoiceId);
 
+     // 2. محاولة العثور عليها في نتائج البحث الشامل (المتغير الجديد)
+     if (!invoice && typeof globalSearchResults !== 'undefined') {
+         invoice = globalSearchResults.find(s => s.id === invoiceId);
+     }
+
+     // 3. محاولة العثور عليها في تقرير المبيعات الشهري (إذا كان مفتوحاً)
+     if (!invoice && typeof currentMonthlySalesData !== 'undefined') {
+        invoice = currentMonthlySalesData.find(s => s.id === invoiceId);
+     }
+
+     // 4. إذا وجدناها محلياً، اعرضها فوراً
+     if (invoice) {
+         inv_printInvoice(invoice);
+         return;
+     }
+
+     // 5. الحل الجذري: إذا لم توجد في الذاكرة، اجلبها من قاعدة البيانات مباشرة
+     if (window.currentUser) {
+         try {
+            // عرض رسالة تحميل صغيرة
+             const msgBox = document.getElementById('global-message');
+             if(msgBox) showMessage(msgBox, "جاري جلب تفاصيل الفاتورة من الخادم...", false, true);
+
+             const docRef = window.doc(window.db, "users", window.currentUser.uid, "invoices", invoiceId);
+             const docSnap = await window.getDoc(docRef);
+             
+             if (docSnap.exists()) {
+                 invoice = docSnap.data();
+                 inv_printInvoice(invoice); // عرض الفاتورة
+                 if(msgBox) showMessage(msgBox, ""); // إخفاء الرسالة
+             } else {
+                 alert("عذراً، لم يتم العثور على بيانات هذه الفاتورة في قاعدة البيانات.");
+             }
+         } catch (error) {
+             console.error("Error fetching invoice:", error);
+             alert("حدث خطأ أثناء محاولة جلب تفاصيل الفاتورة.");
+         }
+     } else {
+         alert("يرجى تسجيل الدخول لعرض تفاصيل الفواتير المؤرشفة.");
+     }
+ }
             // **** دالة البحث عن السيريالات للمورد (مع فلترة داخلية) ****
             function searchSerialsBySupplier() {
                 if (!searchSupplierSerialNameInput || !supplierSerialsResultsContainer || !serialSearchMessage || !filterSerialsContainer) return;
@@ -7745,14 +7778,71 @@ function handleBalanceAdjustment() {
     return false;
 }
 
-// =======================================================
-// END: NEW LOGIC FOR FINANCIAL TRANSACTIONS (STEP 3)
-// =======================================================
+async function performSmartGlobalSearch() {
+    const searchInput = document.getElementById('smart-search-input');
+    const messageEl = document.getElementById('search-message');
+    const resultsContainer = document.getElementById('search-results-list');
 
-// =======================================================
-// END: NEW LOGIC FOR ACCOUNT MANAGEMENT (STEP 2)
-// =======================================================
-            
+    if (!searchInput || !messageEl || !resultsContainer) return;
+
+    const term = searchInput.value.trim().toLowerCase();
+    
+    if (!term) {
+        showMessage(messageEl, "يرجى كتابة كلمة للبحث عنها.", true);
+        return;
+    }
+
+    resultsContainer.innerHTML = '<p class="text-center text-blue-600 py-4"><i class="fas fa-spinner fa-spin"></i> جاري البحث في الأرشيف...</p>';
+    showMessage(messageEl, "");
+
+    try {
+        if (!window.currentUser) {
+            showMessage(messageEl, "يجب تسجيل الدخول للبحث في الأرشيف.", true);
+            return;
+        }
+
+        const userId = window.currentUser.uid;
+        const invoicesRef = window.collection(window.db, "users", userId, "invoices");
+        
+        // جلب آخر 500 فاتورة (لتحسين الأداء)
+        const q = window.query(invoicesRef, window.orderBy("timestamp", "desc"), window.limit(500));
+        
+        const querySnapshot = await window.getDocs(q);
+        const allInvoices = [];
+        querySnapshot.forEach((doc) => {
+            allInvoices.push(doc.data());
+        });
+
+        const matchedInvoices = allInvoices.filter(inv => {
+            const customerName = (inv.customerName || '').toLowerCase();
+            const invoiceNum = (inv.invoiceNumber || '').toLowerCase();
+            const notes = (inv.notes || '').toLowerCase();
+            const productsMatch = (inv.items || []).some(item => 
+                (item.name || '').toLowerCase().includes(term) || 
+                (item.serial || '').toLowerCase().includes(term)
+            );
+            return customerName.includes(term) || invoiceNum.includes(term) || productsMatch || notes.includes(term);
+        });
+
+        // --- التعديل الهام هنا: تخزين النتائج في المتغير العام ---
+        globalSearchResults = matchedInvoices;
+        // -------------------------------------------------------
+
+        if (matchedInvoices.length === 0) {
+            resultsContainer.innerHTML = '<p class="text-center text-gray-500">لم يتم العثور على نتائج مطابقة.</p>';
+            showMessage(messageEl, "لا توجد نتائج.", false, true);
+        } else {
+            displaySearchResults(matchedInvoices);
+            showMessage(messageEl, `تم العثور على ${matchedInvoices.length} فاتورة مطابقة.`, false);
+        }
+
+    } catch (error) {
+        console.error("Search Error:", error);
+        showMessage(messageEl, "حدث خطأ أثناء البحث. راجع الـ Console.", true);
+        resultsContainer.innerHTML = '<p class="text-center text-red-500">حدث خطأ.</p>';
+    }
+}
+
 // START: دالة بدء التشغيل النهائية (متصلة بالإنترنت)
 // =======================================================
 async function initializeApp() {
@@ -7980,14 +8070,15 @@ inventoryCategoryFilter = d('inventory-category-filter');
 
                  debtorNamesDatalistOffset = d('debtor-names-list-offset');
                  creditorNamesDatalistOffset = d('creditor-names-list-offset');
-                  // Invoice Search Elements References
-                  searchInvoiceNumberInput = d('search-invoice-number');
-                  searchByNumberBtn = d('search-by-number-btn');
-                  searchCustomerNameInput = d('search-customer-name');
-                  searchByNameBtn = d('search-by-name-btn');
-                  searchMessageContainer = d('search-message');
-                  searchResultsListContainer = d('search-results-list');
-                 
+                  // --- تعريف عناصر البحث الذكي الجديد ---
+// نحتفظ بحاويات الرسائل والنتائج لأننا ما زلنا نستخدمها
+searchMessageContainer = d('search-message');
+searchResultsListContainer = d('search-results-list');
+
+// تعريف عناصر الإدخال والزر الجديد
+const smartSearchBtn = d('smart-search-btn');
+const smartSearchInput = d('smart-search-input');
+
                  openBackupHistoryButton = d('open-backup-history-button');
 autoBackupMessage = d('auto-backup-message');
 backupHistoryModal = d('backupHistoryModal');
@@ -9132,14 +9223,18 @@ if (pendingReceiptList) {
 
 
                  // Search Listeners
-                 if(searchByNumberBtn) {
-                     searchByNumberBtn.addEventListener('click', searchInvoiceByNumber);
-                     searchInvoiceNumberInput?.addEventListener('keypress', function (e) { if (e.key === 'Enter') searchInvoiceByNumber(); });
-                 }
-                 if(searchByNameBtn) {
-                     searchByNameBtn.addEventListener('click', searchInvoiceByName);
-                     searchCustomerNameInput?.addEventListener('keypress', function (e) { if (e.key === 'Enter') searchInvoiceByName(); });
-                 }
+              // --- ربط أحداث البحث الذكي الشامل ---
+if (smartSearchBtn) {
+    smartSearchBtn.addEventListener('click', performSmartGlobalSearch);
+}
+
+if (smartSearchInput) {
+    smartSearchInput.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            performSmartGlobalSearch();
+        }
+    });
+}
                  if(searchResultsListContainer) {
                      searchResultsListContainer.addEventListener('click', (event) => {
                          const button = event.target.closest('.view-invoice-details-btn');
@@ -9798,12 +9893,13 @@ window.addEventListener('click', (event) => {
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-    import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, orderBy } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+    // تم إضافة limit في السطر التالي
+    import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
     import { 
         getAuth, 
         createUserWithEmailAndPassword, 
         signInWithEmailAndPassword, 
-        onAuthStateChanged,
+        onAuthStateChanged, 
         signOut 
     } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js";
 
@@ -9829,6 +9925,7 @@ window.addEventListener('click', (event) => {
     window.where = where;
     window.getDocs = getDocs;
     window.orderBy = orderBy;
+    window.limit = limit; // تم تعيين limit هنا لتكون متاحة عالمياً
 
     const auth = getAuth(app);
     window.auth = auth;
@@ -9838,8 +9935,7 @@ window.addEventListener('click', (event) => {
     window.signOut = signOut;
 
     console.log("Firebase connected successfully! قاعدة البيانات جاهزة.");
-    </script>
-<!-- ======================================================= -->
+</script><!-- ======================================================= -->
 <!-- END: Firebase Connection (Revised) -->
 <!-- ======================================================= -->
             </body>
