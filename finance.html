@@ -1660,6 +1660,15 @@ input:checked:active + .slider:before {
                             <label for="sell-quantity" class="block text-gray-700 text-sm font-bold mb-2">الكمية المباعة:<span class="required">*</span></label>
                             <input type="number" id="sell-quantity" value="1" min="1" class="shadow-sm">
                         </div>
+                        <div id="sell-serial-container" class="mb-4 hidden">
+    <label for="sell-serial-input" class="block text-gray-700 text-sm font-bold mb-2">الرقم التسلسلي (للمنتج المحدد):</label>
+    <input type="text" id="sell-serial-input" list="sell-serials-datalist" placeholder="اختر او اكتب السيريال" class="shadow-sm">
+    <datalist id="sell-serials-datalist"></datalist>
+    <p class="text-xs text-blue-500 mt-1">هذا المنتج يتطلب تحديد سيريال.</p>
+</div>
+
+                      
+
                         <div class="mb-4 md:col-start-1">
                             <label for="sell-price" class="block text-gray-700 text-sm font-bold mb-2">إجمالي سعر البيع:<span class="required">*</span></label>
                             <input type="number" id="sell-price" value="0" min="0" step="0.01" placeholder="السعر الإجمالي للكمية" class="shadow-sm">
@@ -2173,6 +2182,7 @@ input:checked:active + .slider:before {
                                             <label for="inv_itemName">اسم البند:<span class="required">*</span></label>
                                             <input type="text" id="inv_itemName" list="product-names-list" placeholder="اسم المنتج أو الخدمة">
                                         </div>
+
                                         <div class="form-group" style="flex: 0.5;">
                                             <label for="inv_itemQty">الكمية:<span class="required">*</span></label>
                                             <input type="number" id="inv_itemQty" value="1" min="1">
@@ -2181,16 +2191,22 @@ input:checked:active + .slider:before {
                                             <label for="inv_itemPrice">سعر الوحدة:<span class="required">*</span></label>
                                             <input type="number" id="inv_itemPrice" value="0" min="0" step="0.01">
                                         </div>
+                                        <div id="inv_serialSelectContainer" class="serial-select-container hidden mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+    <label for="inv_itemSerialInput" class="block text-gray-700 text-sm font-bold mb-1">
+        الرقم التسلسلي (اختياري):
+    </label>
+    
+    <input type="text" id="inv_itemSerialInput" list="inv_serials_datalist" placeholder="اكتب السيريال أو اختره..." class="shadow-sm w-full text-sm p-2 border rounded">
+    
+    <datalist id="inv_serials_datalist"></datalist>
+    
+    <p class="text-xs text-gray-500 mt-1">يمكنك اختيار سيريال موجود أو كتابة سيريال جديد.</p>
+</div>
                                         <div class="form-group" style="flex: 0 0 auto;">
                                             <button type="button" id="inv_addItemBtn">إضافة</button>
                                         </div>
                                     </div>
-                                     <div id="inv_serialSelectContainer" class="serial-select-container hidden">
-                                        <label for="inv_itemSerialSelect" class="block text-gray-700 text-sm font-bold mb-1">اختر الرقم التسلسلي:<span class="required">*</span></label>
-                                        <input type="text" id="inv_serialSearchInput" placeholder="ابحث عن سيريال..." class="shadow-sm mb-1">
-                                        <select id="inv_itemSerialSelect" size="3">
-                                            </select>
-                                    </div>
+                                  
                                     <div id="inv_itemAddError" class="error-message"></div>
                                 </div>
                                 <hr class="no-print my-4">
@@ -2740,6 +2756,7 @@ let fc_main_tabs, fc_tab_buttons, fc_tab_contents, fc_month_select, fc_expenses_
     salesReportSearchContainer, reportDirectSearchBtn; 
     let openBackupHistoryButton, autoBackupMessage, backupHistoryModal, backupHistoryList;
     let productCategoryInput, categoryDatalist, inventorySearchInput, inventoryCategoryFilter;
+    let sellSerialContainer, sellSerialInput, sellSerialsDatalist;
 
 
 
@@ -4825,57 +4842,88 @@ function processMonthlyLiabilities() {
             }
 
 
-            // **** تعديل دالة إضافة بند للفاتورة ****
-            function inv_addInvoiceItem() {
-    if (!inv_itemNameInput || !inv_itemQtyInput || !inv_itemPriceInput || !inv_itemAddErrorDiv || !inv_invoiceItemsBody || !inv_serialSelectContainer || !inv_itemSerialSelect) return;
+function inv_addInvoiceItem() {
+    // تعريف حقول الإدخال الأساسية
+    const nameInput = document.getElementById('inv_itemName');
+    const qtyInput = document.getElementById('inv_itemQty');
+    const priceInput = document.getElementById('inv_itemPrice');
+    const errorDiv = document.getElementById('inv_itemAddError');
+    const itemsBody = document.getElementById('inv_invoiceItemsBody');
+    
+    // --- التعديل الجديد: قراءة السيريال من حقل الكتابة الجديد ---
+    const serialInput = document.getElementById('inv_itemSerialInput');
+    const serialContainer = document.getElementById('inv_serialSelectContainer');
+    
+    if (!nameInput || !qtyInput || !priceInput || !itemsBody) return;
 
-    const name = inv_itemNameInput.value.trim();
-    const qty = parseInt(inv_itemQtyInput.value);
-    const price = parseInputNumber(inv_itemPriceInput);
-    const selectedSerial = inv_itemSerialSelect.value; 
+    const name = nameInput.value.trim();
+    const qty = parseInt(qtyInput.value);
+    const price = parseFloat(priceInput.value); // استخدام parseFloat مباشرة
+    
+    // قراءة قيمة السيريال (إذا كان الحقل موجوداً)
+    const selectedSerial = serialInput ? serialInput.value.trim() : '';
 
-    showMessage(inv_itemAddErrorDiv, "", false); 
+    // تفريغ رسائل الخطأ السابقة
+    if (errorDiv) {
+        errorDiv.textContent = "";
+        errorDiv.classList.remove('visible', 'error');
+    }
 
+    // 1. التحقق من البيانات الأساسية
     if (!name || isNaN(qty) || qty <= 0 || isNaN(price) || price < 0) {
-        showMessage(inv_itemAddErrorDiv, 'يرجى إدخال اسم البند وكمية (>0) وسعر (>=0) صحيحين.', true);
+        if(errorDiv) {
+            errorDiv.textContent = 'يرجى إدخال اسم البند وكمية (>0) وسعر (>=0) صحيحين.';
+            errorDiv.classList.add('visible', 'error');
+        }
         return;
     }
 
-    const productData = products.find(p => p.name.toLowerCase() === name.toLowerCase());
-    const availableQty = productData ? (Number(productData.quantity) || 0) : Infinity; 
-    const currentCostPrice = productData ? (Number(productData.costPrice) || 0) : 0; 
-
-    // منطق إظهار قائمة السيريالات (يبقى كما هو)
-    const productHasSerialsRegistered = serialNumbersLog.some(log => log.productName === name);
-    if (productData && qty === 1 && productHasSerialsRegistered) {
-        populateAvailableSerials(name, inv_itemSerialSelect, inv_serialSearchInput.value);
-        inv_serialSelectContainer.classList.remove('hidden');
-    } else {
-        inv_serialSelectContainer.classList.add('hidden');
+    // 2. التحقق من تكرار السيريال في نفس الفاتورة الحالية
+    if (selectedSerial && itemsBody.querySelector(`tr[data-item-serial="${selectedSerial}"]`)) {
+        if(errorDiv) {
+            errorDiv.textContent = `الرقم التسلسلي "${selectedSerial}" تم إضافته بالفعل لهذه الفاتورة.`;
+            errorDiv.classList.add('visible', 'error');
+        }
+        return;
+    }
+    
+    // 3. التحقق من أن السيريال ليس مباعاً من قبل (فقط إذا كان مسجلاً في النظام)
+    if (selectedSerial && typeof serialNumbersLog !== 'undefined') {
+        const existingSerialLog = serialNumbersLog.find(s => s.serial === selectedSerial && s.productName === name);
+        if (existingSerialLog && existingSerialLog.status === 'sold') {
+             if(errorDiv) {
+                errorDiv.textContent = `تنبيه: السيريال "${selectedSerial}" مسجل كمباع مسبقاً.`;
+                errorDiv.classList.add('visible', 'error');
+             }
+             return;
+        }
     }
 
-    // === بداية التعديل: تم حذف شرط التحقق الإجباري من هنا ===
-    // لا يوجد الآن شرط يجبرك على اختيار السيريال
-    // === نهاية التعديل ===
+    // 4. التحقق من توفر الكمية في المخزون
+    let currentProduct = null;
+    if (typeof products !== 'undefined') {
+        currentProduct = products.find(p => p.name.toLowerCase() === name.toLowerCase());
+    }
+    
+    const availableQty = currentProduct ? (Number(currentProduct.quantity) || 0) : Infinity; 
+    const currentCostPrice = currentProduct ? (Number(currentProduct.costPrice) || 0) : 0; 
 
     let alreadyAddedQty = 0;
-    inv_invoiceItemsBody.querySelectorAll('.invoice-item-row').forEach(row => {
+    itemsBody.querySelectorAll('.invoice-item-row').forEach(row => {
         if (row.dataset.itemName.toLowerCase() === name.toLowerCase()) {
             alreadyAddedQty += parseInt(row.dataset.itemQty);
         }
     });
 
-    if (productData && (qty + alreadyAddedQty) > availableQty) {
-        showMessage(inv_itemAddErrorDiv, `الكمية الإجمالية المطلوبة (${qty + alreadyAddedQty}) لـ "${name}" غير متوفرة في المخزون (المتاح: ${availableQty}).`, true);
-        inv_serialSelectContainer.classList.add('hidden');
+    if (currentProduct && (qty + alreadyAddedQty) > availableQty) {
+        if(errorDiv) {
+            errorDiv.textContent = `الكمية الإجمالية المطلوبة غير متوفرة بالمخزون (المتاح: ${availableQty}).`;
+            errorDiv.classList.add('visible', 'error');
+        }
         return;
     }
 
-    if (selectedSerial && inv_invoiceItemsBody.querySelector(`tr[data-item-serial="${selectedSerial}"]`)) {
-        showMessage(inv_itemAddErrorDiv, `الرقم التسلسلي "${selectedSerial}" تم إضافته بالفعل لهذه الفاتورة.`, true);
-        return;
-    }
-
+    // 5. إضافة الصف إلى الجدول
     const subtotal = qty * price;
     const newRow = document.createElement('tr');
     newRow.classList.add('invoice-item-row');
@@ -4885,37 +4933,47 @@ function processMonthlyLiabilities() {
     newRow.dataset.itemSubtotal = subtotal.toFixed(2);
     newRow.dataset.itemCost = currentCostPrice.toFixed(2);
 
-    if (selectedSerial && qty === 1) { // سيتم إضافة السيريال فقط في حالة اختياره
+    // إضافة بيانات السيريال للصف
+    if (selectedSerial && qty === 1) {
         newRow.dataset.itemSerial = selectedSerial;
-        const serialIndex = serialNumbersLog.findIndex(log => log.serial === selectedSerial);
-        if (serialIndex !== -1) {
-            serialNumbersLog[serialIndex].status = 'in_invoice_temp';
-            console.log(`Serial ${selectedSerial} status temporarily set to 'in_invoice_temp'.`);
+        // حجز مؤقت في سجل السيريالات (إن وجد في النظام)
+        if (typeof serialNumbersLog !== 'undefined') {
+            const serialIndex = serialNumbersLog.findIndex(log => log.serial === selectedSerial);
+            if (serialIndex !== -1) {
+                serialNumbersLog[serialIndex].status = 'in_invoice_temp';
+            }
         }
     }
+
+    // تنسيق العملة (يمكنك استخدام دالة formatCurrency الخاصة بك بدلاً من هذا إذا كانت متاحة)
+    const formatMoney = (amount) => typeof formatCurrency === 'function' ? formatCurrency(amount) : amount.toFixed(2);
 
     newRow.innerHTML = `
         <td class="item-name">
             ${name}
-            ${selectedSerial && qty === 1 ? `<span class="serial-display no-print">(S/N: ${selectedSerial})</span><span class="serial-display-print">(S/N: ${selectedSerial})</span>` : ''}
+            ${selectedSerial && qty === 1 ? `<span class="serial-display no-print" style="display:block; font-size:0.8em; color:#666;">(S/N: ${selectedSerial})</span>` : ''}
         </td>
-        <td class="item-qty">${qty}</td>
-        <td class="item-price">${formatCurrency(price)}</td>
-        <td class="item-subtotal">${formatCurrency(subtotal)}</td>
-        <td class="no-print"><button type="button" class="remove-item-btn" title="حذف البند">×</button></td>
+        <td class="item-qty" style="text-align:center;">${qty}</td>
+        <td class="item-price" style="text-align:center;">${formatMoney(price)}</td>
+        <td class="item-subtotal" style="text-align:center; font-weight:bold;">${formatMoney(subtotal)}</td>
+        <td class="no-print" style="text-align:center;"><button type="button" class="remove-item-btn" style="color:red; font-weight:bold; border:none; background:none; cursor:pointer;">×</button></td>
     `;
-    inv_invoiceItemsBody.appendChild(newRow);
+    itemsBody.appendChild(newRow);
 
-    // مسح الحقول للإدخال التالي
-    inv_itemNameInput.value = '';
-    inv_itemQtyInput.value = '1';
-    inv_itemPriceInput.value = '0';
-    inv_serialSelectContainer.classList.add('hidden');
-    inv_itemSerialSelect.value = '';
-    inv_serialSearchInput.value = '';
-    inv_itemNameInput.focus();
-    inv_calculateTotals();
-    inv_updateDeductibleCostsCheckboxes();
+    // 6. تنظيف الحقول وإعادة التعيين
+    nameInput.value = '';
+    qtyInput.value = '1';
+    priceInput.value = '0';
+    
+    // إخفاء وتفريغ حقل السيريال الجديد
+    if (serialContainer) serialContainer.classList.add('hidden');
+    if (serialInput) serialInput.value = ''; 
+    
+    nameInput.focus();
+    
+    // تحديث الإجماليات (تأكد أن دالة inv_calculateTotals موجودة لديك)
+    if (typeof inv_calculateTotals === 'function') inv_calculateTotals();
+    if (typeof inv_updateDeductibleCostsCheckboxes === 'function') inv_updateDeductibleCostsCheckboxes();
 }
 
             function inv_validateForm() {
@@ -7935,6 +7993,35 @@ categoryDatalist = d('category-names-list');
 inventorySearchInput = d('inventory-search');
 inventoryCategoryFilter = d('inventory-category-filter');
                  sellProductNameInput = d("sell-product-name");
+     // ============================================================
+    // >>> انسخ هذا البلوك وضعه تحت السطر السابق مباشرة <<<
+    // ============================================================
+    
+    // 1. ربط عناصر السيريال بالمتغيرات
+    sellSerialContainer = d('sell-serial-container');
+    sellSerialInput = d('sell-serial-input');
+    sellSerialsDatalist = d('sell-serials-datalist');
+
+    // 2. تفعيل الاستماع للكتابة في حقل اسم المنتج
+    if (sellProductNameInput) {
+        // حذف أي مستمعات قديمة (احتياطياً)
+        sellProductNameInput.removeEventListener('input', updateQuickSaleSerialUI);
+        
+        // إضافة المستمع الجديد لتشغيل دالة السيريال
+        sellProductNameInput.addEventListener('input', updateQuickSaleSerialUI);
+        sellProductNameInput.addEventListener('change', updateQuickSaleSerialUI);
+        
+        // الإبقاء على المستمع القديم الخاص بالملحقات (لا تحذفه)
+        sellProductNameInput.addEventListener('input', updateAdditionalCostsCheckboxes);
+    }
+    
+    // تأكد من طباعة رسالة في الكونسول لنعرف أن الربط تم
+    console.log("تم تفعيل نظام السيريال في البيع السريع:", { 
+        container: sellSerialContainer, 
+        input: sellSerialInput 
+    });
+
+    // ============================================================
                  sellCustomerNameInput = d("sell-customer-name");
                  sellQuantityInput = d("sell-quantity");
                  sellPriceInput = d("sell-price");
@@ -8050,10 +8137,56 @@ inventoryCategoryFilter = d('inventory-category-filter');
                  inv_warrantyInput = d('inv_warranty');
                  inv_notesTextarea = d('inv_notes');
                  inv_saveInvoiceBtn = d('inv_saveInvoiceBtn');
-                 inv_serialSelectContainer = d('inv_serialSelectContainer');
-                 inv_itemSerialSelect = d('inv_itemSerialSelect');
-                 inv_serialSearchInput = d('inv_serialSearchInput');
-                 // **** إسناد عناصر نافذة إدارة السيريالات ****
+        // ... داخل دالة initializeApp ...
+
+    // 1. تعريف المتغيرات (مع استخدام d مباشرة للتأكد)
+    inv_serialSelectContainer = d('inv_serialSelectContainer');
+    
+    // استخدمنا const هنا داخل النطاق لضمان عدم التداخل
+    const invItemSerialInputEl = d('inv_itemSerialInput'); 
+    const invSerialsDatalistEl = d('inv_serials_datalist');
+
+ // 2. المنطق الجديد (محصن بـ try-catch لمنع أي خطأ نهائياً)
+    if (inv_itemNameInput && inv_itemQtyInput) {
+        
+        const checkInvoiceSerialRequirement = () => {
+            try {
+                const itemName = inv_itemNameInput.value.trim();
+                const qty = parseInt(inv_itemQtyInput.value);
+                
+                // البحث عن العناصر مباشرة
+                const container = document.getElementById('inv_serialSelectContainer');
+                const inputField = document.getElementById('inv_itemSerialInput');
+                const datalist = document.getElementById('inv_serials_datalist');
+
+                // إذا لم نجد الحاوية، نخرج بصمت
+                if (!container) return;
+
+                if (qty === 1 && itemName) {
+                    container.classList.remove('hidden');
+                    // ملء المقترحات
+                    if (datalist && typeof serialNumbersLog !== 'undefined') {
+                        const availableSerials = serialNumbersLog.filter(log => log.productName === itemName && log.status === 'in_stock');
+                        datalist.innerHTML = availableSerials.map(s => `<option value="${s.serial}">`).join('');
+                    }
+                } else {
+                    container.classList.add('hidden');
+                    // محاولة مسح الحقل فقط إذا كان موجوداً
+                    if (inputField) {
+                        inputField.value = ''; 
+                    }
+                }
+            } catch (e) {
+                // في حال حدوث أي خطأ، لا تفعل شيئاً (تجاهل الخطأ)
+                console.log("تم تجاهل خطأ في واجهة السيريال");
+            }
+        };
+
+        inv_itemNameInput.addEventListener('input', checkInvoiceSerialRequirement);
+        inv_itemNameInput.addEventListener('change', checkInvoiceSerialRequirement);
+        inv_itemQtyInput.addEventListener('input', checkInvoiceSerialRequirement);
+    }
+           // **** إسناد عناصر نافذة إدارة السيريالات ****
                  manageSerialsModal = d('manageSerialsModal');
                  modal_productNameDisplay = d('modal_productNameDisplay');
                  modal_serialCounts = d('modal_serialCounts');
@@ -8458,48 +8591,100 @@ if (d('cancel-edit-pending-button')) {
     d('cancel-edit-pending-button').addEventListener('click', resetSellForm);
 }
 
+function updateQuickSaleSerialUI() {
+    // 1. التأكد من وجود العناصر
+    if (!sellSerialContainer || !sellSerialsDatalist || !sellSerialInput) return;
 
-// 2. دالة إضافة بيع جديد (نفس الكود القديم مع تغييرات بسيطة)
+    const productName = sellProductNameInput.value.trim();
+    
+    // 2. إذا كان هناك اسم منتج، أظهر الحقل فوراً
+    if (productName) {
+        sellSerialContainer.classList.remove('hidden');
+        
+        // 3. محاولة مساعدة المستخدم باقتراح السيريالات الموجودة (اختياري)
+        const availableSerials = serialNumbersLog.filter(log => 
+            log.productName === productName && log.status === 'in_stock'
+        );
+        
+        sellSerialsDatalist.innerHTML = availableSerials.map(s => `<option value="${s.serial}">`).join('');
+    } else {
+        // إخفاء الحقل فقط إذا كان اسم المنتج فارغاً
+        sellSerialContainer.classList.add('hidden');
+        sellSerialInput.value = '';
+    }
+}
 function sellProduct() {
     const isPendingSale = sellPendingCheckbox.checked;
     const mainProductName = sellProductNameInput.value.trim();
     const customerName = d("sell-customer-name").value.trim();
     const quantitySold = parseInputNumber(sellQuantityInput);
     const totalSellPrice = parseInputNumber(sellPriceInput);
-
-    // --- ✅ تم دمج هذا الجزء: الحصول على الحساب المختار ---
+    
+    // قراءة السيريال (إن وجد)
+    const selectedSerial = sellSerialInput ? sellSerialInput.value.trim() : '';
+    
     const selectedAccountId = d('sell-account-select').value;
     const account = accounts.find(acc => acc.id === selectedAccountId);
 
-    // التحقق من المدخلات الأساسية
+    // 1. التحقق من المدخلات الأساسية
     if (!mainProductName || isNaN(quantitySold) || quantitySold <= 0 || isNaN(totalSellPrice) || totalSellPrice < 0) {
-        showMessage(sellMessage, "يرجى ملء اسم المنتج والكمية (>0) وسعر البيع (>=0) بشكل صحيح.", true);
+        showMessage(sellMessage, "يرجى ملء البيانات بشكل صحيح.", true);
         return;
     }
 
-    // --- ✅ تم دمج هذا الجزء: التحقق من اختيار الحساب في حالة البيع النهائي ---
+    // 2. التحقق من الحساب
     if (!isPendingSale && !account) {
-        showMessage(sellMessage, "يرجى اختيار الحساب الذي سيتم إيداع المبلغ فيه.", true);
+        showMessage(sellMessage, "يرجى اختيار الحساب.", true);
         return;
     }
 
-    // التحقق من توفر المنتج الرئيسي في المخزون
+    // 3. التحقق من المخزون
     const mainProductIndex = products.findIndex(p => p.name === mainProductName);
     if (mainProductIndex === -1) {
-        showMessage(sellMessage, `المنتج الرئيسي "${mainProductName}" غير موجود بالمخزون.`, true);
+        showMessage(sellMessage, `المنتج "${mainProductName}" غير موجود.`, true);
         return;
     }
-    const mainProduct = { ...products[mainProductIndex] };
+    const mainProduct = products[mainProductIndex];
     if (mainProduct.quantity < quantitySold) {
-        showMessage(sellMessage, `الكمية المطلوبة (${quantitySold}) من "${mainProductName}" غير متوفرة (المتاح: ${mainProduct.quantity}).`, true);
+        showMessage(sellMessage, `الكمية غير متوفرة. المتاح: ${mainProduct.quantity}`, true);
         return;
     }
 
-    // حساب تكلفة البضاعة والتحقق من الملحقات
+    // --- معالجة السيريال (المنطق المرن الجديد) ---
+    if (selectedSerial) {
+        if (quantitySold !== 1) {
+             showMessage(sellMessage, "تنبيه: عند تحديد سيريال، يفضل بيع قطعة واحدة فقط لضمان الدقة.", true);
+             return;
+        }
+        
+        // البحث عن السيريال في النظام
+        const serialIndex = serialNumbersLog.findIndex(s => s.serial === selectedSerial && s.productName === mainProductName);
+        
+        if (serialIndex !== -1) {
+            // أ: السيريال موجود -> نحدث حالته
+            if (serialNumbersLog[serialIndex].status === 'sold') {
+                showMessage(sellMessage, `تحذير: هذا السيريال (${selectedSerial}) مسجل كمباع مسبقاً!`, true);
+                return; // نمنع بيع المباع فقط
+            }
+            serialNumbersLog[serialIndex].status = isPendingSale ? 'pending_sale' : 'sold';
+        } else {
+            // ب: السيريال جديد (غير مسجل) -> نقوم بإنشائه الآن وتسجيله كمباع
+            // هذا هو ما طلبته: السماح بإدخال سيريال غير محفوظ
+            serialNumbersLog.push({
+                serial: selectedSerial,
+                productName: mainProductName,
+                supplierId: mainProduct.supplierId || "",
+                addedTimestamp: new Date().toISOString(),
+                status: isPendingSale ? 'pending_sale' : 'sold'
+            });
+        }
+    }
+
+    // 4. حساب التكاليف والملحقات
     let costOfGoodsSold = (Number(mainProduct.costPrice) || 0) * quantitySold;
     let additionalItemsDataForPending = [];
     let additionalItemsToUpdate = [];
-    let additionalItemsLog = [];
+    
     const additionalCheckboxes = additionalCostsContainer ? additionalCostsContainer.querySelectorAll('input[type="checkbox"]:checked') : [];
     let stockCheckFailed = false;
 
@@ -8520,49 +8705,69 @@ function sellProduct() {
                 costOfGoodsSold += (Number(additionalProduct.costPrice) || 0) * qtyToDeduct;
                 additionalItemsDataForPending.push({ name: additionalProduct.name, quantity: qtyToDeduct, costPrice: additionalProduct.costPrice, supplierId: additionalProduct.supplierId });
                 additionalItemsToUpdate.push({ index: additionalProductIndex, quantity: qtyToDeduct });
-                additionalItemsLog.push(`${qtyToDeduct}x ${additionalProductName}`);
             }
         }
     });
 
     if (stockCheckFailed) return;
-    
-    const profit = totalSellPrice - costOfGoodsSold;
-    
-    // تحديث المخزون
+
+    // 5. تنفيذ الخصم من المخزون
     products[mainProductIndex].quantity -= quantitySold;
     additionalItemsToUpdate.forEach(item => {
         products[item.index].quantity -= item.quantity;
     });
     products = products.filter(p => p.quantity > 0.001);
 
+    const profit = totalSellPrice - costOfGoodsSold;
+
+    // 6. تجهيز الاسم للعرض في الفاتورة (مع السيريال إن وجد)
+    let productNameWithSerial = mainProduct.name;
+    if (selectedSerial) {
+        productNameWithSerial += ` (S/N: ${selectedSerial})`;
+    }
+
+    // 7. الحفظ
     if (isPendingSale) {
-        // منطق البيع المؤقت (يبقى كما هو)
         goodsOnConsignmentValue += costOfGoodsSold;
-        const pendingSaleData = { id: generateId('pending'), timestamp: new Date().toISOString(), customerName, mainProduct: { name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice, supplierId: mainProduct.supplierId }, additionalItems: additionalItemsDataForPending, totalSellPrice, potentialProfit: profit, status: 'pending' };
+        const pendingSaleData = { 
+            id: generateId('pending'), 
+            timestamp: new Date().toISOString(), 
+            customerName, 
+            mainProduct: { name: productNameWithSerial, quantity: quantitySold, costPrice: mainProduct.costPrice, supplierId: mainProduct.supplierId }, 
+            additionalItems: additionalItemsDataForPending, 
+            totalSellPrice, potentialProfit: profit, status: 'pending' 
+        };
         pendingSales.push(pendingSaleData);
-        logOperation("بيع مؤقت", `تسجيل بيع مؤقت لـ ${quantitySold}x "${mainProductName}" للعميل ${customerName || '-'}.`);
-        showMessage(sellMessage, "تم تسجيل البيع كعملية مؤقتة.");
+        logOperation("بيع مؤقت", `بيع مؤقت: ${productNameWithSerial}`);
+        showMessage(sellMessage, "تم تسجيل البيع المؤقت.");
     } else {
-        // --- ✅ تم دمج هذا الجزء: منطق البيع النهائي مع استخدام الحساب المحدد ---
-        account.balance += totalSellPrice; // الإيداع في الحساب المحدد
+        account.balance += totalSellPrice;
         totalProfit += profit;
         
-        // تحديث سجل السيولة ليكون أكثر تفصيلاً
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: totalSellPrice, description: `بيع سريع لـ ${customerName || 'عميل'} إلى حساب "${account.name}"`, currentBalance: newTotalLiquidity });
+        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: totalSellPrice, description: `بيع سريع: ${productNameWithSerial}`, currentBalance: newTotalLiquidity });
 
-        logOperation("بيع عادي (سريع)", `بيع ${quantitySold}x "${mainProductName}". تم إيداع ${formatCurrency(totalSellPrice)} في حساب "${account.name}".`);
-        const saleRecord = { id: generateId('sale'), type: 'quick', timestamp: new Date().toISOString(), customerName, items: [{ name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice }, ...additionalItemsDataForPending], totalSellPrice, totalCost: costOfGoodsSold, profit };
+        const allItems = [
+            { name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice, serial: selectedSerial },
+            ...additionalItemsDataForPending
+        ];
+
+        const saleRecord = { 
+            id: generateId('sale'), type: 'quick', timestamp: new Date().toISOString(), customerName, 
+            items: allItems, 
+            totalSellPrice, totalCost: costOfGoodsSold, profit 
+        };
         salesToday.push(saleRecord);
         saveInvoiceToFirestore(saleRecord);
-        showMessage(sellMessage, `تمت عملية البيع السريع بنجاح. الربح: ${formatCurrency(profit)}`);
+        logOperation("بيع سريع", `بيع ${productNameWithSerial} بقيمة ${formatCurrency(totalSellPrice)}`);
+        showMessage(sellMessage, `تم البيع بنجاح. الربح: ${formatCurrency(profit)}`);
     }
-    
+
     updateUI();
     resetSellForm();
+    sellSerialContainer.classList.add('hidden');
+    sellSerialInput.value = '';
 }
-
 
 // 3. دالة تحديث بيع مؤقت موجود
 function updatePendingSale(pendingId) {
@@ -9192,23 +9397,7 @@ if (pendingReceiptList) {
                          }
                      });
                      // أخف القائمة أيضاً عند تغيير اسم المنتج
-                     inv_itemNameInput.addEventListener('change', () => {
-                         inv_serialSelectContainer.classList.add('hidden');
-                         inv_itemSerialSelect.value = '';
-                         inv_serialSearchInput.value = '';
-                         showMessage(inv_itemAddErrorDiv, "");
-                         // أعد التحقق إذا كانت الكمية 1
-                         const qty = parseInt(inv_itemQtyInput.value);
-                         const itemName = inv_itemNameInput.value.trim();
-                         const productHasSerialsRegistered = serialNumbersLog.some(log => log.productName === itemName);
-                          if (qty === 1 && itemName && products.some(p => p.name === itemName) && productHasSerialsRegistered) {
-                              const hasSerials = populateAvailableSerials(itemName, inv_itemSerialSelect, ''); // Populate without search term initially
-                              inv_serialSelectContainer.classList.remove('hidden');
-                               if (!hasSerials) {
-                                   showMessage(inv_itemAddErrorDiv, `لا توجد أرقام تسلسلية متاحة في المخزون للمنتج "${itemName}".`, true);
-                               }
-                          }
-                     });
+                    
                  }
                  // مستمع حدث لحقل بحث السيريال لتحديث القائمة المنسدلة
                  if(inv_serialSearchInput && inv_itemSerialSelect && inv_itemNameInput) {
