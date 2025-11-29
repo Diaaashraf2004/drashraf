@@ -4050,10 +4050,11 @@ function updateReturnFormVisibility() {
         accountGroup.classList.remove('hidden');
     }
 }
-// ✅✅✅ الكود الجديد والصحيح لدالة handleManualReturn ✅✅✅
 function handleManualReturn() {
     saveStateToHistory();
     const returnMessage = d('return-message');
+    
+    // قراءة البيانات من المدخلات
     const productName = d('return-product-select').value || d('return-manual-product-name').value.trim();
     const quantity = parseInputNumber(d('return-quantity'));
     const customerName = d('return-customer-name').value.trim() || 'عميل';
@@ -4064,6 +4065,7 @@ function handleManualReturn() {
     const selectedAccountId = d('return-from-account-select').value;
     const account = accounts.find(acc => acc.id === selectedAccountId);
 
+    // التحقق من صحة المدخلات
     if (!productName || isNaN(quantity) || quantity <= 0) {
         showMessage(returnMessage, "يرجى إدخال اسم المنتج وكمية صحيحة.", true); return;
     }
@@ -4074,13 +4076,31 @@ function handleManualReturn() {
         showMessage(returnMessage, "للإرجاع النقدي، يجب اختيار الحساب الذي سيتم الخصم منه.", true); return;
     }
     
+    // --- 1. تحديد تكلفة البضاعة (المنطق الذكي) ---
+    // الهدف: منع خصم المبلغ من الأرباح إذا كان المنتج جديداً (للحفاظ على رأس المال)
     const productData = products.find(p => p.name === productName);
-    const costOfGoods = (productData?.costPrice || 0) * quantity;
+    let costOfGoods = 0;
+
+    if (productData) {
+        // الحالة أ: المنتج موجود في المخزون
+        // نستخدم متوسط التكلفة المسجل مسبقاً.
+        // (إذا كان سعر الإرجاع أعلى من التكلفة، سيتم خصم الفرق من الأرباح في الخطوة 3)
+        costOfGoods = (productData.costPrice || 0) * quantity;
+    } else {
+        // الحالة ب: المنتج غير موجود (جديد)
+        // نعتبر أن تكلفته هي نفس المبلغ الذي دفعناه لاسترجاعه.
+        // النتيجة: (المبلغ المرتجع - التكلفة) = 0، وبالتالي لا يتم خصم أي شيء من الأرباح.
+        costOfGoods = returnedAmount;
+    }
+
     let logDetails = "";
 
-    // --- ✅ بداية الإصلاح: تنفيذ الإجراء المالي فوراً ---
+    // --- 2. الإجراء المالي (السيولة أو الديون) ---
     if (financialType === 'cash') {
-        if (returnedAmount > account.balance) { showMessage(returnMessage, `رصيد حساب "${account.name}" غير كافٍ.`, true); return; }
+        if (returnedAmount > account.balance) { 
+            showMessage(returnMessage, `رصيد حساب "${account.name}" غير كافٍ.`, true); 
+            return; 
+        }
         account.balance -= returnedAmount;
         logDetails = `إرجاع نقدي ${formatCurrency(returnedAmount)} للعميل "${customerName}" من حساب "${account.name}".`;
     } else if (financialType === 'credit') {
@@ -4088,35 +4108,53 @@ function handleManualReturn() {
         logDetails = `تسجيل رصيد للعميل "${customerName}" بقيمة ${formatCurrency(returnedAmount)}.`;
     }
 
+    // --- 3. تعديل الأرباح ---
+    // يتم التنفيذ فقط إذا كان المرتجع مالياً وليس "إرجاع بسعر البيع"
     if ((financialType === 'cash' || financialType === 'credit') && !returnAtSalePrice) {
         const profitToReverse = returnedAmount - costOfGoods;
+        
+        // لن يتم الخصم إلا إذا كان هناك فرق حقيقي (ربح سابق يتم عكسه)
+        // في حالة المنتج الجديد، ستكون القيمة صفر ولن يتأثر الربح
         totalProfit -= profitToReverse;
-        logOperation("عكس أرباح مرتجع", `عكس أرباح بقيمة ${formatCurrency(profitToReverse)}.`);
+        
+        if (profitToReverse !== 0) {
+            logOperation("عكس أرباح مرتجع", `عكس أرباح بقيمة ${formatCurrency(profitToReverse)}.`);
+        }
     }
-    // --- ✅ نهاية الإصلاح ---
 
+    // --- 4. إجراء المخزون ---
     if (receiveNow) {
-        // ... (منطق الإرجاع الفوري للمخزون)
-        const newUnitCost = (returnedAmount / quantity) || 0;
+        // حساب تكلفة الوحدة الواحدة لإضافتها للمخزون
+        // في حالة المنتج الجديد: ستكون (المبلغ المرتجع / الكمية)
+        const newUnitCost = (quantity > 0) ? (costOfGoods / quantity) : 0;
+
         if (returnAtSalePrice) {
-            products.push({ name: `${productName} - ${customerName} (مرتجع)`, quantity, costPrice: newUnitCost });
+            // حالة خاصة: إرجاع بسعر البيع (يُسجل كمنتج منفصل)
+            products.push({ name: `${productName} - ${customerName} (مرتجع)`, quantity, costPrice: (quantity > 0 ? returnedAmount / quantity : 0) });
         } else {
             const pIndex = products.findIndex(p => p.name === productName);
             if (pIndex !== -1) {
+                // منتج موجود: نزيد الكمية فقط (لتبسيط العملية والحفاظ على استقرار المخزون)
                 products[pIndex].quantity += quantity;
             } else {
-                products.push({ name: productName, quantity, costPrice: (costOfGoods / quantity) || 0 });
+                // منتج جديد: إضافته بتكلفته الفعلية المحسوبة
+                products.push({ name: productName, quantity, costPrice: newUnitCost });
             }
         }
         completedReturns.push({ id: generateId('ret'), items: [{ name: productName, quantity }], customerName, returnedAmount, timestamp: new Date().toISOString() });
         logOperation("مرتجع فوري", logDetails + " وتم استلام البضاعة.");
         showMessage(returnMessage, "تم تسجيل المرتجع واستلامه بالمخزن بنجاح.", false);
     } else {
-        // --- منطق تسجيل المرتجع كـ "قيد الاستلام" ---
-        pendingReturnsValue += returnedAmount; // ✅✅ إنشاء الأصل المعلق
+        // --- مرتجع قيد الاستلام ---
+        // نضيفه للأصول المعلقة للحفاظ على توازن معادلة رأس المال
+        if (typeof pendingReturnsValue !== 'undefined') {
+             pendingReturnsValue += returnedAmount;
+        }
+        
         pendingReturns.push({
             id: generateId('pend-ret'),
-            items: [{ name: productName, quantity, costPrice: (returnedAmount / quantity) || 0 }],
+            // نحفظ التكلفة الصحيحة هنا ليتم استخدامها عند تأكيد الاستلام لاحقاً دون مشاكل
+            items: [{ name: productName, quantity, costPrice: (quantity > 0 ? costOfGoods / quantity : 0) }],
             customerName, returnedAmount,
             returnAtSalePrice: returnAtSalePrice,
         });
