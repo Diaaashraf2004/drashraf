@@ -1260,30 +1260,35 @@ input:checked:active + .slider:before {
                  </div>
             </div>
 
-            <div id="fc-tab-expenses" class="fc-tab-content hidden">
-                <div id="total-expenses" class="text-2xl font-bold text-red-700 mb-4">0.00 جنيه</div>
-                <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                    <div class="form-group mb-2">
-    <label for="expense-payment-account" class="block text-gray-700 text-sm font-bold mb-1">خصم من حساب:</label>
-    <select id="expense-payment-account" class="shadow-sm"></select>
-</div>
-                        <label for="add-expense" class="block text-gray-700 text-sm font-bold mb-2">إضافة مصروف:<span class="required">*</span></label>
-                        <input type="number" id="add-expense" value="0" min="0.01" step="0.01" class="shadow-sm">
-                        <button id="add-expense-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded mt-2 w-full">إضافة</button>
-                    </div>
-                    <div>
-                    <div class="form-group mb-2">
-    <label for="expense-refund-account" class="block text-gray-700 text-sm font-bold mb-1">إرجاع المبلغ إلى حساب:</label>
-    <select id="expense-refund-account" class="shadow-sm"></select>
-</div>
-                        <label for="remove-expense" class="block text-gray-700 text-sm font-bold mb-2">تقليل مصروف:<span class="required">*</span></label>
-                        <input type="number" id="remove-expense" value="0" min="0.01" step="0.01" class="shadow-sm">
-                        <button id="remove-expense-button" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded mt-2 w-full">تقليل</button>
-                    </div>
-                </div>
-                <div id="expenses-message" class="section-message mt-3"></div>
+           <div id="fc-tab-expenses" class="fc-tab-content hidden">
+    <div id="total-expenses" class="text-2xl font-bold text-red-700 mb-4">0.00 جنيه</div>
+    
+    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- إضافة مصروف -->
+        <div>
+            <div class="form-group mb-2">
+                <label for="expense-payment-account" class="block text-gray-700 text-sm font-bold mb-1">خصم من حساب:</label>
+                <select id="expense-payment-account" class="shadow-sm"></select>
             </div>
+            <label for="add-expense" class="block text-gray-700 text-sm font-bold mb-2">إضافة مصروف:<span class="required">*</span></label>
+            <input type="number" id="add-expense" value="0" min="0.01" step="0.01" class="shadow-sm">
+            <button id="add-expense-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded mt-2 w-full">إضافة</button>
+        </div>
+
+        <!-- تقليل مصروف -->
+        <div>
+            <div class="form-group mb-2">
+                <label for="expense-refund-account" class="block text-gray-700 text-sm font-bold mb-1">إرجاع المبلغ إلى حساب:</label>
+                <select id="expense-refund-account" class="shadow-sm"></select>
+            </div>
+            <label for="remove-expense" class="block text-gray-700 text-sm font-bold mb-2">تقليل مصروف:<span class="required">*</span></label>
+            <input type="number" id="remove-expense" value="0" min="0.01" step="0.01" class="shadow-sm">
+            <button id="remove-expense-button" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded mt-2 w-full">تقليل</button>
+        </div>
+    </div>
+
+    <div id="expenses-message" class="section-message mt-3"></div>
+</div>
 
             <div id="fc-tab-fixed-liabilities" class="fc-tab-content hidden">
                 <fieldset class="mb-6 pb-4 border-b">
@@ -2059,7 +2064,7 @@ input:checked:active + .slider:before {
                     </div>
                 </div>
             </section>
-            <section id="expenses-report-section" class="widget-card content-section hidden">
+          <section id="expenses-report-section" class="widget-card content-section hidden">
     <h2>تقرير المصروفات الشهرية</h2>
     <p class="text-sm text-gray-600 mb-4">
         اختر الشهر لعرض تقرير مفصل بكل المصروفات، شاملةً سحب السيولة، المصاريف المباشرة، وتكلفة البضاعة المشتراة نقدًا.
@@ -2096,9 +2101,17 @@ input:checked:active + .slider:before {
                 <tbody id="expenses-report-table-body">
                     <tr><td colspan="4" class="text-center text-gray-500 py-4">اختر الشهر واضغط "عرض التقرير".</td></tr>
                 </tbody>
-               
+                
             </table>
         </div>
+    </div>
+
+    <!-- زر تصفير المصروفات (تمت إضافته هنا) -->
+    <div class="mt-8 pt-4 border-t border-dashed border-gray-300 text-center no-print">
+        <button id="reset-expenses-button" class="text-sm bg-red-50 hover:bg-red-100 text-red-600 font-bold py-2 px-6 rounded-full border border-red-200 transition-colors shadow-sm">
+            <i class="fas fa-trash-alt mr-1"></i> تصفير عداد المصروفات (بدء فترة جديدة)
+        </button>
+        <p class="text-xs text-gray-400 mt-2">ملاحظة: هذا الإجراء يجعل "إجمالي المصروفات" صفر، ولا يؤثر على رصيد الخزنة.</p>
     </div>
 </section>
 
@@ -2860,12 +2873,7 @@ async function fetchOnlineDataForDate(dateString) {
 }
         function saveData(key, data){ console.log(`saveData: Saving data for key: ${key}`); try { localStorage.setItem(key, JSON.stringify(data)) } catch(e) { console.error(`Error saving data for key "${key}":`, e); showGlobalMessage("حدث خطأ أثناء حفظ البيانات. قد يكون التخزين ممتلئًا.", true) } }
         function formatCurrency(amount){ const numAmount = Number(amount); return isNaN(numAmount) ? '0.00 جنيه' : `${numAmount.toFixed(2)} جنيه` }
-       /**
- * Searches recursively through an object or array and replaces all 'undefined' values with 'null'.
- * Firebase does not support 'undefined' values.
- * @param {any} obj The object or array to clean.
- * @returns {any} The cleaned object or array.
- */
+      
 function sanitizeDataForFirebase(obj) {
     if (obj === null || typeof obj !== 'object') {
         return obj;
@@ -4213,81 +4221,101 @@ function resetReturnForm() {
     d('return-at-sale-price').checked = false;
     returnSourceData = null; 
 }
-  // =======================================================
-// START: دالة الحفظ النهائية (متصلة بالإنترنت ومكتملة للترحيل)
-// =======================================================
+ 
 async function saveCurrentStateByDate(dateString) {
+    // 1. التحقق من تسجيل الدخول
     if (!window.currentUser) {
         showGlobalMessage("خطأ: يجب تسجيل الدخول للحفظ.", true);
         return;
     }
+    
+    // 2. تجهيز البيانات
     const userId = window.currentUser.uid;
-    console.log(`Saving data to Firebase for date: ${dateString} for user: ${userId}`);
+    console.log(`Saving data to Firebase for date: ${dateString}...`);
+
+    // التأكد من أن المتغيرات لها قيم افتراضية لتجنب الأخطاء
+    const safePendingReturnsValue = (typeof pendingReturnsValue !== 'undefined') ? pendingReturnsValue : 0;
+    const safeBackupIndex = (typeof backupSlotIndex !== 'undefined') ? backupSlotIndex : 0;
 
     const stateToSave = {
         month: dateString.substring(0, 7),
-        products, suppliers, accounts, expenses, debtors, liabilities, monthlyLiabilities,
-        profit: totalProfit, log: operationLog, pendingSales,
-        liquidityLog, salesToday, serialNumbersLog, inboxTasks,
-        purchaseInvoices, pendingPurchases, completedReturns, pendingReturns,
-        pendingReturnsValue,
+        products: products || [],
+        suppliers: suppliers || [],
+        accounts: accounts || [],
+        expenses: expenses || 0,
+        debtors: debtors || [],
+        liabilities: liabilities || [],
+        monthlyLiabilities: monthlyLiabilities || [],
+        profit: totalProfit || 0,
+        log: operationLog || [],
+        pendingSales: pendingSales || [],
+        liquidityLog: liquidityLog || [],
+        salesToday: salesToday || [],
+        serialNumbersLog: serialNumbersLog || [],
+        inboxTasks: inboxTasks || [],
+        purchaseInvoices: purchaseInvoices || [],
+        pendingPurchases: pendingPurchases || [],
+        completedReturns: completedReturns || [],
+        pendingReturns: pendingReturns || [],
+        pendingReturnsValue: safePendingReturnsValue, // القيمة الآمنة
         savedAt: new Date().toISOString(),
         savedForDate: dateString
     };
+
+    // 3. تنظيف البيانات (إزالة undefined)
     const sanitizedState = sanitizeDataForFirebase(stateToSave);
 
     try {
+        // 4. الحفظ في Firebase (مستند اليوم)
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
         await window.setDoc(docRef, sanitizedState);
 
-        // نسخة احتياطية خفيفة على الجهاز (هذا الجزء سليم)
+        // 5. النسخ الاحتياطي المحلي (Local Backup)
         const leanStateToBackup = { ...stateToSave };
+        // حذف السجلات الطويلة لتوفير المساحة محلياً
         delete leanStateToBackup.log;
         delete leanStateToBackup.liquidityLog;
-        delete leanStateToBackup.salesToday;
-        delete leanStateToBackup.purchaseInvoices;
-        const backupKey = `goodsMgmt_backup_${dateString}_slot_${backupSlotIndex}`;
+        delete leanStateToBackup.salesToday; 
+        
+        const backupKey = `goodsMgmt_backup_${dateString}_slot_${safeBackupIndex}`;
         saveData(backupKey, leanStateToBackup);
-        console.log(`Lean emergency backup saved to slot: ${backupSlotIndex}`);
-        backupSlotIndex = (backupSlotIndex + 1) % MAX_BACKUP_SLOTS;
+        
+        // تحديث مؤشر النسخ الاحتياطي بأمان
+        if (typeof backupSlotIndex !== 'undefined') {
+            backupSlotIndex = (backupSlotIndex + 1) % MAX_BACKUP_SLOTS;
+        }
 
-        // --- ✅ بداية الإصلاح الجوهري: إنشاء ملخص كامل وشامل ---
-        // هذا الملخص هو ما سيتم استخدامه لترحيل الأرصدة لليوم التالي
+        // 6. تحديث ملخص الأرصدة (للترحيل المستقبلي)
         const latestBalancesSummary = {
-            // الأرصدة النهائية التي يجب ترحيلها
-            products, 
-            suppliers, 
-            accounts, // <-- ✅ ترحيل نظام الخزائن بالكامل
-            debtors, 
-            liabilities, 
-            monthlyLiabilities, 
-            pendingSales, 
-            serialNumbersLog, 
-            inboxTasks,
-            
-            // --- ✅ الأسطر الجديدة والمهمة التي تضمن ترحيل الأقسام الجديدة ---
-            pendingPurchases,    // <-- ✅ ترحيل المشتريات المعلقة
-            pendingReturns,      // <-- ✅ ترحيل المرتجعات المعلقة
-            pendingReturnsValue, // <-- ✅ ترحيل قيمة المرتجعات المعلقة
-            
-            // بيانات تعريفية للملخص
+            products: products || [],
+            suppliers: suppliers || [],
+            accounts: accounts || [],
+            debtors: debtors || [],
+            liabilities: liabilities || [],
+            monthlyLiabilities: monthlyLiabilities || [],
+            pendingSales: pendingSales || [],
+            serialNumbersLog: serialNumbersLog || [],
+            inboxTasks: inboxTasks || [],
+            pendingPurchases: pendingPurchases || [],
+            pendingReturns: pendingReturns || [],
+            pendingReturnsValue: safePendingReturnsValue,
             summaryForDate: dateString,
             lastUpdated: new Date().toISOString()
         };
-        // --- ✅ نهاية الإصلاح الجوهري ---
 
         const sanitizedSummary = sanitizeDataForFirebase(latestBalancesSummary);
         const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
         await window.setDoc(summaryDocRef, sanitizedSummary);
-        console.log(`Successfully updated latestBalances summary from date: ${dateString}`);
 
+        // 7. إنهاء العملية
+        console.log("Save successful.");
         currentLoadedDate = dateString;
-        updateUI();
-        showGlobalMessage(`تم حفظ البيانات بنجاح على الإنترنت لتاريخ: ${formatDateForDisplay(dateString)}`, false);
+        updateUI(); // تحديث الواجهة للتأكد من تطابق البيانات
+        showGlobalMessage(`تم حفظ البيانات بنجاح لتاريخ: ${formatDateForDisplay(dateString)}`, false);
 
     } catch (error) {
-        console.error("Error saving data to Firebase: ", error);
-        showGlobalMessage("حدث خطأ أثناء محاولة حفظ البيانات على الإنترنت.", true);
+        console.error("Error saving data:", error);
+        showGlobalMessage(`حدث خطأ أثناء الحفظ: ${error.message}`, true);
     }
 }
 function openBackupHistoryModal() {
@@ -7771,15 +7799,12 @@ function handleIncomeAddition() {
     return true;
 }
 
-/**
- * Handles the logic for adding an expense from a specified account.
- * @returns {boolean} True on success, false on failure.
- */
 function handleExpenseAddition() {
     const accountId = d('expense-safe-select').value;
     const category = d('expense-category-select').value;
     const amount = parseInputNumber(d('expense-amount-input'));
 
+    // 1. التحقق من المدخلات
     if (!accountId || isNaN(amount) || amount <= 0) {
         alert("يرجى اختيار حساب وإدخال مبلغ مصروف صحيح.");
         return false;
@@ -7791,17 +7816,40 @@ function handleExpenseAddition() {
         return false;
     }
 
+    // 2. التحقق من الرصيد
     if (amount > account.balance) {
         alert(`لا يوجد رصيد كافٍ في حساب "${account.name}". الرصيد المتاح: ${formatCurrency(account.balance)}.`);
         return false;
     }
     
     saveStateToHistory();
+    
+    // 3. التنفيذ
+    
+    // أ) خصم من الخزنة
     account.balance -= amount;
-    logOperation("صرف مصروف", `صرف ${formatCurrency(amount)} من حساب "${account.name}" تحت فئة "${category}".`);
+
+    // ب) زيادة إجمالي المصروفات العام
+    expenses += amount;
+
+    // ج) تسجيل الحركة في سجل السيولة (يظهر في حركة الخزينة)
+    const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+    liquidityLog.push({
+        id: `liq-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        type: "remove", // نوع remove عشان يظهر باللون الأحمر كسحب
+        amount: amount,
+        description: `صرف مصروف (${category}) من حساب "${account.name}"`,
+        currentBalance: newTotalLiquidity,
+        accountId: accountId
+    });
+
+    // د) [تعديل هام] توحيد صيغة السجل لتظهر في تقرير المصروفات
+    // تم تغيير النوع إلى "تسجيل مصروف" وإضافة كلمة "بقيمة" ليتمكن التقرير من قراءتها
+    logOperation("تسجيل مصروف", `بقيمة ${formatCurrency(amount)} - صرف من حساب "${account.name}" (فئة: ${category}).`);
+    
     return true;
 }
-
 /**
  * Handles the logic for transferring money between two accounts.
  * @returns {boolean} True on success, false on failure.
@@ -8087,6 +8135,7 @@ inventoryCategoryFilter = d('inventory-category-filter');
                  totalExpensesDisplay = d("total-expenses");
                  addExpenseInput = d("add-expense");
                  addExpenseButton = d("add-expense-button");
+                
                  removeExpenseInput = d("remove-expense");
                  removeExpenseButton = d("remove-expense-button");
                  expensesMessage = d("expenses-message");
@@ -8224,6 +8273,7 @@ inventoryCategoryFilter = d('inventory-category-filter');
         inv_itemNameInput.addEventListener('change', checkInvoiceSerialRequirement);
         inv_itemQtyInput.addEventListener('input', checkInvoiceSerialRequirement);
     }
+    
            // **** إسناد عناصر نافذة إدارة السيريالات ****
                  manageSerialsModal = d('manageSerialsModal');
                  modal_productNameDisplay = d('modal_productNameDisplay');
@@ -8351,9 +8401,42 @@ if (fc_main_tabs) {
 
 if (d('undo-button')) { d('undo-button').addEventListener('click', undo); }
 if (d('redo-button')) { d('redo-button').addEventListener('click', redo); }
-                 if (saveButtonAlt) { saveButtonAlt.addEventListener("click", async () => { const loadedDate = currentLoadedDate; const todayString = getTodayDateString(); const targetDate = loadedDate || todayString; const storageKey = lsPrefix + targetDate; const existingData = localStorage.getItem(storageKey); let proceed = true; let confirmMsg = `هل تريد حفظ التغييرات لتاريخ ${formatDateForDisplay(targetDate)}؟`; if (existingData) { if(loadedDate === targetDate) { confirmMsg += `\n(سيتم الكتابة فوق البيانات المحفوظة الحالية لهذا اليوم)`; } else { confirmMsg = `أنت تعرض بيانات تاريخ ${formatDateForDisplay(loadedDate)}. هل تريد حفظ التغييرات الحالية فوق بيانات اليوم ${formatDateForDisplay(targetDate)}؟`; } } // Always confirm if saving over existing or saving to a different date
-                      proceed = confirm(confirmMsg); if (proceed) { saveCurrentStateByDate(targetDate); } else { console.log("Save cancelled by user."); } }); }
-                 if (loadDataButtonAlt) { loadDataButtonAlt.addEventListener("click", async () => { const dateToLoad = loadDateInputAlt ? loadDateInputAlt.value : null; const loadResult = loadDataForDate(dateToLoad); if(loadResult) updateUI(); }); } // Update UI only if loadDataForDate indicates a change happened
+               if (saveButtonAlt) {
+    saveButtonAlt.addEventListener("click", async () => {
+        // تحديد التاريخ المستهدف
+        const todayString = getTodayDateString();
+        const targetDate = currentLoadedDate || todayString;
+        
+        // رسالة التأكيد
+        let confirmMsg = `هل تريد حفظ التغييرات لتاريخ ${formatDateForDisplay(targetDate)}؟`;
+        
+        // التحقق من وجود بيانات سابقة محلياً (اختياري للتحذير)
+        if (typeof lsPrefix !== 'undefined') {
+            const storageKey = lsPrefix + targetDate;
+            if (localStorage.getItem(storageKey)) {
+                if (currentLoadedDate === targetDate) {
+                    confirmMsg += `\n(سيتم تحديث البيانات الحالية)`;
+                } else {
+                    confirmMsg = `أنت تعرض بيانات يوم ${formatDateForDisplay(currentLoadedDate)}. هل تريد الحفظ فوق بيانات يوم ${formatDateForDisplay(targetDate)}؟`;
+                }
+            }
+        }
+
+        if (confirm(confirmMsg)) {
+            // تغيير نص الزر ليدل على التحميل
+            const originalText = saveButtonAlt.textContent;
+            saveButtonAlt.textContent = "جاري الحفظ...";
+            saveButtonAlt.disabled = true;
+            
+            await saveCurrentStateByDate(targetDate);
+            
+            // إعادة الزر لحالته الطبيعية
+            saveButtonAlt.textContent = originalText;
+            saveButtonAlt.disabled = false;
+        }
+    });
+}
+  if (loadDataButtonAlt) { loadDataButtonAlt.addEventListener("click", async () => { const dateToLoad = loadDateInputAlt ? loadDateInputAlt.value : null; const loadResult = loadDataForDate(dateToLoad); if(loadResult) updateUI(); }); } // Update UI only if loadDataForDate indicates a change happened
                  if (loadDateInputAlt) { loadDateInputAlt.addEventListener('change', (e) => { const dateValue = e.target.value; updateLoadDateDayName(dateValue, loadDateDayNameDisplayAlt); }); }
                  if (clearLogButton) { clearLogButton.addEventListener("click", () => { if (confirm("هل أنت متأكد من رغبتك في مسح سجل عمليات اليوم الحالي المعروض؟ لن يتم حفظ هذا التغيير إلا بالضغط على زر الحفظ.")) { operationLog = []; updateLogDisplay(); showGlobalMessage("تم مسح سجل اليوم الحالي من العرض. اضغط 'حفظ' لتثبيت التغيير.", false, true); } }); }
                 // 🎯🎯🎯 الكود المعدل للزر الأحمر 🎯🎯🎯
@@ -8390,11 +8473,8 @@ if (addProductButton) {
         const supplierId = productSupplierSelect.value;
         const category = productCategoryInput.value.trim();
         const deductLiquidity = productDeductLiquidityCheckbox.checked;
-
-        // --- ✅ كود جديد يبدأ هنا ---
         const selectedAccountId = d('product-purchase-account').value;
-        // --- ✅ كود جديد ينتهي هنا ---
-
+        const account = accounts.find(acc => acc.id === selectedAccountId);
         const serialNumbersInput = productSerialNumbersTextarea ? productSerialNumbersTextarea.value.trim() : '';
 
         if (!name || isNaN(quantity) || quantity < 0 || isNaN(costPrice) || costPrice < 0) {
@@ -8402,25 +8482,17 @@ if (addProductButton) {
             return;
         }
 
-        // --- ✅ كود جديد يبدأ هنا ---
-        // التحقق من اختيار الحساب إذا كان الخصم مفعلاً
         if (deductLiquidity && !selectedAccountId) {
             showMessage(productMessage, "يرجى اختيار الحساب الذي سيتم الخصم منه.", true);
             return;
         }
-        const account = accounts.find(acc => acc.id === selectedAccountId);
-        // --- ✅ كود جديد ينتهي هنا ---
-
 
         if (editingProductName) {
-            // ... (كود التعديل هنا لا يتغير كثيرًا، سنركز على الإضافة الآن)
-            // ... يمكنك تطبيق نفس منطق الخصم من الحساب المحدد هنا لاحقًا ...
+            // منطق التعديل
             const productIndex = products.findIndex(p => p.name === editingProductName);
-            if (productIndex === -1) { /* ... */ return; }
-            const newNameExistsIndex = products.findIndex(p => p.name.toLowerCase() === name.toLowerCase() && p.name !== editingProductName);
-            if (newNameExistsIndex !== -1) { /* ... */ return; }
+            if (productIndex === -1) return;
             
-            // تحديث بيانات المنتج
+            // ... (باقي منطق التعديل كما هو) ...
             products[productIndex].name = name;
             products[productIndex].category = category;
             products[productIndex].quantity = quantity;
@@ -8430,27 +8502,26 @@ if (addProductButton) {
             resetProductForm();
 
         } else {
+            // منطق الإضافة الجديدة
             const existingIndex = products.findIndex(p => p.name.toLowerCase() === name.toLowerCase());
             let newQuantity = Number(quantity);
-            // ... (كود التعامل مع السيريالات يبقى كما هو) ...
+            const newCostPriceInput = Number(costPrice);
 
             if (existingIndex !== -1) {
-                if (newQuantity <= 0) { showMessage(productMessage, "الكمية المضافة يجب أن تكون أكبر من صفر.", true); return; }
-                const existing = products[existingIndex];
-                const newCostPriceInput = Number(costPrice);
-                
-                // --- ✅ تعديل منطق الخصم ---
-                if (deductLiquidity && newQuantity > 0) {
+                 // منتج موجود مسبقاً
+                 if (newQuantity <= 0) { showMessage(productMessage, "الكمية المضافة يجب أن تكون أكبر من صفر.", true); return; }
+                 const existing = products[existingIndex];
+                 
+                 if (deductLiquidity && newQuantity > 0) {
                     const costToDeduct = newQuantity * newCostPriceInput;
                     if (costToDeduct > account.balance) {
-                        showMessage(productMessage, `لا توجد سيولة كافية في حساب "${account.name}" (${formatCurrency(account.balance)}).`, true);
+                        showMessage(productMessage, `لا توجد سيولة كافية في حساب "${account.name}".`, true);
                         return;
                     }
-                    account.balance -= costToDeduct; // الخصم من الحساب المحدد
+                    account.balance -= costToDeduct;
                     logOperation("شراء بضاعة", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء ${newQuantity}x ${name}.`);
                 }
-                
-                // ... (باقي كود حساب المتوسط وتحديث المنتج يبقى كما هو) ...
+
                 const oldQuantity = Number(existing.quantity) || 0;
                 const oldCostPrice = Number(existing.costPrice) || 0;
                 const totalQuantity = oldQuantity + newQuantity;
@@ -8461,21 +8532,20 @@ if (addProductButton) {
                 showMessage(productMessage, `تم تحديث المنتج "${name}".`);
 
             } else {
+                // منتج جديد كلياً
                 if (newQuantity <= 0) { showMessage(productMessage, "كمية المنتج الجديد يجب أن تكون أكبر من صفر.", true); return; }
-                
-                // --- ✅ تعديل منطق الخصم ---
+
                 if (deductLiquidity && newQuantity > 0) {
                     const costToDeduct = newQuantity * costPrice;
                     if (costToDeduct > account.balance) {
-                        showMessage(productMessage, `لا توجد سيولة كافية في حساب "${account.name}" (${formatCurrency(account.balance)}).`, true);
+                        showMessage(productMessage, `لا توجد سيولة كافية في حساب "${account.name}".`, true);
                         return;
                     }
-                    account.balance -= costToDeduct; // الخصم من الحساب المحدد
-                     logOperation("شراء بضاعة جديدة", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء ${newQuantity}x ${name}.`);
+                    account.balance -= costToDeduct;
+                    logOperation("شراء بضاعة جديدة", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء ${newQuantity}x ${name}.`);
                 }
 
                 products.push({ name, quantity: newQuantity, costPrice, supplierId: supplierId || "", category: category });
-
                 showMessage(productMessage, "تمت إضافة المنتج الجديد بنجاح.");
             }
             resetProductForm();
@@ -8484,6 +8554,53 @@ if (addProductButton) {
     });
 }
 
+// 2. ✅ كود زر تصفير المصروفات (باسم متغير جديد لتفادي الأخطاء)
+// ✅ كود زر تصفير المصروفات (الإصدار النهائي والشامل)
+// هذا الكود يقوم بتصفير العداد + مسح سجلات المصروفات لضمان تنظيف التقرير
+
+const btnResetExpenses = document.getElementById("reset-expenses-button");
+
+if (btnResetExpenses) {
+    btnResetExpenses.addEventListener("click", () => {
+        
+        // رسالة تأكيد تشرح ماذا سيحدث
+        if (confirm(`تحذير: سيتم تصفير عداد المصروفات ومسح جميع سجلات المصروفات لهذا اليوم من التقرير.\n\nهل أنت متأكد؟`)) {
+            
+            saveStateToHistory(); // حفظ الحالة للتراجع
+            
+            const oldExpenses = expenses;
+            
+            // 1. تصفير العداد الرقمي
+            expenses = 0;
+            
+            // 2. تنظيف السجلات (هذا هو الحل لمشكلة الـ 1000 التي لا تختفي)
+            // نقوم بفلترة السجل وحذف أي عملية نوعها "تسجيل مصروف" أو "صرف مصروف"
+            if (typeof operationLog !== 'undefined') {
+                operationLog = operationLog.filter(log => log.type !== "تسجيل مصروف" && log.type !== "صرف مصروف");
+            }
+            
+            // 3. (اختياري) تنظيف سجل الخزينة أيضاً من المصروفات ليكون متطابقاً
+            if (typeof liquidityLog !== 'undefined') {
+                 liquidityLog = liquidityLog.filter(log => !log.description.includes("صرف مصروف") && !log.description.includes("تسجيل مصروف"));
+            }
+
+            // تسجيل عملية التصفير
+            logOperation("تصفير شامل للمصروفات", `تم تصفير العداد وتنظيف سجلات المصروفات يدوياً (تم حذف ما قيمته تقريباً ${formatCurrency(oldExpenses || 0)}).`);
+            
+            updateUI(); // تحديث الواجهة
+            
+            // رسالة النجاح
+            const reportMsg = document.getElementById('exp-report-message');
+            if (reportMsg) {
+                showMessage(reportMsg, "تم تصفير المصروفات وتنظيف التقرير بنجاح. اضغط 'حفظ التغييرات' لتثبيت الحذف.", false);
+            } else {
+                alert("تم تصفير المصروفات وتنظيف السجلات بنجاح.\nمهم: اضغط 'حفظ التغييرات' الآن ليتم حذفها من قاعدة البيانات.");
+            }
+        }
+    });
+} else {
+    console.log("ملاحظة: زر تصفير المصروفات لم يتم العثور عليه.");
+}
 // أضف هذا الكود أيضًا لإظهار وإخفاء قائمة الحسابات
 if (productDeductLiquidityCheckbox) {
     productDeductLiquidityCheckbox.addEventListener('change', (e) => {
@@ -8907,10 +9024,7 @@ function updatePendingSale(pendingId) {
                // استبدل هذا الكود بالكامل داخل دالة initializeApp
 if (addExpenseButton) {
     addExpenseButton.addEventListener("click", () => {
-        saveStateToHistory();
         const amount = parseInputNumber(addExpenseInput);
-        
-        // --- ✅ كود جديد: قراءة الحساب المحدد ---
         const selectedAccountId = d('expense-payment-account').value;
         const account = accounts.find(acc => acc.id === selectedAccountId);
 
@@ -8919,37 +9033,45 @@ if (addExpenseButton) {
             return;
         }
 
-        // --- ✅ كود جديد: التحقق من الحساب والرصيد ---
         if (!account) {
             showMessage(expensesMessage, "يرجى اختيار حساب لخصم المصروف منه.", true);
             return;
         }
+
         if (amount > account.balance) {
             showMessage(expensesMessage, `مبلغ المصروف (${formatCurrency(amount)}) أكبر من رصيد حساب "${account.name}" (${formatCurrency(account.balance)}).`, true);
             return;
         }
         
+        saveStateToHistory();
+
+        // تنفيذ العمليات
         expenses += amount;
-        
-        // --- ✅ كود جديد: الخصم من الحساب المحدد ---
         account.balance -= amount;
         
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+        
+        liquidityLog.push({ 
+            id: `liq-${Date.now()}`, 
+            timestamp: new Date().toISOString(), 
+            type: "remove", 
+            amount: amount, 
+            description: `تسجيل مصروف من حساب "${account.name}"`, 
+            currentBalance: newTotalLiquidity,
+            accountId: selectedAccountId
+        });
+        
         logOperation("تسجيل مصروف", `تسجيل مصروف بقيمة ${formatCurrency(amount)}. تم خصمه من حساب "${account.name}".`);
-        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "remove", amount: amount, description: `مصروف (${formatCurrency(amount)}) من حساب "${account.name}"`, currentBalance: newTotalLiquidity });
         
         updateUI();
         addExpenseInput.value = "0";
-        showMessage(expensesMessage, `تم تسجيل مصروف ${formatCurrency(amount)}.`);
+        showMessage(expensesMessage, `تم تسجيل مصروف ${formatCurrency(amount)} بنجاح.`);
     });
 }
                // استبدل هذا الكود بالكامل داخل دالة initializeApp
 if (removeExpenseButton) {
     removeExpenseButton.addEventListener("click", () => {
-        saveStateToHistory();
         const amount = parseInputNumber(removeExpenseInput);
-
-        // --- ✅ كود جديد: قراءة الحساب المحدد ---
         const selectedAccountId = d('expense-refund-account').value;
         const account = accounts.find(acc => acc.id === selectedAccountId);
         
@@ -8958,7 +9080,6 @@ if (removeExpenseButton) {
             return;
         }
 
-        // --- ✅ كود جديد: التحقق من اختيار الحساب ---
         if (!account) {
             showMessage(expensesMessage, "يرجى اختيار حساب لإرجاع المبلغ إليه.", true);
             return;
@@ -8969,20 +9090,32 @@ if (removeExpenseButton) {
             return;
         }
 
+        saveStateToHistory();
+
+        // تنفيذ العمليات (عكس الإضافة)
         expenses -= amount;
-        
-        // --- ✅ كود جديد: الإضافة إلى الحساب المحدد ---
         account.balance += amount;
 
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+        
+        liquidityLog.push({ 
+            id: `liq-${Date.now()}`, 
+            timestamp: new Date().toISOString(), 
+            type: "add", 
+            amount: amount, 
+            description: `إلغاء/تقليل مصروف (استرداد) إلى حساب "${account.name}"`, 
+            currentBalance: newTotalLiquidity,
+            accountId: selectedAccountId
+        });
+
         logOperation("تقليل مصروف", `تقليل المصروفات بقيمة ${formatCurrency(amount)}. تم إرجاعه لحساب "${account.name}".`);
-        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: amount, description: `إلغاء/تقليل مصروف إلى حساب "${account.name}"`, currentBalance: newTotalLiquidity });
 
         updateUI();
         removeExpenseInput.value = "0";
         showMessage(expensesMessage, `تم تقليل المصروفات بمقدار ${formatCurrency(amount)}.`);
     });
 }
+
 if (addDebtButton) {
     addDebtButton.addEventListener("click", () => {
         saveStateToHistory();
