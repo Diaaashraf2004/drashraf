@@ -5957,98 +5957,131 @@ function parseAmountFromLogDetails(details) {
     }
     return 0; // إذا لم تجد مبلغًا، ترجع صفرًا
 }
-
-// الدالة الرئيسية لإنشاء التقرير
 // =======================================================
-// START: دالة تقرير المصروفات (النسخة المعدلة والمبسطة)
-// =======================================================
-
-// (دالة parseAmountFromLogDetails تبقى كما هي بدون تغيير)
-function parseAmountFromLogDetails(details) {
-    const match = details.match(/(?:بقيمة|سحب|خصم)\s*([\d\.,]+)/);
-    if (match && match[1]) {
-        return parseFloat(match[1].replace(/,/g, ''));
-    }
-    return 0;
-}
-
-// =======================================================
-// START: دالة تقرير المصروفات (النسخة النهائية فائقة السرعة والآمنة)
+// START: دالة تقرير المصروفات (تعتمد على السجل النصي فقط)
 // =======================================================
 async function generateExpensesReport() {
-    const monthInput = d('exp-report-month-year');
-    const messageEl = d('exp-report-message');
-    const tableBody = d('expenses-report-table-body');
-    const summaryContainer = d('exp-report-summary-container');
-    const summaryTotalEl = d('exp-report-summary-total');
+    const monthInput = document.getElementById('exp-report-month-year');
+    const messageEl = document.getElementById('exp-report-message');
+    const tableBody = document.getElementById('expenses-report-table-body');
+    const summaryContainer = document.getElementById('exp-report-summary-container');
+    const summaryTotalEl = document.getElementById('exp-report-summary-total');
 
     if (!monthInput || !messageEl || !tableBody || !summaryTotalEl || !summaryContainer) return;
 
     const yearMonth = monthInput.value;
     if (!yearMonth) {
-        showMessage(messageEl, "يرجى اختيار الشهر والسنة.", true);
+        if(typeof showMessage === 'function') showMessage(messageEl, "يرجى اختيار الشهر والسنة.", true);
         return;
     }
 
-    showMessage(messageEl, `جاري تحميل وتنسيق المصروفات لشهر ${yearMonth}...`, false, true);
+    if(typeof showMessage === 'function') showMessage(messageEl, `جاري تحليل سجلات المصروفات لشهر ${yearMonth}...`, false, true);
+    
     summaryContainer.classList.add('hidden');
     tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">جاري التحميل...</td></tr>`;
 
-    const datesInMonth = getMonthStartDateEndDate(yearMonth);
+    // دالة مساعدة لتوليد تواريخ الشهر
+    const getDates = (ym) => {
+        const [y, m] = ym.split('-');
+        const date = new Date(y, m - 1, 1);
+        const dates = [];
+        while (date.getMonth() === m - 1) {
+            dates.push(new Date(date).toISOString().split('T')[0]);
+            date.setDate(date.getDate() + 1);
+        }
+        return dates;
+    };
+
+    // دالة لاستخراج المبلغ من النص (محسنة جداً)
+    const extractAmountFromText = (text) => {
+        if (!text || typeof text !== 'string') return 0;
+        
+        // 1. تنظيف النص من العملة لتسهيل البحث
+        let cleanText = text.replace('جنيه', '').replace('EGP', '');
+        
+        // 2. البحث عن الأنماط الشائعة (بقيمة 500، سحب 500، خصم 500)
+        // يبحث عن كلمة مفتاحية متبوعة برقم (قد يحتوي على فواصل أو نقاط عشرية)
+        const regex = /(?:بقيمة|سحب|خصم|مبلغ|بدفع)\s*([\d,]+(?:\.\d+)?)/;
+        const match = cleanText.match(regex);
+        
+        if (match && match[1]) {
+            // إزالة الفواصل (,) لتحويلها لرقم صحيح
+            return parseFloat(match[1].replace(/,/g, ''));
+        }
+        
+        // 3. محاولة أخيرة: البحث عن أي رقم كبير في بداية النص إذا لم نجد الكلمات المفتاحية
+        // (مفيد في حال كان الوصف يبدأ بالرقم مباشرة مثل "500 مصروفات")
+        const startNumberMatch = cleanText.match(/^([\d,]+(?:\.\d+)?)/);
+        if (startNumberMatch && startNumberMatch[1]) {
+             return parseFloat(startNumberMatch[1].replace(/,/g, ''));
+        }
+
+        return 0;
+    };
+
+    const datesInMonth = getDates(yearMonth);
     let allExpenses = [];
 
     try {
-        const fetchPromises = datesInMonth.map(dateStr => fetchOnlineDataForDate(dateStr));
+        // جلب البيانات
+        const fetchPromises = datesInMonth.map(dateStr => {
+            if (typeof fetchOnlineDataForDate === 'function') return fetchOnlineDataForDate(dateStr);
+            return null;
+        });
+        
         const allDaysData = await Promise.all(fetchPromises);
         
-        allDaysData.forEach((dayData, index) => {
-            if (dayData && Array.isArray(dayData.log)) {
-                const dateStr = datesInMonth[index];
-                dayData.log.forEach(log => {
-                    
-                    // ★★★ بداية الكود الجديد للإصلاح ★★★
-                    // نتأكد أن 'log' هو كائن ويحتوي على خاصية 'details' قبل المتابعة
-                    if (typeof log !== 'object' || !log.details) {
-                        return; // تجاهل هذا الإدخال في السجل لأنه ليس بصيغة المصروفات
-                    }
-                    // ★★★ نهاية الكود الجديد للإصلاح ★★★
+        console.log("--- بدء تحليل المصروفات ---");
 
-                    let expense = null;
-                    const amount = parseAmountFromLogDetails(log.details);
-                    if (amount > 0) {
-                        let cleanDetails = log.details;
-                        if (log.type === "تسجيل مصروف") {
-                            cleanDetails = log.details.replace(/بقيمة.*$/, '').trim();
-                            expense = { date: dateStr, type: "مصروف مباشر", details: cleanDetails, amount: amount };
-                        } else if (log.type === "سحب سيولة") {
-                            const reasonMatch = log.details.match(/بسبب "([^"]+)"/);
-                            cleanDetails = reasonMatch ? reasonMatch[1] : log.details;
-                            expense = { date: dateStr, type: "سحب سيولة", details: cleanDetails, amount: amount };
+        allDaysData.forEach((dayData, index) => {
+            const dateStr = datesInMonth[index];
+            if (dayData && Array.isArray(dayData.log)) {
+                
+                dayData.log.forEach(log => {
+                    // التحقق من أن السجل هو مصروف
+                    // الشروط: النوع يحتوي على كلمة "مصروف" أو "سحب" أو التفاصيل تحتوي عليها
+                    const isExpenseType = ["تسجيل مصروف", "سحب سيولة", "صرف مصروف", "مصروف مباشر"].includes(log.type);
+                    const isExpenseDetails = log.details && (log.details.includes("مصروف") || log.details.includes("سحب"));
+
+                    if (isExpenseType || isExpenseDetails) {
+                        const amount = extractAmountFromText(log.details);
+                        
+                        // إضافة للتقرير فقط إذا كان المبلغ أكبر من صفر
+                        if (amount > 0) {
+                            console.log(`تم رصد مصروف يوم ${dateStr}: ${amount} - ${log.details}`);
+                            allExpenses.push({
+                                date: dateStr,
+                                type: log.type || "مصروف",
+                                details: log.details,
+                                amount: amount
+                            });
+                        } else {
+                            console.warn(`تم تجاهل سجل يوم ${dateStr} لعدم القدرة على استخراج المبلغ: ${log.details}`);
                         }
-                    }
-                    if (expense) {
-                        allExpenses.push(expense);
                     }
                 });
             }
         });
+        console.log("--- انتهاء التحليل ---");
 
     } catch (error) {
-        console.error("Error fetching expenses data in parallel:", error);
-        showMessage(messageEl, "حدث خطأ أثناء جلب البيانات.", true);
+        console.error("Error fetching expenses:", error);
+        if(typeof showMessage === 'function') showMessage(messageEl, "حدث خطأ أثناء جلب البيانات.", true);
         return;
     }
 
-    // (باقي كود عرض النتائج يبقى كما هو بدون تغيير)
+    // عرض النتائج
     tableBody.innerHTML = '';
+    
     if (allExpenses.length === 0) {
-        showMessage(messageEl, `لا توجد مصروفات مسجلة للشهر المحدد.`, false, true);
+        if(typeof showMessage === 'function') showMessage(messageEl, `لا توجد مصروفات مسجلة (بالنص) لهذا الشهر.`, false, true);
         tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">لا توجد نتائج.</td></tr>`;
-        summaryTotalEl.textContent = formatCurrency(0);
+        summaryTotalEl.textContent = "0.00 جنيه";
         summaryContainer.classList.remove('hidden');
         return;
     }
 
+    // تجميع وترتيب
     const groupedExpenses = allExpenses.reduce((acc, exp) => {
         const date = exp.date;
         if (!acc[date]) { acc[date] = []; }
@@ -6057,12 +6090,14 @@ async function generateExpensesReport() {
     }, {});
 
     const sortedDates = Object.keys(groupedExpenses).sort((a, b) => new Date(a) - new Date(b));
-    
     let totalAmount = 0;
+    
+    const fmtCurr = (num) => typeof formatCurrency === 'function' ? formatCurrency(num) : `${Number(num).toFixed(2)} جنيه`;
+
     sortedDates.forEach(date => {
         const dateHeaderRow = tableBody.insertRow();
         dateHeaderRow.className = 'date-group-header';
-        dateHeaderRow.innerHTML = `<td colspan="4">${formatDateForDisplay(date)}</td>`;
+        dateHeaderRow.innerHTML = `<td colspan="4">${date}</td>`;
 
         const expensesForDay = groupedExpenses[date];
         expensesForDay.forEach(exp => {
@@ -6073,17 +6108,15 @@ async function generateExpensesReport() {
                 <td></td>
                 <td>${exp.type}</td>
                 <td>${exp.details}</td>
-                <td class="text-center font-mono">${formatCurrency(exp.amount)}</td>
+                <td class="text-center font-mono" style="color:#dc2626;">-${fmtCurr(exp.amount)}</td>
             `;
         });
     });
 
-    summaryTotalEl.textContent = formatCurrency(totalAmount);
+    summaryTotalEl.textContent = fmtCurr(totalAmount);
     summaryContainer.classList.remove('hidden');
-    showMessage(messageEl, `تم عرض ${allExpenses.length} عملية مصروف.`, false);
+    if(typeof showMessage === 'function') showMessage(messageEl, `تم عرض ${allExpenses.length} عملية مصروف.`, false);
 }
-
-// =======================================================
 async function generateMonthlySalesReport() {
     if (!reportMonthYearInput || !reportMessage || !window.currentUser) return;
     currentMonthlySalesData = [];
@@ -8553,53 +8586,69 @@ if (addProductButton) {
         updateUI();
     });
 }
-
-// 2. ✅ كود زر تصفير المصروفات (باسم متغير جديد لتفادي الأخطاء)
-// ✅ كود زر تصفير المصروفات (الإصدار النهائي والشامل)
-// هذا الكود يقوم بتصفير العداد + مسح سجلات المصروفات لضمان تنظيف التقرير
-
 const btnResetExpenses = document.getElementById("reset-expenses-button");
 
 if (btnResetExpenses) {
     btnResetExpenses.addEventListener("click", () => {
         
-        // رسالة تأكيد تشرح ماذا سيحدث
-        if (confirm(`تحذير: سيتم تصفير عداد المصروفات ومسح جميع سجلات المصروفات لهذا اليوم من التقرير.\n\nهل أنت متأكد؟`)) {
+        if (confirm(`تحذير: سيتم تصفير عداد المصروفات ومسح جميع سجلات المصروفات لهذا اليوم من الذاكرة المؤقتة.\n\nهل أنت متأكد؟`)) {
             
-            saveStateToHistory(); // حفظ الحالة للتراجع
+            // 1. حفظ نسخة للتراجع
+            saveStateToHistory(); 
             
             const oldExpenses = expenses;
             
-            // 1. تصفير العداد الرقمي
+            // 2. تصفير المتغير الأساسي (الذاكرة)
             expenses = 0;
             
-            // 2. تنظيف السجلات (هذا هو الحل لمشكلة الـ 1000 التي لا تختفي)
-            // نقوم بفلترة السجل وحذف أي عملية نوعها "تسجيل مصروف" أو "صرف مصروف"
+            // 3. تنظيف سجل العمليات (ذاكرة السجل النصي)
+            // نستخدم دالة includes لحذف أي نوع يحتوي على كلمة "مصروف" أو "سحب" لضمان الشمولية
             if (typeof operationLog !== 'undefined') {
-                operationLog = operationLog.filter(log => log.type !== "تسجيل مصروف" && log.type !== "صرف مصروف");
+                operationLog = operationLog.filter(log => {
+                    const type = (log.type || "").toString();
+                    return !type.includes("مصروف") && !type.includes("سحب");
+                });
             }
             
-            // 3. (اختياري) تنظيف سجل الخزينة أيضاً من المصروفات ليكون متطابقاً
+            // 4. تنظيف سجل السيولة (ذاكرة السجل المالي)
             if (typeof liquidityLog !== 'undefined') {
-                 liquidityLog = liquidityLog.filter(log => !log.description.includes("صرف مصروف") && !log.description.includes("تسجيل مصروف"));
+                 liquidityLog = liquidityLog.filter(log => {
+                     const desc = (log.description || "").toString();
+                     return !desc.includes("صرف مصروف") && !desc.includes("تسجيل مصروف") && !desc.includes("سحب");
+                 });
             }
 
-            // تسجيل عملية التصفير
-            logOperation("تصفير شامل للمصروفات", `تم تصفير العداد وتنظيف سجلات المصروفات يدوياً (تم حذف ما قيمته تقريباً ${formatCurrency(oldExpenses || 0)}).`);
+            // 5. تسجيل عملية التصفير (للتوثيق فقط)
+            logOperation("تصفير شامل", `تم تصفير العداد يدوياً (كان ${formatCurrency(oldExpenses)}).`);
             
-            updateUI(); // تحديث الواجهة
+            // 6. === الخطوة الحاسمة: إجبار الواجهة على التحديث فوراً ===
+            // نحدث النص مباشرة دون انتظار updateUI
+            if (typeof totalExpensesDisplay !== 'undefined' && totalExpensesDisplay) {
+                totalExpensesDisplay.textContent = formatCurrency(0);
+            }
             
-            // رسالة النجاح
+            // إذا كان جدول تقرير المصروفات مفتوحاً، نقوم بمسحه فوراً ليعكس التصفير
+            const reportTableBody = document.getElementById('expenses-report-table-body');
+            const reportSummary = document.getElementById('exp-report-summary-total');
+            if (reportTableBody) {
+                reportTableBody.innerHTML = '<tr><td colspan="4" class="text-center text-gray-500 py-4">تم تصفير العداد. اضغط "عرض التقرير" مجدداً بعد الحفظ.</td></tr>';
+            }
+            if (reportSummary) {
+                reportSummary.textContent = formatCurrency(0);
+            }
+
+            // 7. تحديث باقي الواجهة
+            updateUI(); 
+            
+            // رسالة تأكيد
             const reportMsg = document.getElementById('exp-report-message');
             if (reportMsg) {
-                showMessage(reportMsg, "تم تصفير المصروفات وتنظيف التقرير بنجاح. اضغط 'حفظ التغييرات' لتثبيت الحذف.", false);
+                showMessage(reportMsg, "تم التصفير فوراً. اضغط 'حفظ التغييرات' لتثبيت الحذف في قاعدة البيانات.", false);
             } else {
-                alert("تم تصفير المصروفات وتنظيف السجلات بنجاح.\nمهم: اضغط 'حفظ التغييرات' الآن ليتم حذفها من قاعدة البيانات.");
+                alert("تم التصفير فوراً.\nتنبيه: اضغط 'حفظ التغييرات' لتثبيت هذا التغيير في قاعدة البيانات.");
             }
         }
     });
-} else {
-    console.log("ملاحظة: زر تصفير المصروفات لم يتم العثور عليه.");
 }
 // أضف هذا الكود أيضًا لإظهار وإخفاء قائمة الحسابات
 if (productDeductLiquidityCheckbox) {
