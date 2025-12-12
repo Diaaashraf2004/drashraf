@@ -3869,8 +3869,6 @@ renderLiabilityPaymentList();
         } 
     }
 }
-// START: دالة تحويل بيع مؤقت إلى مرتجع (النسخة النهائية)
-// =======================================================
 function initiateReturnFromPendingSale(pendingId) {
     const saleIndex = pendingSales.findIndex(s => s.id === pendingId);
     if (saleIndex === -1) {
@@ -3884,7 +3882,7 @@ function initiateReturnFromPendingSale(pendingId) {
     
     saveStateToHistory();
 
-    // ✅✅ التعديل الرئيسي: احذف البيع المؤقت الآن وانسخ بياناته
+    // حذف البيع المؤقت الآن ونسخ بياناته
     returnSourceData = pendingSales.splice(saleIndex, 1)[0]; 
 
     logOperation("تحويل لمُرتجع", `حذف بيع مؤقت وبدء إرجاع للعميل ${returnSourceData.customerName || '-'}.`);
@@ -3900,27 +3898,30 @@ function initiateReturnFromPendingSale(pendingId) {
         returnsSection.scrollIntoView({ behavior: 'smooth' });
     }
 
-    // ملء نموذج المرتجعات بالبيانات
+    // ملء نموذج المرتجعات
     const mainItem = returnSourceData.items ? returnSourceData.items[0] : returnSourceData.mainProduct;
     if (mainItem) {
         d('return-manual-product-name').value = mainItem.name;
-        d('return-product-select').value = "";
+        d('return-product-select').value = ""; // تصفير الاختيار ليعتمد على الاسم اليدوي
         d('return-quantity').value = mainItem.quantity;
     }
     d('return-customer-name').value = returnSourceData.customerName || '';
     
     d('return-sale-price-input').value = returnSourceData.totalSellPrice || 0; 
-    d('return-at-sale-price').checked = true; // افترض دائمًا الإرجاع بسعر البيع عند التحويل
-    d('return-receive-now').checked = false; // افترض دائمًا أنه سيكون قيد الاستلام
+    
+    // تفعيل خيار الإرجاع بسعر البيع
+    const atSalePriceCheckbox = d('return-at-sale-price');
+    if (atSalePriceCheckbox) {
+        atSalePriceCheckbox.checked = true;
+        // مهم: تفعيل حدث التغيير في حال كان هناك كود يعتمد عليه لإظهار/إخفاء حقول
+        atSalePriceCheckbox.dispatchEvent(new Event('change'));
+    }
+
+    d('return-receive-now').checked = false; // افتراضياً قيد الاستلام
     
     updateUI();
-    showGlobalMessage("تم حذف البيع المؤقت. يرجى تأكيد بيانات المرتجع.", false, true);
+    showGlobalMessage("تم حذف البيع المؤقت. بيانات المرتجع جاهزة للتأكيد.", false, true);
 }
-/**
- * Populates the product dropdown in the manual return form.
- * ✅ UPDATED: Now it ONLY shows products currently in stock.
- */
-
 
 function populateReturnProductSelect() {
     const returnProductSelect = d('return-product-select');
@@ -4084,20 +4085,21 @@ function handleManualReturn() {
         showMessage(returnMessage, "للإرجاع النقدي، يجب اختيار الحساب الذي سيتم الخصم منه.", true); return;
     }
     
-    // --- 1. تحديد تكلفة البضاعة (المنطق الذكي) ---
-    // الهدف: منع خصم المبلغ من الأرباح إذا كان المنتج جديداً (للحفاظ على رأس المال)
+    // =================================================================
+    // 🔥🔥 التعديل الجوهري هنا: حساب تكلفة البضاعة بناءً على خيارك 🔥🔥
+    // =================================================================
     const productData = products.find(p => p.name === productName);
     let costOfGoods = 0;
 
-    if (productData) {
-        // الحالة أ: المنتج موجود في المخزون
-        // نستخدم متوسط التكلفة المسجل مسبقاً.
-        // (إذا كان سعر الإرجاع أعلى من التكلفة، سيتم خصم الفرق من الأرباح في الخطوة 3)
+    if (returnAtSalePrice) {
+        // الحالة 1: إذا اخترت الإرجاع بسعر البيع
+        // نعتبر أن التكلفة هي نفس المبلغ الذي أرجعته للعميل (إعادة شراء)
+        costOfGoods = returnedAmount;
+    } else if (productData) {
+        // الحالة 2: إرجاع عادي والمنتج موجود -> نستخدم متوسط التكلفة القديم
         costOfGoods = (productData.costPrice || 0) * quantity;
     } else {
-        // الحالة ب: المنتج غير موجود (جديد)
-        // نعتبر أن تكلفته هي نفس المبلغ الذي دفعناه لاسترجاعه.
-        // النتيجة: (المبلغ المرتجع - التكلفة) = 0، وبالتالي لا يتم خصم أي شيء من الأرباح.
+        // الحالة 3: إرجاع عادي لمنتج غير موجود -> نستخدم مبلغ الإرجاع كتكلفة
         costOfGoods = returnedAmount;
     }
 
@@ -4117,52 +4119,58 @@ function handleManualReturn() {
     }
 
     // --- 3. تعديل الأرباح ---
-    // يتم التنفيذ فقط إذا كان المرتجع مالياً وليس "إرجاع بسعر البيع"
-    if ((financialType === 'cash' || financialType === 'credit') && !returnAtSalePrice) {
+    // إذا كان الإرجاع بسعر البيع (returnAtSalePrice = true)، فإن costOfGoods = returnedAmount
+    // وبالتالي profitToReverse سيكون صفر، وهذا صحيح (لا نخصم ربحاً لأننا اشترينا البضاعة بسعرها)
+    if ((financialType === 'cash' || financialType === 'credit')) {
         const profitToReverse = returnedAmount - costOfGoods;
         
-        // لن يتم الخصم إلا إذا كان هناك فرق حقيقي (ربح سابق يتم عكسه)
-        // في حالة المنتج الجديد، ستكون القيمة صفر ولن يتأثر الربح
-        totalProfit -= profitToReverse;
-        
-        if (profitToReverse !== 0) {
+        // نخصم الفرق من الأرباح فقط إذا كان هناك فرق
+        if (Math.abs(profitToReverse) > 0.001) {
+            totalProfit -= profitToReverse;
             logOperation("عكس أرباح مرتجع", `عكس أرباح بقيمة ${formatCurrency(profitToReverse)}.`);
         }
     }
 
     // --- 4. إجراء المخزون ---
-    if (receiveNow) {
-        // حساب تكلفة الوحدة الواحدة لإضافتها للمخزون
-        // في حالة المنتج الجديد: ستكون (المبلغ المرتجع / الكمية)
-        const newUnitCost = (quantity > 0) ? (costOfGoods / quantity) : 0;
+    // حساب تكلفة الوحدة الواحدة لإضافتها للمخزون
+    const newUnitCost = (quantity > 0) ? (costOfGoods / quantity) : 0;
 
+    if (receiveNow) {
         if (returnAtSalePrice) {
-            // حالة خاصة: إرجاع بسعر البيع (يُسجل كمنتج منفصل)
-            products.push({ name: `${productName} - ${customerName} (مرتجع)`, quantity, costPrice: (quantity > 0 ? returnedAmount / quantity : 0) });
+            // خيار: إضافة كمنتج منفصل لتمييزه (أو يمكنك دمجه وحساب متوسط جديد)
+            // هنا سنضيفه كمنتج منفصل ليكون واضحاً أنه مرتجع بسعر مختلف
+            products.push({ 
+                name: `${productName} - ${customerName} (مرتجع)`, 
+                quantity: quantity, 
+                costPrice: newUnitCost // هنا سيأخذ سعر البيع كتكلفة
+            });
         } else {
-            const pIndex = products.findIndex(p => p.name === productName);
-            if (pIndex !== -1) {
-                // منتج موجود: نزيد الكمية فقط (لتبسيط العملية والحفاظ على استقرار المخزون)
-                products[pIndex].quantity += quantity;
+            // المنطق العادي: دمج وحساب المتوسط
+            if (productData) {
+                const oldTotalValue = (productData.costPrice || 0) * (productData.quantity || 0);
+                const newTotalValue = costOfGoods; // محسوبة بالأعلى
+                productData.quantity += quantity;
+                // تحديث المتوسط
+                productData.costPrice = (oldTotalValue + newTotalValue) / productData.quantity;
             } else {
-                // منتج جديد: إضافته بتكلفته الفعلية المحسوبة
                 products.push({ name: productName, quantity, costPrice: newUnitCost });
             }
         }
+        
         completedReturns.push({ id: generateId('ret'), items: [{ name: productName, quantity }], customerName, returnedAmount, timestamp: new Date().toISOString() });
         logOperation("مرتجع فوري", logDetails + " وتم استلام البضاعة.");
         showMessage(returnMessage, "تم تسجيل المرتجع واستلامه بالمخزن بنجاح.", false);
+        
     } else {
         // --- مرتجع قيد الاستلام ---
-        // نضيفه للأصول المعلقة للحفاظ على توازن معادلة رأس المال
         if (typeof pendingReturnsValue !== 'undefined') {
              pendingReturnsValue += returnedAmount;
         }
         
         pendingReturns.push({
             id: generateId('pend-ret'),
-            // نحفظ التكلفة الصحيحة هنا ليتم استخدامها عند تأكيد الاستلام لاحقاً دون مشاكل
-            items: [{ name: productName, quantity, costPrice: (quantity > 0 ? costOfGoods / quantity : 0) }],
+            // 🔥 هنا الإصلاح للمرتجع المعلق: نمرر التكلفة المحسوبة (الجديدة) وليس القديمة 🔥
+            items: [{ name: productName, quantity, costPrice: newUnitCost }],
             customerName, returnedAmount,
             returnAtSalePrice: returnAtSalePrice,
         });
@@ -4338,43 +4346,74 @@ async function saveCurrentStateByDate(dateString) {
     }
 }
 function openBackupHistoryModal() {
-    const targetDate = currentLoadedDate || getTodayDateString();
-    const modal = d('backupHistoryModal');
-    const listContainer = d('backup-history-list');
-    
-    if (!modal || !listContainer) return;
+    // تحديد التاريخ الحالي
+    const targetDate = currentLoadedDate || new Date().toISOString().split('T')[0];
+    
+    const modal = document.getElementById('backupHistoryModal');
+    const listContainer = document.getElementById('backup-history-list');
+    
+    if (!modal || !listContainer) return;
 
-    let backups = [];
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key.startsWith(`goodsMgmt_backup_${targetDate}_slot_`)) {
-            const backupData = fetchData(key, null);
-            if (backupData && backupData.savedAt) {
-                backups.push({ key: key, time: new Date(backupData.savedAt) });
-            }
-        }
-    }
+    let backups = [];
+    const MAX_SLOTS = 10; 
 
-    // فرز النسخ حسب وقت الحفظ الفعلي (الأحدث أولاً)
-    backups.sort((a, b) => b.time - a.time);
+    console.log(`Checking local backups for date: ${targetDate}`);
+    
+    for (let i = 0; i < MAX_SLOTS; i++) {
+        const key = `goodsMgmt_backup_${targetDate}_slot_${i}`;
+        const raw = localStorage.getItem(key);
+        
+        if (raw) {
+            try {
+                const data = JSON.parse(raw);
+                if (data && data.savedAt) {
+                    const infoCount = (data.products?.length || 0) + (data.log?.length || 0);
+                    
+                    backups.push({
+                        key: key,
+                        time: new Date(data.savedAt),
+                        info: infoCount
+                    });
+                }
+            } catch (e) {
+                console.error("ملف تالف:", key);
+            }
+        }
+    }
 
-    if (backups.length === 0) {
-        listContainer.innerHTML = '<p class="text-center text-gray-500">لا توجد نسخ احتياطية تلقائية لهذا اليوم.</p>';
-    } else {
-        listContainer.innerHTML = backups.map(backup => {
-            const formattedTime = backup.time.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            return `
-                <div class="flex justify-between items-center p-2 bg-gray-50 rounded border">
-                    <span class="font-semibold text-gray-700">نسخة الساعة: ${formattedTime}</span>
-                    <button data-backup-key="${backup.key}" class="restore-backup-btn text-xs bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded">
-                        استعادة
-                    </button>
-                </div>
-            `;
-        }).join('');
-    }
-    
-    modal.style.display = 'block';
+    backups.sort((a, b) => b.time - a.time);
+
+    if (backups.length === 0) {
+        listContainer.innerHTML = `<p class="text-center text-gray-500 py-4">لا توجد نسخ طوارئ محلية مسجلة لتاريخ ${targetDate}.</p>`;
+    } else {
+        listContainer.innerHTML = backups.map(backup => `
+            <div class="flex justify-between items-center p-3 mb-2 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 transition">
+                <div>
+                    <div class="font-bold text-gray-800" style="font-size: 1rem;">
+                        ⏰ ${backup.time.toLocaleTimeString('ar-EG')}
+                    </div>
+                    <div class="text-xs text-gray-600 mt-1">
+                        محتوى النسخة: <b>${backup.info}</b> عنصر
+                    </div>
+                </div>
+                <button data-backup-key="${backup.key}" class="restore-backup-btn" style="
+                    background-color: #16a34a; 
+                    color: white; 
+                    font-weight: bold; 
+                    padding: 6px 12px; 
+                    border-radius: 6px; 
+                    border: none; 
+                    cursor: pointer;
+                    font-size: 0.85rem;
+                    transition: background-color 0.2s;
+                " onmouseover="this.style.backgroundColor='#15803d'" onmouseout="this.style.backgroundColor='#16a34a'">
+                    استعادة فورية
+                </button>
+            </div>
+        `).join('');
+    }
+    
+    modal.style.display = 'block';
 }
 
 // دالة لإغلاق نافذة سجل النسخ الاحتياطية
@@ -9650,45 +9689,67 @@ if (smartSearchInput) {
                          }
                      });
                  }
-                 // ... بعد كل أسطر addEventListener الأخرى
-               // === بداية الكود الجديد لشبكة الأمان المطورة ===
-if (openBackupHistoryButton) {
-    openBackupHistoryButton.addEventListener('click', openBackupHistoryModal);
-}
+              // --- كود تشغيل نافذة الطوارئ والاستعادة ---
+    
+    // 1. تشغيل الزر الرئيسي في صفحة الإعدادات
+    if (openBackupHistoryButton) {
+        openBackupHistoryButton.addEventListener('click', openBackupHistoryModal);
+    }
 
-if (backupHistoryModal) {
-    // إغلاق النافذة عند الضغط على زر الإغلاق أو الخلفية
-    backupHistoryModal.addEventListener('click', (e) => {
-        if (e.target.classList.contains('modal') || e.target.closest('.modal-close-btn') || e.target.closest('.modal-close-btn-footer')) {
-            closeBackupHistoryModal();
-        }
-    });
-
-    // التعامل مع الضغط على زر "استعادة" داخل النافذة
-    backupHistoryModal.addEventListener('click', async (e) => {
-        const restoreButton = e.target.closest('.restore-backup-btn');
-        if (!restoreButton) return;
-
-        const backupKey = restoreButton.dataset.backupKey;
-        if (!backupKey) return;
-
-        if (confirm(`هل أنت متأكد من استعادة هذه النسخة؟ سيتم الكتابة فوق البيانات الحالية.`)) {
-            const backupData = fetchData(backupKey, null);
-            if (backupData) {
-                console.log(`Restoring from key: ${backupKey}`);
-                loadState(backupData, backupData.savedForDate);
-                await saveCurrentStateByDate(backupData.savedForDate);
-                updateUI();
-                closeBackupHistoryModal();
-                showGlobalMessage("تم استعادة النسخة الاحتياطية المحددة بنجاح!", false);
-            } else {
-                showGlobalMessage("فشلت عملية الاستعادة، النسخة غير موجودة.", true);
+    // 2. تفعيل أزرار النافذة نفسها (الإغلاق والاستعادة)
+    if (backupHistoryModal) {
+        // إغلاق النافذة عند الضغط على الخلفية أو زر الإغلاق
+        backupHistoryModal.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal') || 
+                e.target.closest('.modal-close-btn') || 
+                e.target.closest('.modal-close-btn-footer')) {
+                // دالة إغلاق النافذة (تأكد من وجودها أو استخدم الكود المباشر)
+                if (typeof closeBackupHistoryModal === 'function') {
+                    closeBackupHistoryModal();
+                } else {
+                    backupHistoryModal.style.display = 'none';
+                }
             }
-        }
-    });
-}
-// === نهاية الكود الجديد لشبكة الأمان المطورة ===
+        });
 
+        // تنفيذ الاستعادة عند الضغط على الزر الأخضر داخل القائمة
+        backupHistoryModal.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.restore-backup-btn');
+            if (!btn) return;
+
+            const key = btn.dataset.backupKey;
+            if (!key) return;
+
+            if (confirm("هل أنت متأكد من استعادة هذه النسخة المحلية؟\nسيتم استبدال البيانات المعروضة حالياً بهذه النسخة.")) {
+                try {
+                    const raw = localStorage.getItem(key);
+                    if (raw) {
+                        const data = JSON.parse(raw);
+                        const dateStr = data.savedForDate || currentLoadedDate;
+                        
+                        console.log("Restoring backup from key:", key);
+
+                        // تحميل البيانات للذاكرة (المتغيرات)
+                        loadState(data, dateStr);
+                        
+                        // تحديث الواجهة فوراً
+                        updateUI();
+                        
+                        // إغلاق النافذة
+                        backupHistoryModal.style.display = 'none';
+                        
+                        // 🔥 خطوة ذكية: حفظ النسخة المستعادة فوراً للسحابة لتثبيتها 🔥
+                        await saveCurrentStateByDate(dateStr);
+                        
+                        alert("تمت الاستعادة بنجاح! وتمت مزامنة البيانات المستعادة مع السحابة.");
+                    }
+                } catch (err) {
+                    console.error("Restore error:", err);
+                    alert("حدث خطأ أثناء استعادة الملف: " + err.message);
+                }
+            }
+        });
+    }
 
 // إسناد متغيرات عناصر البحث
 reportSearchInput = d('report-search-input');
