@@ -4344,41 +4344,29 @@ async function saveCurrentStateByDate(dateString) {
 
         showGlobalMessage(userMessage, isError, isInfo);
     }
-}// 1. دالة عرض القائمة (نسخة المسح الشامل المتوافقة مع كروم)
+}
+
 function openBackupHistoryModal() {
+    const targetDate = currentLoadedDate || new Date().toISOString().split('T')[0];
     const modal = document.getElementById('backupHistoryModal');
     const listContainer = document.getElementById('backup-history-list');
     
     if (!modal || !listContainer) return;
 
-    // تحديد التاريخ المستهدف (أو استخدام تاريخ اليوم كاحتياطي)
-    let targetDate = currentLoadedDate;
-    if (!targetDate) {
-        const now = new Date();
-        // تنسيق التاريخ يدوياً لضمان التوافق (YYYY-MM-DD)
-        const offset = now.getTimezoneOffset() * 60000;
-        targetDate = new Date(now.getTime() - offset).toISOString().split('T')[0];
-    }
-
-    console.log(`Chrome-Safe Backup Search for: ${targetDate}`);
-    
     let backups = [];
 
-    // 🔥 التغيير الجذري: مسح شامل لكل مفاتيح الذاكرة بدلاً من التخمين
-    // هذا يتجاوز مشاكل ترتيب المفاتيح في كروم
+    console.log(`Checking ALL local storage for date: ${targetDate}`);
+    
+    // 🔥 تعديل لكروم: مسح شامل لكل المفاتيح بدلاً من التخمين
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        
-        // هل المفتاح يخص برنامجنا ويخص التاريخ المطلوب؟
+        // نبحث عن أي مفتاح يخص هذا التاريخ وهذا البرنامج
         if (key && key.includes("goodsMgmt_backup_") && key.includes(targetDate)) {
             try {
                 const raw = localStorage.getItem(key);
                 const data = JSON.parse(raw);
-                
                 if (data && data.savedAt) {
-                    // حساب حجم البيانات
                     const infoCount = (data.products?.length || 0) + (data.log?.length || 0);
-                    
                     backups.push({
                         key: key,
                         time: new Date(data.savedAt),
@@ -4386,21 +4374,15 @@ function openBackupHistoryModal() {
                     });
                 }
             } catch (e) {
-                console.warn("ملف تالف تم تجاهله:", key);
+                console.warn("ملف تالف:", key);
             }
         }
     }
 
-    // ترتيب النسخ: الأحدث أولاً
     backups.sort((a, b) => b.time - a.time);
 
-    // عرض القائمة
     if (backups.length === 0) {
-        listContainer.innerHTML = `
-            <div class="text-center py-4">
-                <p class="text-gray-500 mb-2">لا توجد نسخ لهذا اليوم (${targetDate}).</p>
-                <small class="text-gray-400">تأكد أنك قمت بعملية حفظ واحدة على الأقل.</small>
-            </div>`;
+        listContainer.innerHTML = `<p class="text-center text-gray-500 py-4">لا توجد نسخ لهذا اليوم (${targetDate}).</p>`;
     } else {
         listContainer.innerHTML = backups.map(backup => `
             <div class="flex justify-between items-center p-3 mb-2 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 transition">
@@ -4431,7 +4413,6 @@ function openBackupHistoryModal() {
     
     modal.style.display = 'block';
 }
-
 // 2. تفعيل الأزرار بتقنية (Event Delegation) لتعمل على كروم
 // ضع هذا الجزء مرة واحدة في نهاية الملف أو داخل initializeApp
 document.addEventListener('click', async function(e) {
@@ -10232,6 +10213,55 @@ if (d('liabilities-list-container')) {
     setInterval(updateTimeDisplay, 1000);
 
     console.log("Initialization complete. Final loaded date:", currentLoadedDate);
+    // ============================================================
+    // 🔥 الحل النهائي لمشكلة كروم وإيدج (Global Event Delegation) 🔥
+    // ============================================================
+    
+    // 1. تشغيل زر فتح القائمة
+    if (d('open-backup-history-button')) {
+        d('open-backup-history-button').onclick = openBackupHistoryModal; 
+        // استخدمنا onclick مباشرة لمنع التكرار
+    }
+
+    // 2. مراقب عام للنقرات داخل النافذة المنبثقة
+    const historyModal = d('backupHistoryModal');
+    if (historyModal) {
+        historyModal.addEventListener('click', async (e) => {
+            // أ: هل الضغط على زر "استعادة فورية"؟
+            if (e.target.classList.contains('restore-backup-btn-action')) {
+                const btn = e.target;
+                const key = btn.dataset.backupKey;
+                
+                if (confirm("⚠️ هل أنت متأكد من استعادة هذه النسخة المحلية؟\nسيتم استبدال البيانات الحالية فوراً.")) {
+                    try {
+                        const raw = localStorage.getItem(key);
+                        if (raw) {
+                            const data = JSON.parse(raw);
+                            const dateStr = data.savedForDate || currentLoadedDate;
+                            
+                            console.log("Restoring backup (Chrome Fix):", key);
+                            loadState(data, dateStr);
+                            updateUI();
+                            historyModal.style.display = 'none'; // إغلاق النافذة
+                            
+                            // تثبيت النسخة المستعادة في السحابة
+                            await saveCurrentStateByDate(dateStr);
+                            alert("✅ تمت الاستعادة بنجاح!");
+                        }
+                    } catch (err) {
+                        alert("حدث خطأ: " + err.message);
+                    }
+                }
+            }
+
+            // ب: هل الضغط على زر الإغلاق؟
+            if (e.target.classList.contains('modal') || 
+                e.target.closest('.modal-close-btn') || 
+                e.target.closest('.modal-close-btn-footer')) {
+                historyModal.style.display = 'none';
+            }
+        });
+    }
     if (d('return-sale-price-group')) {
     const returnTypeRadios = document.querySelectorAll('input[name="return-type"]');
     returnTypeRadios.forEach(radio => {
@@ -10534,6 +10564,7 @@ window.addEventListener('click', (event) => {
 });
 
 // --- END: PARTIAL DEBT PAYMENT LOGIC ---
+
 
 }); // End DOMContentLoaded
 </script>
