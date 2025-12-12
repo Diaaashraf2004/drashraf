@@ -4524,74 +4524,185 @@ function toggleAutoSave() {
     }
 }
 async function loadDataForDate(dateString) {
-    console.log(`\n--- محاولة تحميل صارمة (سحابية فقط) لتاريخ: ${dateString} ---`);
+    console.log(`\n--- محاولة تحميل ذكية لتاريخ: ${dateString} ---`);
     
-    if (!window.currentUser) {
-        console.log("لم يتم تسجيل الدخول.");
-        return false;
-    }
+    if (!window.currentUser) { return false; }
     
     const userId = window.currentUser.uid;
     const loadMessageElement = d("load-message-alt");
 
-    if (!dateString) {
-        if(loadMessageElement) showMessage(loadMessageElement, "يرجى اختيار التاريخ.", true);
-        return false;
+    if (!dateString) return false;
+
+    // 1. البحث عن نسخة محلية لليوم (احتياطي سريع)
+    let localRescueData = null;
+    let localRescueTime = 0;
+    for (let i = 0; i < 20; i++) {
+        const backupKey = `goodsMgmt_backup_${dateString}_slot_${i}`;
+        const raw = localStorage.getItem(backupKey);
+        if (raw) {
+            try {
+                const data = JSON.parse(raw);
+                const hasContent = (data.products?.length > 0) || (data.log?.length > 0);
+                if (hasContent && data.savedAt) {
+                    const time = new Date(data.savedAt).getTime();
+                    if (time > localRescueTime) {
+                        localRescueTime = time;
+                        localRescueData = data;
+                    }
+                }
+            } catch (e) { }
+        }
     }
 
     try {
+        // 2. الاتصال بالسحابة لجلب بيانات "اليوم المحدد"
         console.log("جاري الاتصال بـ Firebase...");
-        
-        // محاولة جلب البيانات من السحابة
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
-        const docSnap = await window.getDoc(docRef);
+        
+        // Timeout (3 ثواني)
+        const docSnap = await Promise.race([
+            window.getDoc(docRef),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 3000))
+        ]);
 
         if (docSnap.exists()) {
-            console.log("✅ تم جلب البيانات من السحابة بنجاح.");
-            loadState(docSnap.data(), dateString);
+            // وجدنا بيانات لليوم (تحميل عادي)
+            const cloudData = docSnap.data();
+            const cloudTime = cloudData.savedAt ? new Date(cloudData.savedAt).getTime() : 0;
             
+            if (localRescueData && localRescueTime > cloudTime) {
+                console.log("⚠️ المحلي أحدث.");
+                loadState(localRescueData, dateString);
+                showMessage(loadMessageElement, `تم تحميل نسخة جهازك (أحدث).`, false);
+            } else {
+                loadState(cloudData, dateString);
+                showMessage(loadMessageElement, `تم التحميل من السيرفر.`, false);
+            }
+            updateUI();
+            return true;
+
+        } else {
+            // ==============================================================
+            // 🔥 منطقة الترحيل (هنا الإصلاح: البحث عن الملخص أو الأمس) 🔥
+            // ==============================================================
+            console.log("يوم جديد. جاري البحث عن مصدر للترحيل...");
+            
+            let previousData = null;
+            let source = "";
+
+            // أ: المحاولة الأولى: البحث عن "ملخص الأرصدة" (latestBalances)
+            try {
+                const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
+                const summaryDocSnap = await window.getDoc(summaryDocRef);
+                if (summaryDocSnap.exists()) {
+                    previousData = summaryDocSnap.data();
+                    source = "ملخص الأرصدة";
+                }
+            } catch (err) {
+                console.warn("فشل جلب الملخص:", err);
+            }
+
+            // ب: المحاولة الثانية (الجديدة): البحث عن بيانات "الأمس" مباشرة
+            if (!previousData) {
+                try {
+                    // حساب تاريخ الأمس
+                    const currentObj = new Date(dateString);
+                    currentObj.setDate(currentObj.getDate() - 1);
+                    const prevDateStr = currentObj.toISOString().split('T')[0];
+                    
+                    console.log(`محاولة جلب بيانات الأمس (${prevDateStr})...`);
+                    const prevDocRef = window.doc(window.db, "users", userId, "days", prevDateStr);
+                    const prevDocSnap = await window.getDoc(prevDocRef);
+                    
+                    if (prevDocSnap.exists()) {
+                        previousData = prevDocSnap.data();
+                        source = `بيانات يوم ${prevDateStr}`;
+                    }
+                } catch (err) {
+                    console.warn("فشل جلب بيانات الأمس:", err);
+                }
+            }
+
+            // ج: المحاولة الثالثة: البحث في الجهاز (Local Summary)
+            if (!previousData) {
+                const localSummaryRaw = localStorage.getItem("goodsMgmt_local_summary");
+                if (localSummaryRaw) {
+                    try {
+                        previousData = JSON.parse(localSummaryRaw);
+                        source = "الجهاز (Local)";
+                    } catch(e) {}
+                }
+            }
+
+            // د: تنفيذ الترحيل إذا وجدنا أي بيانات سابقة
+            if (previousData) {
+                console.log(`[نجاح الترحيل] المصدر: ${source}`);
+                
+                // ترحيل الأرصدة والثوابت
+                products = previousData.products || [];
+                suppliers = previousData.suppliers || [];
+                accounts = previousData.accounts || [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0 }];
+                debtors = previousData.debtors || [];
+                liabilities = previousData.liabilities || [];
+                monthlyLiabilities = previousData.monthlyLiabilities || [];
+                pendingSales = previousData.pendingSales || [];
+                serialNumbersLog = previousData.serialNumbersLog || [];
+                inboxTasks = previousData.inboxTasks || [];
+                pendingPurchases = previousData.pendingPurchases || [];
+                pendingReturns = previousData.pendingReturns || [];
+                pendingReturnsValue = previousData.pendingReturnsValue || 0;
+
+                // تصفير سجلات اليوم الجديد
+                expenses = 0;
+                totalProfit = 0;
+                operationLog = [];
+                liquidityLog = [];
+                salesToday = [];
+                purchaseInvoices = [];
+                completedReturns = [];
+                
+                operationLog.push({
+                    timestamp: new Date().toISOString(),
+                    type: "ترحيل تلقائي",
+                    details: `تم ترحيل الأرصدة من: ${source}.`
+                });
+
+                currentLoadedDate = dateString;
+                
+                // حفظ البيانات المرحلة فوراً لليوم الجديد لتثبيتها
+                saveCurrentStateByDate(dateString); 
+                
+                updateUI();
+                showMessage(loadMessageElement, `تم بدء يوم جديد وترحيل الأرصدة من (${source}).`, false);
+                return true;
+            } else {
+                // هـ: فشل تام -> يوم جديد فارغ
+                console.log("لم يتم العثور على أي بيانات سابقة للترحيل.");
+                resetState();
+                accounts = [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0.00 }];
+                currentLoadedDate = dateString;
+                updateUI();
+                showMessage(loadMessageElement, `بداية جديدة (لا توجد بيانات سابقة للترحيل).`, false, true);
+                return true;
+            }
+        }
+
+    } catch (error) {
+        // التعامل مع حالة الأوفلاين (كما هي)
+        console.warn("⚠️ فشل الاتصال (Offline Handling):", error);
+        if (localRescueData) {
+            loadState(localRescueData, dateString);
             currentLoadedDate = dateString;
             if (d("load-date-alt")) d("load-date-alt").value = dateString;
             updateLoadDateDayName(dateString, d("load-date-day-name-alt"));
             updateUI();
-            
-            showMessage(loadMessageElement, `تم تحميل البيانات من السحابة (Firebase).`, false);
+            showGlobalMessage(`⚠️ وضع الأوفلاين: تم تحميل البيانات من جهازك.`, false, true);
             return true;
         } else {
-            // لا توجد بيانات في السحابة لهذا اليوم -> هنا فقط يمكننا التصفير أو الترحيل
-            console.log("لا توجد بيانات سحابية لهذا اليوم. محاولة الترحيل...");
-            
-            // ... (كود الترحيل Migration Code من الملخص يوضع هنا) ...
-            // للاختصار: سنعتبره يوماً جديداً آمناً لأنه اتصال ناجح ولكن الملف غير موجود
-            resetState();
-            accounts = [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0.00 }];
-            currentLoadedDate = dateString;
-            updateUI();
-            showMessage(loadMessageElement, `يوم جديد (تم الاتصال بنجاح ولا توجد بيانات سابقة).`, false, true);
-            return true;
+            // في حالة الأوفلاين وعدم وجود نسخة محلية، نمنع الفتح الفارغ
+            showMessage(loadMessageElement, "فشل الاتصال ولا توجد بيانات محفوظة.", true);
+            return false;
         }
-
-    } catch (error) {
-        // 🔥 المنطقة الهامة: فشل الاتصال 🔥
-        console.error("⛔ فشل الاتصال بالسحابة:", error);
-        
-        // هنا لن نقوم بتحميل أي شيء محلي، ولن نقوم بتصفير البيانات
-        // سنترك البرنامج في حالته الحالية ونعرض تحذيراً صارماً
-        
-        const errorMsg = "⛔ تعذر الاتصال بالإنترنت لجلب البيانات. لم يتم تحميل أي بيانات حفاظاً عليها من التلف.";
-        if (loadMessageElement) {
-            loadMessageElement.innerHTML = `
-                <div style="background-color: #fee2e2; color: #991b1b; padding: 10px; border-radius: 5px; border: 1px solid #fca5a5;">
-                    <strong>خطأ في الاتصال!</strong><br>
-                    لم نتمكن من جلب البيانات من السحابة.<br>
-                    لن يتم تحميل بيانات فارغة.<br>
-                    إذا كنت مضطراً للعمل، استخدم زر <b>"نسخ احتياطي واستعادة"</b> لتحميل نسخة طوارئ يدوياً.
-                </div>
-            `;
-            loadMessageElement.className = 'visible';
-        }
-        
-        return false; // نرجع false لنخبر النظام أن التحميل فشل
     }
 }
 // =======================================================
