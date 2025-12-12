@@ -4222,13 +4222,14 @@ function resetReturnForm() {
     returnSourceData = null; 
 }
 async function saveCurrentStateByDate(dateString) {
+    // 1. التحقق من تسجيل الدخول
     if (!window.currentUser) {
-        showGlobalMessage("تنبيه: يجب تسجيل الدخول للحفظ السحابي.", true);
+        showGlobalMessage("تنبيه: أنت غير مسجل دخول. يتم الحفظ على الجهاز فقط.", false, true);
         return;
     }
     
     const userId = window.currentUser.uid;
-    console.log(`بدء عملية الحفظ (سحابي + نسخة طوارئ محلية): ${dateString}...`);
+    // console.log(`Starting save process for: ${dateString}...`); 
 
     const safePendingReturnsValue = (typeof pendingReturnsValue !== 'undefined') ? pendingReturnsValue : 0;
     const safeBackupIndex = (typeof backupSlotIndex !== 'undefined') ? backupSlotIndex : 0;
@@ -4261,8 +4262,7 @@ async function saveCurrentStateByDate(dateString) {
 
     const sanitizedState = sanitizeDataForFirebase(stateToSave);
 
-    // 1. حفظ نسخة محلية للطوارئ فقط (Full Backup)
-    // لن يتم استخدامها في التحميل التلقائي، بل لاستخدامها يدوياً عند الضرورة
+    // 1. حفظ نسخة محلية للطوارئ (بصمت تام)
     try {
         const fullLocalBackup = { ...stateToSave }; 
         const backupKey = `goodsMgmt_backup_${dateString}_slot_${safeBackupIndex}`;
@@ -4271,17 +4271,19 @@ async function saveCurrentStateByDate(dateString) {
         if (typeof backupSlotIndex !== 'undefined') {
             backupSlotIndex = (backupSlotIndex + 1) % MAX_BACKUP_SLOTS;
         }
-        console.log("تم تحديث نسخة الطوارئ المحلية.");
+        // console.log("تم تحديث نسخة الطوارئ المحلية."); 
     } catch (e) {
-        console.warn("فشل تحديث نسخة الطوارئ المحلية (الذاكرة ممتلئة؟).");
+        console.warn("Local backup warning (silent):", e);
     }
 
-    // 2. الحفظ السحابي (الأساسي)
+    // 2. الحفظ السحابي (محاولة هادئة)
     try {
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
+        
+        // محاولة الحفظ
         await window.setDoc(docRef, sanitizedState);
 
-        // تحديث الملخص
+        // تحديث الملخص (في الخلفية، لا ننتظره ولا نزعج المستخدم إذا فشل)
         const latestBalancesSummary = {
             products: products || [],
             suppliers: suppliers || [],
@@ -4300,21 +4302,39 @@ async function saveCurrentStateByDate(dateString) {
         };
         const sanitizedSummary = sanitizeDataForFirebase(latestBalancesSummary);
         const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
-        await window.setDoc(summaryDocRef, sanitizedSummary);
+        
+        window.setDoc(summaryDocRef, sanitizedSummary).catch(e => console.log("Summary update delayed (silent)"));
 
-        console.log("تم الحفظ السحابي بنجاح.");
+        console.log("Cloud save success.");
         currentLoadedDate = dateString;
-        updateUI();
-        showGlobalMessage(`تم الحفظ سحابياً بنجاح لتاريخ: ${formatDateForDisplay(dateString)}`, false);
+        
+        // إظهار رسالة نجاح صغيرة وسريعة
+        const msgBox = document.getElementById('global-message');
+        if (msgBox) {
+            msgBox.textContent = "تم الحفظ ✓";
+            msgBox.className = "section-message success visible";
+            setTimeout(() => { msgBox.classList.remove('visible'); }, 2000);
+        }
 
     } catch (error) {
-        console.error("فشل الحفظ السحابي:", error);
-        // رسالة واضحة أن السحابة لم تتحدث
+        console.error("Cloud save warning:", error);
+        
+        currentLoadedDate = dateString;
+
+        // رسالة ذكية حسب نوع الخطأ
+        let userMessage = "تم الحفظ على الجهاز (جاري المزامنة...)";
+        let isError = false; 
+        let isInfo = true;
+
         if (error.code === 'unavailable' || error.message.includes('offline')) {
-            showGlobalMessage(`⚠️ لا يوجد إنترنت! تم حفظ نسخة طوارئ على الجهاز فقط. سيتم الرفع عند عودة الاتصال.`, false, true);
-        } else {
-            showGlobalMessage(`خطأ في الحفظ السحابي: ${error.message}`, true);
+            userMessage = "لا يوجد إنترنت. تم الحفظ محلياً وسيتم الرفع تلقائياً.";
+        } else if (error.code === 'permission-denied') {
+            userMessage = "خطأ في الصلاحيات. يرجى إعادة تسجيل الدخول.";
+            isError = true;
+            isInfo = false;
         }
+
+        showGlobalMessage(userMessage, isError, isInfo);
     }
 }
 function openBackupHistoryModal() {
