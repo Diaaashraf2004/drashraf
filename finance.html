@@ -4344,39 +4344,29 @@ async function saveCurrentStateByDate(dateString) {
 
         showGlobalMessage(userMessage, isError, isInfo);
     }
-}// 1. دالة عرض القائمة (نسخة المسح الشامل المتوافقة مع كروم)
+}
 function openBackupHistoryModal() {
+    // تحديد التاريخ الحالي
+    const targetDate = currentLoadedDate || new Date().toISOString().split('T')[0];
+    
     const modal = document.getElementById('backupHistoryModal');
     const listContainer = document.getElementById('backup-history-list');
     
     if (!modal || !listContainer) return;
 
-    // تحديد التاريخ المستهدف (أو استخدام تاريخ اليوم كاحتياطي)
-    let targetDate = currentLoadedDate;
-    if (!targetDate) {
-        const now = new Date();
-        // تنسيق التاريخ يدوياً لضمان التوافق (YYYY-MM-DD)
-        const offset = now.getTimezoneOffset() * 60000;
-        targetDate = new Date(now.getTime() - offset).toISOString().split('T')[0];
-    }
-
-    console.log(`Chrome-Safe Backup Search for: ${targetDate}`);
-    
     let backups = [];
+    const MAX_SLOTS = 10; 
 
-    // 🔥 التغيير الجذري: مسح شامل لكل مفاتيح الذاكرة بدلاً من التخمين
-    // هذا يتجاوز مشاكل ترتيب المفاتيح في كروم
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
+    console.log(`Checking local backups for date: ${targetDate}`);
+    
+    for (let i = 0; i < MAX_SLOTS; i++) {
+        const key = `goodsMgmt_backup_${targetDate}_slot_${i}`;
+        const raw = localStorage.getItem(key);
         
-        // هل المفتاح يخص برنامجنا ويخص التاريخ المطلوب؟
-        if (key && key.includes("goodsMgmt_backup_") && key.includes(targetDate)) {
+        if (raw) {
             try {
-                const raw = localStorage.getItem(key);
                 const data = JSON.parse(raw);
-                
                 if (data && data.savedAt) {
-                    // حساب حجم البيانات
                     const infoCount = (data.products?.length || 0) + (data.log?.length || 0);
                     
                     backups.push({
@@ -4386,21 +4376,15 @@ function openBackupHistoryModal() {
                     });
                 }
             } catch (e) {
-                console.warn("ملف تالف تم تجاهله:", key);
+                console.error("ملف تالف:", key);
             }
         }
     }
 
-    // ترتيب النسخ: الأحدث أولاً
     backups.sort((a, b) => b.time - a.time);
 
-    // عرض القائمة
     if (backups.length === 0) {
-        listContainer.innerHTML = `
-            <div class="text-center py-4">
-                <p class="text-gray-500 mb-2">لا توجد نسخ لهذا اليوم (${targetDate}).</p>
-                <small class="text-gray-400">تأكد أنك قمت بعملية حفظ واحدة على الأقل.</small>
-            </div>`;
+        listContainer.innerHTML = `<p class="text-center text-gray-500 py-4">لا توجد نسخ طوارئ محلية مسجلة لتاريخ ${targetDate}.</p>`;
     } else {
         listContainer.innerHTML = backups.map(backup => `
             <div class="flex justify-between items-center p-3 mb-2 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 transition">
@@ -4412,7 +4396,7 @@ function openBackupHistoryModal() {
                         محتوى النسخة: <b>${backup.info}</b> عنصر
                     </div>
                 </div>
-                <button type="button" data-backup-key="${backup.key}" class="restore-backup-btn-action" style="
+                <button data-backup-key="${backup.key}" class="restore-backup-btn" style="
                     background-color: #16a34a; 
                     color: white; 
                     font-weight: bold; 
@@ -4421,8 +4405,8 @@ function openBackupHistoryModal() {
                     border: none; 
                     cursor: pointer;
                     font-size: 0.85rem;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                ">
+                    transition: background-color 0.2s;
+                " onmouseover="this.style.backgroundColor='#15803d'" onmouseout="this.style.backgroundColor='#16a34a'">
                     استعادة فورية
                 </button>
             </div>
@@ -4431,58 +4415,6 @@ function openBackupHistoryModal() {
     
     modal.style.display = 'block';
 }
-
-// 2. تفعيل الأزرار بتقنية (Event Delegation) لتعمل على كروم
-// ضع هذا الجزء مرة واحدة في نهاية الملف أو داخل initializeApp
-document.addEventListener('click', async function(e) {
-    // أ: التعامل مع زر "استعادة فورية"
-    if (e.target.classList.contains('restore-backup-btn-action')) {
-        const btn = e.target;
-        const key = btn.dataset.backupKey;
-        
-        if (confirm("هل أنت متأكد من استعادة هذه النسخة؟\nسيتم استبدال البيانات الحالية.")) {
-            try {
-                const raw = localStorage.getItem(key);
-                if (raw) {
-                    const data = JSON.parse(raw);
-                    // استخدام التاريخ المحفوظ أو الحالي
-                    const dateStr = data.savedForDate || (new Date().toISOString().split('T')[0]);
-                    
-                    console.log("Restoring on Chrome logic:", key);
-                    
-                    // تحميل البيانات
-                    loadState(data, dateStr);
-                    updateUI();
-                    
-                    // إغلاق النافذة
-                    document.getElementById('backupHistoryModal').style.display = 'none';
-                    
-                    // حفظ لتثبيت الحالة
-                    await saveCurrentStateByDate(dateStr);
-                    
-                    alert("تمت الاستعادة بنجاح!");
-                }
-            } catch (err) {
-                alert("حدث خطأ: " + err.message);
-            }
-        }
-    }
-
-    // ب: التعامل مع فتح النافذة
-    if (e.target.id === 'open-backup-history-button') {
-        openBackupHistoryModal();
-    }
-
-    // ج: التعامل مع إغلاق النافذة
-    if (e.target.classList.contains('modal') || 
-        e.target.closest('.modal-close-btn') || 
-        e.target.closest('.modal-close-btn-footer')) {
-        const modal = document.getElementById('backupHistoryModal');
-        if (modal && modal.style.display === 'block') {
-            modal.style.display = 'none';
-        }
-    }
-});
 
 // دالة لإغلاق نافذة سجل النسخ الاحتياطية
 function closeBackupHistoryModal() {
