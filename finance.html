@@ -1478,20 +1478,32 @@ input:checked:active + .slider:before {
                 <!-- Form to add a new item -->
                 <div class="add-item-section mt-4 no-print">
                     <h4 class="text-md font-semibold mb-2">إضافة بند جديد للفاتورة</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                        <div class="form-group md:col-span-2">
-                            <label for="pi_item_name">اسم المنتج:<span class="required">*</span></label>
-                            <input type="text" id="pi_item_name" list="product-names-list" placeholder="اكتب اسم منتج موجود أو جديد">
-                        </div>
-                        <div class="form-group">
-                            <label for="pi_item_quantity">الكمية:<span class="required">*</span></label>
-                            <input type="number" id="pi_item_quantity" value="1" min="1" step="1">
-                        </div>
-                        <div class="form-group">
-                            <label for="pi_item_cost">سعر الشراء (للوحدة):<span class="required">*</span></label>
-                            <input type="number" id="pi_item_cost" value="0" min="0" step="0.01">
-                        </div>
-                    </div>
+                  <div class="grid grid-cols-1 md:grid-cols-6 gap-3 items-end"> 
+    <div class="form-group md:col-span-2">
+        <label for="pi_item_name">اسم المنتج:<span class="required">*</span></label>
+        <input type="text" id="pi_item_name" list="product-names-list" placeholder="اكتب اسم المنتج">
+    </div>
+    
+    <div class="form-group">
+        <label for="pi_item_category">الفئة:</label>
+        <input type="text" id="pi_item_category" list="category-names-list" placeholder="القسم">
+    </div>
+
+    <div class="form-group">
+        <label for="pi_item_quantity">الكمية:<span class="required">*</span></label>
+        <input type="number" id="pi_item_quantity" value="1" min="1" step="1">
+    </div>
+
+    <div class="form-group">
+        <label for="pi_item_cost">سعر الوحدة:<span class="required">*</span></label>
+        <input type="number" id="pi_item_cost" value="0" min="0" step="0.01">
+    </div>
+
+    <div class="form-group">
+        <label for="pi_item_total_cost">السعر الإجمالي:</label>
+        <input type="number" id="pi_item_total_cost" value="0" min="0" step="0.01" style="background-color: #f0fdf4; border-color: #86efac;">
+    </div>
+</div>
                     <div class="form-group mt-2 hidden" id="pi_item_serials_container">
                         <label for="pi_item_serials">الأرقام التسلسلية (كل رقم في سطر):</label>
                         <textarea id="pi_item_serials" rows="3" class="font-mono text-sm" placeholder="SN-001\nSN-002..."></textarea>
@@ -7508,40 +7520,50 @@ function pi_updateTotals() {
     piPaidAmountDisplaySpan.textContent = formatCurrency(paidAmount);
     piRemainingBalanceSpan.textContent = formatCurrency(remainingBalance);
 }
-
-/**
- * Adds a new item row to the purchase invoice table.
- */
 function pi_addItem() {
     const name = piItemNameInput.value.trim();
+    const categoryInput = document.getElementById('pi_item_category');
+    const category = categoryInput ? categoryInput.value.trim() : ""; 
     const quantity = parseInt(piItemQuantityInput.value);
-    const cost = parseInputNumber(piItemCostInput);
+    
+    // نعتمد على سعر الوحدة كمرجع أساسي لأنه الأدق في التخزين
+    const cost = parseFloat(piItemCostInput.value) || 0;
+    
+    // نستخدم السعر الإجمالي للعرض أو التحقق
+    const totalCostInput = document.getElementById('pi_item_total_cost');
+    const totalCost = totalCostInput ? (parseFloat(totalCostInput.value) || 0) : (quantity * cost);
+
     const serialsInput = piItemSerialsTextarea.value.trim();
 
-    // Basic Validation
-    if (!name || isNaN(quantity) || quantity <= 0 || isNaN(cost) || cost < 0) {
-        showMessage(piItemAddMessage, "يرجى إدخال اسم وكمية وسعر صحيحين للبند.", true);
+    // التحقق
+    if (!name || isNaN(quantity) || quantity <= 0 || cost < 0) {
+        showMessage(piItemAddMessage, "يرجى إدخال البيانات بشكل صحيح.", true);
         return;
     }
 
     const serials = serialsInput ? serialsInput.split('\n').map(s => s.trim()).filter(Boolean) : [];
     if (serials.length > 0 && serials.length !== quantity) {
-         showMessage(piItemAddMessage, `عدد السيريالات المدخلة (${serials.length}) لا يطابق الكمية (${quantity}).`, true);
+         showMessage(piItemAddMessage, `عدد السيريالات (${serials.length}) لا يطابق الكمية (${quantity}).`, true);
         return;
     }
 
-    // Create and append the new row
-    const subtotal = quantity * cost;
+    // نستخدم (الكمية × سعر الوحدة) لضمان الدقة الحسابية في الفاتورة
+    const subtotal = quantity * cost; 
+
     const newRow = document.createElement('tr');
     newRow.dataset.name = name;
+    newRow.dataset.category = category;
     newRow.dataset.quantity = quantity;
     newRow.dataset.cost = cost;
     newRow.dataset.subtotal = subtotal;
-    // Store serials in a JSON string within a data attribute for easy retrieval
     newRow.dataset.serials = JSON.stringify(serials);
 
     newRow.innerHTML = `
-        <td class="border p-2">${name} ${serials.length > 0 ? `<span class="text-xs text-blue-500">(${serials.length} S/N)</span>` : ''}</td>
+        <td class="border p-2">
+            ${name} 
+            ${category ? `<span class="text-xs text-blue-600 block">(${category})</span>` : ''} 
+            ${serials.length > 0 ? `<span class="text-xs text-gray-500 block">(${serials.length} S/N)</span>` : ''}
+        </td>
         <td class="border p-2 text-center font-mono">${quantity}</td>
         <td class="border p-2 text-center font-mono">${formatCurrency(cost)}</td>
         <td class="border p-2 text-center font-mono font-bold">${formatCurrency(subtotal)}</td>
@@ -7551,23 +7573,20 @@ function pi_addItem() {
     `;
     piItemsBody.appendChild(newRow);
 
-    // Update UI
     pi_no_items_msg.classList.add('hidden');
     pi_updateTotals();
 
-    // Clear input fields for next item
+    // تنظيف الحقول
     piItemNameInput.value = '';
+    if(categoryInput) categoryInput.value = '';
     piItemQuantityInput.value = '1';
     piItemCostInput.value = '0';
+    if(totalCostInput) totalCostInput.value = '0'; // تصفير الإجمالي أيضاً
     piItemSerialsTextarea.value = '';
     piItemSerialsContainer.classList.add('hidden');
-    showMessage(piItemAddMessage, ""); // Clear any previous error
+    showMessage(piItemAddMessage, "");
     piItemNameInput.focus();
 }
-
-/**
- * Resets the entire purchase invoice form.
- */
 function pi_clearForm() {
     editingPurchaseInvoiceId = null; // Will be used later for editing
 
@@ -7829,20 +7848,30 @@ function handlePendingPurchaseActions(event) {
 }
 
 
-/**
- * Core function to confirm a purchase invoice.
- * Updates inventory, liabilities, and liquidity.
- */
 function pi_confirmPurchaseInvoice() {
+    // 1. التحقق من صحة النموذج
     if (!pi_validateForm()) { return; }
-    saveStateToHistory();
-
+    
+    // قراءة القيم من الواجهة
     const goodsReceived = d('pi_goods_received').checked;
     const deductFromLiquidity = d('pi_deduct_from_liquidity').checked;
     const paidAmountValue = parseInputNumber(piPaidAmountInput) || 0;
-    
     const selectedAccountId = d('pi_payment_account').value;
     const account = accounts.find(acc => acc.id === selectedAccountId);
+
+    // 2. التحقق من الحساب (إذا كان هناك خصم)
+    if (deductFromLiquidity && paidAmountValue > 0) {
+        if (!selectedAccountId || !account) {
+            showMessage(piFormMessage, "تنبيه: يرجى اختيار حساب الخصم.", true);
+            return;
+        }
+        if (paidAmountValue > account.balance) {
+             showMessage(piFormMessage, `تنبيه: رصيد حساب "${account.name}" غير كافٍ.`, true);
+             return;
+        }
+    }
+
+    saveStateToHistory(); // حفظ للتراجع
 
     const invoiceData = {
         id: generateId('pi'),
@@ -7852,6 +7881,7 @@ function pi_confirmPurchaseInvoice() {
         timestamp: new Date().toISOString(),
         items: Array.from(piItemsBody.querySelectorAll('tr')).map(row => ({
             name: row.dataset.name,
+            category: row.dataset.category || "", // ✅ قراءة الفئة من الجدول وحفظها
             quantity: parseInt(row.dataset.quantity),
             cost: parseFloat(row.dataset.cost),
             serials: JSON.parse(row.dataset.serials || '[]')
@@ -7861,24 +7891,39 @@ function pi_confirmPurchaseInvoice() {
         remainingBalance: parseFloat(piRemainingBalanceSpan.textContent) || 0,
         status: goodsReceived ? 'Confirmed' : 'Pending',
         deductedFromLiquidity: deductFromLiquidity && paidAmountValue > 0,
-        paidFromAccountId: deductFromLiquidity && paidAmountValue > 0 ? selectedAccountId : null
+        paidFromAccountId: (deductFromLiquidity && paidAmountValue > 0) ? selectedAccountId : null
     };
 
     const supplier = suppliers.find(s => s.id === invoiceData.supplierId);
 
+    // دالة داخلية لتحديث المخزون
     const processInventoryUpdate = () => {
         invoiceData.items.forEach(item => {
             const productIndex = products.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
             if (productIndex !== -1) {
+                // منتج موجود: نحدث الكمية ومتوسط السعر
                 const existing = products[productIndex];
                 const oldQty = Number(existing.quantity) || 0;
                 const oldCost = Number(existing.costPrice) || 0;
                 const totalQty = oldQty + item.quantity;
                 existing.quantity = totalQty;
                 existing.costPrice = totalQty > 0 ? ((oldQty * oldCost) + (item.quantity * item.cost)) / totalQty : item.cost;
+                
+                // ✅ تحديث الفئة للمنتج الموجود إذا تم إدخال فئة جديدة في الفاتورة
+                if (item.category) {
+                    existing.category = item.category;
+                }
             } else {
-                products.push({ name: item.name, quantity: item.quantity, costPrice: item.cost, supplierId: invoiceData.supplierId });
+                // منتج جديد: نضيفه مع الفئة
+                products.push({ 
+                    name: item.name, 
+                    quantity: item.quantity, 
+                    costPrice: item.cost, 
+                    supplierId: invoiceData.supplierId,
+                    category: item.category || "" // ✅ حفظ الفئة للمنتج الجديد
+                });
             }
+            // إضافة السيريالات إن وجدت
             if (item.serials && item.serials.length > 0) {
                 item.serials.forEach(serial => serialNumbersLog.push({ serial, productName: item.name, supplierId: invoiceData.supplierId, addedTimestamp: invoiceData.timestamp, status: "in_stock" }));
             }
@@ -7886,10 +7931,11 @@ function pi_confirmPurchaseInvoice() {
     };
 
     if (goodsReceived) {
+        // حالة الاستلام الفوري
         if (invoiceData.paidAmount > 0 && deductFromLiquidity && account) {
             account.balance -= invoiceData.paidAmount;
             const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-            liquidityLog.push({ id: `liq-${Date.now()}`, type: "remove", amount: invoiceData.paidAmount, description: `دفع فاتورة شراء لـ ${supplier?.name} من "${account.name}"`, currentBalance: newTotalLiquidity });
+            liquidityLog.push({ id: `liq-${Date.now()}`, type: "remove", amount: invoiceData.paidAmount, description: `دفع فاتورة شراء لـ ${supplier?.name} من "${account.name}"`, currentBalance: newTotalLiquidity, accountId: selectedAccountId });
         }
         processInventoryUpdate();
         if (invoiceData.remainingBalance > 0.001) {
@@ -7899,13 +7945,13 @@ function pi_confirmPurchaseInvoice() {
         logOperation("فاتورة شراء مؤكدة", `تأكيد فاتورة من ${supplier?.name} بقيمة ${formatCurrency(invoiceData.grandTotal)}.`);
         showMessage(piFormMessage, "تم تأكيد الفاتورة وتحديث المخزون بنجاح.", false);
         
-    } else { // Pending Purchase
+    } else { 
+        // حالة الشراء المعلق (Pending Purchase)
         if (invoiceData.paidAmount > 0 && deductFromLiquidity && account) {
             account.balance -= invoiceData.paidAmount;
             const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-            liquidityLog.push({ id: `liq-${Date.now()}`, type: "remove", amount: invoiceData.paidAmount, description: `عربون شراء لـ ${supplier?.name} من "${account.name}"`, currentBalance: newTotalLiquidity });
+            liquidityLog.push({ id: `liq-${Date.now()}`, type: "remove", amount: invoiceData.paidAmount, description: `عربون شراء لـ ${supplier?.name} من "${account.name}"`, currentBalance: newTotalLiquidity, accountId: selectedAccountId });
         }
-        // --- ✅ تم حذف تسجيل الالتزام من هنا ---
         pendingPurchases.push(invoiceData);
         logOperation("فاتورة شراء معلقة", `تسجيل فاتورة من ${supplier?.name} كـ "قيد الاستلام".`);
         showMessage(piFormMessage, "تم تسجيل الفاتورة كـ 'شراء قيد الاستلام' بنجاح.", false, true);
@@ -7914,10 +7960,8 @@ function pi_confirmPurchaseInvoice() {
     pi_clearForm();
     updateUI();
 }
-/**
- * Renders all account-related UI elements based on the global 'accounts' array.
- * This includes overview cards, dropdowns, and the management list.
- */
+
+
 function renderAccounts() {
     const safesGrid = document.getElementById('safes-overview-grid');
     const accountsList = document.getElementById('accounts-list');
@@ -8363,7 +8407,53 @@ inventoryCategoryFilter = d('inventory-category-filter');
      // ============================================================
     // >>> انسخ هذا البلوك وضعه تحت السطر السابق مباشرة <<<
     // ============================================================
-    
+    // --- ضع هذا الكود داخل دالة initializeApp ---
+
+// تعريف العناصر الجديدة
+ piItemQuantityInput = d('pi_item_quantity');
+piItemCostInput = d('pi_item_cost');
+piItemTotalCostInput = d('pi_item_total_cost');
+
+// 1. عند تغيير الكمية -> تحديث الإجمالي (بناءً على سعر الوحدة)
+if (piItemQuantityInput) {
+    piItemQuantityInput.addEventListener('input', () => {
+        const qty = parseFloat(piItemQuantityInput.value) || 0;
+        const cost = parseFloat(piItemCostInput.value) || 0;
+        if (piItemTotalCostInput) piItemTotalCostInput.value = (qty * cost).toFixed(2);
+        
+        // (كود إظهار السيريال القديم)
+        if (qty > 0 && d('pi_item_serials_container')) {
+            d('pi_item_serials_container').classList.remove('hidden');
+        } else if (d('pi_item_serials_container')) {
+            d('pi_item_serials_container').classList.add('hidden');
+        }
+    });
+}
+
+// 2. عند تغيير سعر الوحدة -> تحديث الإجمالي
+if (piItemCostInput) {
+    piItemCostInput.addEventListener('input', () => {
+        const qty = parseFloat(piItemQuantityInput.value) || 0;
+        const cost = parseFloat(piItemCostInput.value) || 0;
+        if (piItemTotalCostInput) piItemTotalCostInput.value = (qty * cost).toFixed(2);
+    });
+}
+
+// 3. عند تغيير السعر الإجمالي -> حساب سعر الوحدة تلقائياً
+if (piItemTotalCostInput) {
+    piItemTotalCostInput.addEventListener('input', () => {
+        const qty = parseFloat(piItemQuantityInput.value) || 1; // تجنب القسمة على صفر
+        const total = parseFloat(piItemTotalCostInput.value) || 0;
+        if (qty > 0) {
+            piItemCostInput.value = (total / qty).toFixed(2); // حساب سعر الوحدة
+        }
+    });
+}
+ 
+ 
+ 
+ 
+ 
     // 1. ربط عناصر السيريال بالمتغيرات
     sellSerialContainer = d('sell-serial-container');
     sellSerialInput = d('sell-serial-input');
