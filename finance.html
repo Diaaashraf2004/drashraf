@@ -1932,12 +1932,16 @@ input:checked:active + .slider:before {
                             <label for="add-liability-amount" class="block text-gray-700 text-sm font-bold mb-1">المبلغ المستحق:<span class="required">*</span></label>
                             <input type="number" id="add-liability-amount" value="0" min="0.01" step="0.01" class="shadow-sm">
                         </div>
-                        <div class="mb-3">
-                            <label for="liability-received-cash" class="inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="liability-received-cash" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-offset-0 focus:ring-blue-200 focus:ring-opacity-50 ml-2">
-                                <span class="text-sm text-gray-700 font-medium">هل استلمت سيولة مقابل هذا الالتزام؟</span>
-                            </label>
-                        </div>
+                       <div class="mb-3">
+    <label for="liability-received-cash" class="inline-flex items-center cursor-pointer">
+        <input type="checkbox" id="liability-received-cash" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-offset-0 focus:ring-blue-200 focus:ring-opacity-50 ml-2">
+        <span class="text-sm text-gray-700 font-medium">هل استلمت سيولة مقابل هذا الالتزام؟</span>
+    </label>
+    <div id="liability-cash-account-container" class="form-group mt-2 hidden" style="margin-right: 1.5rem;">
+        <label for="liability-cash-account" class="block text-sm font-bold mb-1">إيداع في حساب:</label>
+        <select id="liability-cash-account" class="shadow-sm w-full md:w-1/2"></select>
+    </div>
+    </div>
                         <button id="add-liability-button" class="w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-2 px-4 rounded">تسجيل الالتزام</button>
                     </div>
                     <div>
@@ -4344,29 +4348,41 @@ async function saveCurrentStateByDate(dateString) {
 
         showGlobalMessage(userMessage, isError, isInfo);
     }
-}
-
+}// 1. دالة عرض القائمة (نسخة المسح الشامل المتوافقة مع كروم)
 function openBackupHistoryModal() {
-    const targetDate = currentLoadedDate || new Date().toISOString().split('T')[0];
     const modal = document.getElementById('backupHistoryModal');
     const listContainer = document.getElementById('backup-history-list');
     
     if (!modal || !listContainer) return;
 
+    // تحديد التاريخ المستهدف (أو استخدام تاريخ اليوم كاحتياطي)
+    let targetDate = currentLoadedDate;
+    if (!targetDate) {
+        const now = new Date();
+        // تنسيق التاريخ يدوياً لضمان التوافق (YYYY-MM-DD)
+        const offset = now.getTimezoneOffset() * 60000;
+        targetDate = new Date(now.getTime() - offset).toISOString().split('T')[0];
+    }
+
+    console.log(`Chrome-Safe Backup Search for: ${targetDate}`);
+    
     let backups = [];
 
-    console.log(`Checking ALL local storage for date: ${targetDate}`);
-    
-    // 🔥 تعديل لكروم: مسح شامل لكل المفاتيح بدلاً من التخمين
+    // 🔥 التغيير الجذري: مسح شامل لكل مفاتيح الذاكرة بدلاً من التخمين
+    // هذا يتجاوز مشاكل ترتيب المفاتيح في كروم
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        // نبحث عن أي مفتاح يخص هذا التاريخ وهذا البرنامج
+        
+        // هل المفتاح يخص برنامجنا ويخص التاريخ المطلوب؟
         if (key && key.includes("goodsMgmt_backup_") && key.includes(targetDate)) {
             try {
                 const raw = localStorage.getItem(key);
                 const data = JSON.parse(raw);
+                
                 if (data && data.savedAt) {
+                    // حساب حجم البيانات
                     const infoCount = (data.products?.length || 0) + (data.log?.length || 0);
+                    
                     backups.push({
                         key: key,
                         time: new Date(data.savedAt),
@@ -4374,15 +4390,21 @@ function openBackupHistoryModal() {
                     });
                 }
             } catch (e) {
-                console.warn("ملف تالف:", key);
+                console.warn("ملف تالف تم تجاهله:", key);
             }
         }
     }
 
+    // ترتيب النسخ: الأحدث أولاً
     backups.sort((a, b) => b.time - a.time);
 
+    // عرض القائمة
     if (backups.length === 0) {
-        listContainer.innerHTML = `<p class="text-center text-gray-500 py-4">لا توجد نسخ لهذا اليوم (${targetDate}).</p>`;
+        listContainer.innerHTML = `
+            <div class="text-center py-4">
+                <p class="text-gray-500 mb-2">لا توجد نسخ لهذا اليوم (${targetDate}).</p>
+                <small class="text-gray-400">تأكد أنك قمت بعملية حفظ واحدة على الأقل.</small>
+            </div>`;
     } else {
         listContainer.innerHTML = backups.map(backup => `
             <div class="flex justify-between items-center p-3 mb-2 bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-50 transition">
@@ -4413,6 +4435,7 @@ function openBackupHistoryModal() {
     
     modal.style.display = 'block';
 }
+
 // 2. تفعيل الأزرار بتقنية (Event Delegation) لتعمل على كروم
 // ضع هذا الجزء مرة واحدة في نهاية الملف أو داخل initializeApp
 document.addEventListener('click', async function(e) {
@@ -6600,16 +6623,22 @@ async function handlePendingSaleActions(event) {
         }
     }
 }
-// --- >>> END: انسخ هذا الكود بالكامل والصقه مكان دالة handlePendingSaleActions القديمة <<< ---
-// =======================================================
-            function openPendingSaleForEdit(pendingId) {
+      function openPendingSaleForEdit(pendingId) {
     const sale = pendingSales.find(s => s.id === pendingId);
     if (!sale) {
         showGlobalMessage("لم يتم العثور على البيع المؤقت للتعديل.", true);
         return;
     }
 
-    // انتقل إلى قسم البيع واعرضه
+    // --- حماية الفواتير المفصلة ---
+    // إذا كان البيع عبارة عن فاتورة مفصلة (تحتوي على items ولا تحتوي على mainProduct)
+    // نمنع تعديلها في نموذج البيع السريع لتجنب تدمير البيانات
+    if (!sale.mainProduct && sale.items && sale.items.length > 0) {
+        alert("تنبيه: هذه عملية 'فاتورة مفصلة'.\n\nلضمان دقة الحسابات والمخزون، لا يمكن تعديلها من هنا.\n\nالحل:\n1. اضغط على 'إلغاء/إرجاع' (سيقوم البرنامج بإرجاع البضاعة للمخزن).\n2. قم بإنشاء فاتورة جديدة بالتعديلات المطلوبة.");
+        return;
+    }
+
+    // الانتقال للقسم
     const sellSection = d('sell-product');
     const navButton = document.querySelector('button[data-target="sell-product"]');
     if (sellSection && navButton) {
@@ -6622,31 +6651,52 @@ async function handlePendingSaleActions(event) {
     
     editingPendingSaleId = pendingId;
 
-    // ملء الحقول الأساسية
-    sellProductNameInput.value = sale.mainProduct.name;
+    // 1. ملء البيانات الأساسية للبيع السريع
+    // إزالة السيريال من الاسم للعرض فقط
+    sellProductNameInput.value = sale.mainProduct.name.split(' (S/N:')[0]; 
     sellCustomerNameInput.value = sale.customerName || '';
     sellQuantityInput.value = sale.mainProduct.quantity;
     sellPriceInput.value = sale.totalSellPrice;
-    sellPendingCheckbox.checked = true; // يجب أن تبقى مؤقتة عند التعديل
-
-    // تحديث وعرض الملحقات وتحديد الملحقات القديمة
-    updateAdditionalCostsCheckboxes();
-    const attachments = sale.additionalItems || [];
-    attachments.forEach(att => {
-        const checkbox = additionalCostsContainer.querySelector(`input[value="${att.name}"]`);
-        if (checkbox) {
-            checkbox.checked = true;
-            const qtyInput = checkbox.closest('label').querySelector('.additional-item-quantity');
-            if(qtyInput) {
-                qtyInput.value = att.quantity;
-            }
+    
+    // التعامل مع السيريال القديم إن وجد
+    const serialMatch = sale.mainProduct.name.match(/\(S\/N: (.*?)\)/);
+    if (sellSerialInput) {
+        if (serialMatch && serialMatch[1]) {
+            sellSerialContainer.classList.remove('hidden');
+            sellSerialInput.value = serialMatch[1];
+        } else {
+            sellSerialContainer.classList.add('hidden');
+            sellSerialInput.value = '';
         }
-    });
+    }
 
-    // تغيير شكل زر البيع إلى "تحديث"
-    sellButton.textContent = "تحديث البيع المؤقت";
+    sellPendingCheckbox.checked = true; // يجب أن يبقى مؤقت
+
+    // 2. تحديث قائمة الملحقات (Checkboxes)
+    updateAdditionalCostsCheckboxes(); 
+
+    // 3. استرجاع حالة الملحقات المختارة سابقاً
+    const attachments = sale.additionalItems || [];
+    setTimeout(() => { 
+        attachments.forEach(att => {
+            const checkbox = additionalCostsContainer.querySelector(`input[value="${att.name}"]`);
+            if (checkbox) {
+                checkbox.checked = true;
+                const parentLabel = checkbox.closest('label');
+                const qtyInput = parentLabel.querySelector('.additional-item-quantity');
+                if(qtyInput) {
+                    qtyInput.value = att.quantity;
+                }
+            }
+        });
+    }, 50);
+
+    // تغيير شكل الزر ليدل على التعديل
+    sellButton.textContent = "حفظ التعديلات";
+    sellButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+    sellButton.classList.add('bg-orange-500', 'hover:bg-orange-600');
+    
     d('cancel-edit-pending-button').classList.remove('hidden');
-    // يمكنك إضافة زر "إلغاء التعديل" هنا إذا أردت
 }
             // --- Invoice Search Functions ---
             function searchInvoiceByNumber() {
@@ -7895,7 +7945,8 @@ function renderAccounts() {
         // قسم المصروفات
         '#expense-payment-account', '#expense-refund-account',
         // قسم المشتريات المعلقة (الذي به المشكلة الحالية)
-        '#pending-purchase-payment-account'
+        '#pending-purchase-payment-account',
+        '#liability-cash-account'
     ];
     
     // --- باقي الدالة يبقى كما هو ---
@@ -8953,41 +9004,62 @@ if (debtorsListContainer) {
                  
 
                  // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-// ★★★ بداية الكود الجديد الذي ستلصقه (يشمل 3 دوال) ★★★
-// ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-
-// دالة صغيرة لتنظيف نموذج البيع
 function resetSellForm() {
-    editingPendingSaleId = null; // أهم خطوة
-    d('cancel-edit-pending-button').classList.add('hidden');
+    editingPendingSaleId = null; // الخروج من وضع التعديل
     
-    sellProductNameInput.value = "";
-    sellCustomerNameInput.value = "";
-    sellQuantityInput.value = "1";
-    sellPriceInput.value = "0";
-    sellPendingCheckbox.checked = false;
-    sellButton.textContent = "بيع البضاعة (سريع/مؤقت)";
+    if (sellProductNameInput) sellProductNameInput.value = "";
+    if (sellCustomerNameInput) sellCustomerNameInput.value = "";
+    if (sellQuantityInput) sellQuantityInput.value = "1";
+    if (sellPriceInput) sellPriceInput.value = "0";
+    if (sellPendingCheckbox) sellPendingCheckbox.checked = false;
     
+    // إخفاء حقل السيريال
+    if (sellSerialContainer) sellSerialContainer.classList.add('hidden');
+    if (sellSerialInput) sellSerialInput.value = '';
+
+    // إعادة الزر لشكله الطبيعي
+    if (sellButton) {
+        sellButton.textContent = "بيع البضاعة (سريع/مؤقت)";
+        sellButton.classList.remove('bg-orange-500', 'hover:bg-orange-600');
+        sellButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
+    }
+
+    // إخفاء زر الإلغاء
+    if (d('cancel-edit-pending-button')) {
+        d('cancel-edit-pending-button').classList.add('hidden');
+    }
+
+    // تفريغ الملحقات
     if (additionalCostsContainer) {
         additionalCostsContainer.innerHTML = '<p class="text-center text-gray-500 text-sm">أدخل اسم المنتج الرئيسي لعرض المرفقات المتاحة.</p>';
     }
-    showMessage(sellMessage, ""); // مسح أي رسائل قديمة
+    
+    showMessage(sellMessage, ""); 
 }
-
 // 1. الدالة الرئيسية الجديدة للإضافة أو التحديث
 if (sellButton) {
+    // إزالة أي مستمعات أحداث قديمة لتجنب التكرار (اختياري لكن مفضل)
+    const newSellButton = sellButton.cloneNode(true);
+    sellButton.parentNode.replaceChild(newSellButton, sellButton);
+    // تحديث المرجع للمتغير
+    sellButton = newSellButton;
+
     sellButton.addEventListener("click", () => {
-        saveStateToHistory(); // حفظ الحالة قبل أي تغيير
+        saveStateToHistory(); // 1. حفظ نسخة احتياطية
 
         if (editingPendingSaleId) {
-            // إذا كنا في وضع التعديل، استدع دالة التحديث
+            // 2. إذا كان هناك ID، فهذا "تعديل" -> استدعِ دالة التحديث الجديدة
+            console.log("Saving changes to pending sale...");
             updatePendingSale(editingPendingSaleId);
         } else {
-            // إذا كنا في وضع الإضافة، استدع دالة الإضافة
+            // 3. إذا لم يكن هناك ID، فهذا "بيع جديد" -> استدعِ دالة البيع العادية
+            console.log("Processing new sale...");
             sellProduct();
         }
     });
 }
+
+// تفعيل زر إلغاء التعديل
 if (d('cancel-edit-pending-button')) {
     d('cancel-edit-pending-button').addEventListener('click', resetSellForm);
 }
@@ -9170,7 +9242,6 @@ function sellProduct() {
     sellSerialInput.value = '';
 }
 
-// 3. دالة تحديث بيع مؤقت موجود
 function updatePendingSale(pendingId) {
     const saleIndex = pendingSales.findIndex(s => s.id === pendingId);
     if (saleIndex === -1) {
@@ -9181,64 +9252,156 @@ function updatePendingSale(pendingId) {
 
     const originalSale = pendingSales[saleIndex];
     
-    // 1. إرجاع الكميات القديمة للمخزون
-    const originalItems = [originalSale.mainProduct, ...(originalSale.additionalItems || [])];
-    originalItems.forEach(item => {
-        const productIndex = products.findIndex(p => p.name === item.name);
-        if (productIndex !== -1) {
-            products[productIndex].quantity += item.quantity;
-        } else {
-            products.push({ ...item }); // Re-add if it was deleted
+    // =========================================================
+    // خطوة 1: إرجاع المخزون القديم بالكامل (Revert Stock)
+    // =========================================================
+    const oldMainProduct = originalSale.mainProduct;
+    const oldAttachments = originalSale.additionalItems || [];
+    
+    // إرجاع المنتج الرئيسي
+    // نستخدم split لإزالة السيريال من الاسم عند البحث في المخزون
+    const oldMainNameSimple = oldMainProduct.name.split(' (S/N:')[0];
+    const oldMainIndex = products.findIndex(p => p.name === oldMainNameSimple);
+    
+    if (oldMainIndex !== -1) {
+        products[oldMainIndex].quantity += Number(oldMainProduct.quantity);
+    } else {
+        // لو المنتج اتحذف بالغلط، نرجعه عشان الحسابات تظبط
+        products.push({ ...oldMainProduct, name: oldMainNameSimple });
+    }
+
+    // إرجاع الملحقات
+    oldAttachments.forEach(att => {
+        const attIndex = products.findIndex(p => p.name === att.name);
+        if (attIndex !== -1) {
+            products[attIndex].quantity += Number(att.quantity);
         }
     });
 
-    // 2. قراءة البيانات الجديدة من النموذج (مع التحقق)
+    // =========================================================
+    // خطوة 2: التحقق من البيانات الجديدة
+    // =========================================================
     const newMainProductName = sellProductNameInput.value.trim();
     const newCustomerName = sellCustomerNameInput.value.trim();
     const newQuantitySold = parseInputNumber(sellQuantityInput);
     const newTotalSellPrice = parseInputNumber(sellPriceInput);
+    const newSerial = sellSerialInput ? sellSerialInput.value.trim() : '';
 
+    // التحقق من صحة المدخلات
     if (!newMainProductName || isNaN(newQuantitySold) || newQuantitySold <= 0 || isNaN(newTotalSellPrice)) {
-        showMessage(sellMessage, "البيانات المدخلة للتحديث غير صالحة.", true);
-        // Revert the stock addition because the update failed
-        originalItems.forEach(item => {
-            const productIndex = products.findIndex(p => p.name === item.name);
-            if (productIndex !== -1) products[productIndex].quantity -= item.quantity;
+        showMessage(sellMessage, "البيانات المدخلة غير صحيحة. تم التراجع عن العملية وإعادة المخزون السابق.", true);
+        // فشل التحقق: يجب إعادة خصم المخزون القديم (لأننا أرجعناه في الخطوة 1)
+        if(oldMainIndex !== -1) products[oldMainIndex].quantity -= Number(oldMainProduct.quantity);
+        oldAttachments.forEach(att => {
+            const idx = products.findIndex(p => p.name === att.name);
+            if(idx !== -1) products[idx].quantity -= Number(att.quantity);
         });
         return;
     }
-    
-    // --- كرر نفس منطق التحقق من المخزون وجمع التكاليف من دالة sellProduct ---
-    const newMainProductIndex = products.findIndex(p => p.name === newMainProductName);
-    if (newMainProductIndex === -1) { /* handle error */ return; }
-    const newMainProduct = { ...products[newMainProductIndex] };
-    if (newMainProduct.quantity < newQuantitySold) { /* handle error */ return; }
-    
-    let newCostOfGoodsSold = (Number(newMainProduct.costPrice) || 0) * newQuantitySold;
-    let newAdditionalItemsData = [];
-    let newAdditionalItemsToUpdate = [];
-    // ... كود التحقق من الملحقات المحدثة ... (نفس كود forEach من دالة sellProduct)
-    
-    const newProfit = newTotalSellPrice - newCostOfGoodsSold;
-    
-    // 3. خصم الكميات الجديدة من المخزون
-    products[newMainProductIndex].quantity -= newQuantitySold;
-    // ... كود خصم الملحقات الجديدة ...
 
-    // 4. تحديث البيعة في مصفوفة pendingSales
+    // التحقق من توفر الكميات الجديدة في المخزون
+    const newMainIndex = products.findIndex(p => p.name === newMainProductName);
+    if (newMainIndex === -1 || products[newMainIndex].quantity < newQuantitySold) {
+        showMessage(sellMessage, `الكمية الجديدة المطلوبة غير متوفرة. (المتاح: ${newMainIndex !== -1 ? products[newMainIndex].quantity : 0})`, true);
+        // فشل الكمية: إعادة خصم المخزون القديم
+        if(oldMainIndex !== -1) products[oldMainIndex].quantity -= Number(oldMainProduct.quantity);
+        oldAttachments.forEach(att => { const idx = products.findIndex(p => p.name === att.name); if(idx !== -1) products[idx].quantity -= Number(att.quantity); });
+        return;
+    }
+
+    // =========================================================
+    // خطوة 3: خصم المخزون الجديد (Apply New Stock Deduction)
+    // =========================================================
+    
+    // خصم المنتج الرئيسي الجديد
+    products[newMainIndex].quantity -= newQuantitySold;
+    
+    // حساب التكلفة الجديدة
+    let newTotalCost = (Number(products[newMainIndex].costPrice) || 0) * newQuantitySold;
+    
+    // معالجة الملحقات الجديدة وخصمها
+    let newAdditionalItemsData = [];
+    const additionalCheckboxes = additionalCostsContainer ? additionalCostsContainer.querySelectorAll('input[type="checkbox"]:checked') : [];
+    
+    for (const checkbox of additionalCheckboxes) {
+        const attName = checkbox.value;
+        const parentLabel = checkbox.closest('label');
+        const qtyInput = parentLabel.querySelector('.additional-item-quantity');
+        const qtyToDeduct = parseInt(qtyInput.value) || 0;
+        
+        const attIndex = products.findIndex(p => p.name === attName);
+        
+        if (attIndex !== -1 && qtyToDeduct > 0) {
+            if (products[attIndex].quantity >= qtyToDeduct) {
+                products[attIndex].quantity -= qtyToDeduct;
+                newTotalCost += (Number(products[attIndex].costPrice) || 0) * qtyToDeduct;
+                
+                newAdditionalItemsData.push({
+                    name: attName,
+                    quantity: qtyToDeduct,
+                    costPrice: products[attIndex].costPrice,
+                    supplierId: products[attIndex].supplierId
+                });
+            }
+        }
+    }
+
+    // 🔥🔥🔥 تم حذف سطر الفلترة من هنا لمنع الخطأ (Cannot read properties of undefined) 🔥🔥🔥
+    // products = products.filter(p => p.quantity > 0.001); <--- هذا السطر كان السبب
+
+    // =========================================================
+    // خطوة 4: تحديث سجل البيع المؤقت
+    // =========================================================
+    
+    // ضبط الاسم بالسيريال الجديد
+    let displayName = newMainProductName;
+    if (newSerial) displayName += ` (S/N: ${newSerial})`;
+
+    // تحديث حالة السيريال
+    if (typeof serialNumbersLog !== 'undefined') {
+        const oldSerialName = oldMainProduct.name;
+        const oldSerialMatch = oldSerialName.match(/\(S\/N: (.*?)\)/);
+        if (oldSerialMatch) {
+            const oldS = oldSerialMatch[1];
+            const oldLogIdx = serialNumbersLog.findIndex(l => l.serial === oldS);
+            if (oldLogIdx !== -1) serialNumbersLog[oldLogIdx].status = 'in_stock';
+        }
+        if (newSerial) {
+             const newLogIdx = serialNumbersLog.findIndex(l => l.serial === newSerial);
+             if (newLogIdx !== -1) {
+                 serialNumbersLog[newLogIdx].status = 'pending_sale';
+             } else {
+                 serialNumbersLog.push({
+                     serial: newSerial,
+                     productName: newMainProductName,
+                     supplierId: products[newMainIndex].supplierId || "",
+                     addedTimestamp: new Date().toISOString(),
+                     status: 'pending_sale'
+                 });
+             }
+        }
+    }
+
+    // التحديث النهائي للكائن
     pendingSales[saleIndex] = {
-        ...originalSale, // Keep original ID and status
+        ...originalSale,
         customerName: newCustomerName,
-        mainProduct: { name: newMainProduct.name, quantity: newQuantitySold, costPrice: newMainProduct.costPrice, supplierId: newMainProduct.supplierId },
+        mainProduct: { 
+            name: displayName, 
+            quantity: newQuantitySold, 
+            // الآن هذا السطر آمن لأننا لم نحذف المنتج من المصفوفة
+            costPrice: products[newMainIndex].costPrice, 
+            supplierId: products[newMainIndex].supplierId 
+        },
         additionalItems: newAdditionalItemsData,
         totalSellPrice: newTotalSellPrice,
-        potentialProfit: newProfit,
+        potentialProfit: newTotalSellPrice - newTotalCost,
         timestamp: new Date().toISOString()
     };
-    
-    logOperation("تعديل بيع مؤقت", `تم تحديث بيانات البيع للعميل: ${newCustomerName || '-'}.`);
-    showMessage(sellMessage, "تم تحديث البيع المؤقت بنجاح.");
-    
+
+    logOperation("تعديل بيع مؤقت", `تم تحديث بيانات البيع للعميل: ${newCustomerName}.`);
+    showMessage(sellMessage, "تم تحديث البيع المؤقت وتعديل المخزون بنجاح.");
+
     resetSellForm();
     updateUI();
 }
@@ -9472,9 +9635,100 @@ if (receivePaymentButton) {
         d('debt-payment-summary').classList.add('hidden');
     });
 }
-               if (addLiabilityButton) { addLiabilityButton.addEventListener("click", () => {saveStateToHistory();
-                     const name = creditorNameInput.value.trim(); const amount = parseInputNumber(addLiabilityAmountInput); const receivedCash = liabilityReceivedCashCheckbox.checked; if (!name) { showMessage(liabilitiesMessage, "يرجى إدخال اسم الدائن.", true); return; } if (isNaN(amount) || amount <= 0) { showMessage(liabilitiesMessage, "يجب أن يكون مبلغ الالتزام أكبر من صفر.", true); return; } const existingIndex = liabilities.findIndex(l => l.name === name); let logMsg = ""; if (existingIndex !== -1) { liabilities[existingIndex].amount = (Number(liabilities[existingIndex].amount) || 0) + amount; logMsg = `زيادة التزام قائم لـ "${name}" بمبلغ ${formatCurrency(amount)}. الإجمالي: ${formatCurrency(liabilities[existingIndex].amount)}`; showMessage(liabilitiesMessage, `تمت زيادة الالتزام لـ "${name}".`); } else { const newLiabilityId = generateId('liab'); const newLiability = { id: newLiabilityId, name: name, amount: amount }; liabilities.push(newLiability); logMsg = `تسجيل التزام جديد على الشركة لـ "${name}" بمبلغ ${formatCurrency(amount)}.`; showMessage(liabilitiesMessage, `تم تسجيل التزام جديد لـ "${name}".`); } if (receivedCash) { accounts.find(acc => acc.id === 'main').balance += amount; const liqLogEntry = { id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: amount, description: `استلام سيولة مقابل التزام لـ ${name}`, currentBalance: liquidity }; liquidityLog.push(liqLogEntry); logMsg += ` وتم استلام سيولة مقابله.`; } logOperation("تسجيل/زيادة التزام", logMsg); updateUI(); creditorNameInput.value = ""; addLiabilityAmountInput.value = "0"; liabilityReceivedCashCheckbox.checked = false; creditorNameInput.focus(); }); }
-                 // استبدل هذا الكود بالكامل داخل دالة initializeApp
+              // --- ضع هذا الكود داخل دالة initializeApp بدلاً من الكود القديم الخاص بالالتزامات ---
+
+// 1. تفعيل إظهار/إخفاء قائمة الحسابات
+if (liabilityReceivedCashCheckbox) {
+    liabilityReceivedCashCheckbox.addEventListener('change', (e) => {
+        const container = d('liability-cash-account-container');
+        if (container) {
+            if (e.target.checked) {
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+    });
+}
+
+// 2. تحديث منطق زر إضافة الالتزام
+if (addLiabilityButton) {
+    addLiabilityButton.addEventListener("click", () => {
+        saveStateToHistory();
+        const name = creditorNameInput.value.trim();
+        const amount = parseInputNumber(addLiabilityAmountInput);
+        const receivedCash = liabilityReceivedCashCheckbox.checked;
+        
+        // قراءة الحساب المختار
+        const selectedAccountId = d('liability-cash-account').value;
+        const account = accounts.find(acc => acc.id === selectedAccountId);
+
+        if (!name) {
+            showMessage(liabilitiesMessage, "يرجى إدخال اسم الدائن.", true);
+            return;
+        }
+        if (isNaN(amount) || amount <= 0) {
+            showMessage(liabilitiesMessage, "يجب أن يكون مبلغ الالتزام أكبر من صفر.", true);
+            return;
+        }
+
+        // التحقق من اختيار الحساب إذا تم تحديد استلام السيولة
+        if (receivedCash && !account) {
+            showMessage(liabilitiesMessage, "يرجى اختيار الحساب الذي تم استلام السيولة فيه.", true);
+            return;
+        }
+
+        const existingIndex = liabilities.findIndex(l => l.name === name);
+        let logMsg = "";
+
+        if (existingIndex !== -1) {
+            liabilities[existingIndex].amount = (Number(liabilities[existingIndex].amount) || 0) + amount;
+            logMsg = `زيادة التزام قائم لـ "${name}" بمبلغ ${formatCurrency(amount)}. الإجمالي: ${formatCurrency(liabilities[existingIndex].amount)}`;
+            showMessage(liabilitiesMessage, `تمت زيادة الالتزام لـ "${name}".`);
+        } else {
+            const newLiabilityId = generateId('liab');
+            const newLiability = {
+                id: newLiabilityId,
+                name: name,
+                amount: amount
+            };
+            liabilities.push(newLiability);
+            logMsg = `تسجيل التزام جديد على الشركة لـ "${name}" بمبلغ ${formatCurrency(amount)}.`;
+            showMessage(liabilitiesMessage, `تم تسجيل التزام جديد لـ "${name}".`);
+        }
+
+        // إضافة السيولة للحساب المختار
+        if (receivedCash) {
+            account.balance += amount; // الإضافة للحساب المختار وليس 'main'
+            
+            const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+            
+            const liqLogEntry = {
+                id: `liq-${Date.now()}`,
+                timestamp: new Date().toISOString(),
+                type: "add",
+                amount: amount,
+                description: `استلام سيولة مقابل التزام لـ ${name} في حساب "${account.name}"`,
+                currentBalance: newTotalLiquidity,
+                accountId: selectedAccountId
+            };
+            liquidityLog.push(liqLogEntry);
+            logMsg += ` وتم استلام سيولة مقابله في "${account.name}".`;
+        }
+
+        logOperation("تسجيل/زيادة التزام", logMsg);
+        updateUI();
+        
+        // إعادة تعيين النموذج
+        creditorNameInput.value = "";
+        addLiabilityAmountInput.value = "0";
+        liabilityReceivedCashCheckbox.checked = false;
+        d('liability-cash-account-container').classList.add('hidden'); // إخفاء القائمة
+        if(d('liability-cash-account')) d('liability-cash-account').value = "";
+        creditorNameInput.focus();
+    });
+}
+   // استبدل هذا الكود بالكامل داخل دالة initializeApp
 if (payLiabilityButton) {
 // Event listeners for bulk payment selections
 const debtPaymentContainer = d('payment-debtor-list-container');
@@ -10213,55 +10467,6 @@ if (d('liabilities-list-container')) {
     setInterval(updateTimeDisplay, 1000);
 
     console.log("Initialization complete. Final loaded date:", currentLoadedDate);
-    // ============================================================
-    // 🔥 الحل النهائي لمشكلة كروم وإيدج (Global Event Delegation) 🔥
-    // ============================================================
-    
-    // 1. تشغيل زر فتح القائمة
-    if (d('open-backup-history-button')) {
-        d('open-backup-history-button').onclick = openBackupHistoryModal; 
-        // استخدمنا onclick مباشرة لمنع التكرار
-    }
-
-    // 2. مراقب عام للنقرات داخل النافذة المنبثقة
-    const historyModal = d('backupHistoryModal');
-    if (historyModal) {
-        historyModal.addEventListener('click', async (e) => {
-            // أ: هل الضغط على زر "استعادة فورية"؟
-            if (e.target.classList.contains('restore-backup-btn-action')) {
-                const btn = e.target;
-                const key = btn.dataset.backupKey;
-                
-                if (confirm("⚠️ هل أنت متأكد من استعادة هذه النسخة المحلية؟\nسيتم استبدال البيانات الحالية فوراً.")) {
-                    try {
-                        const raw = localStorage.getItem(key);
-                        if (raw) {
-                            const data = JSON.parse(raw);
-                            const dateStr = data.savedForDate || currentLoadedDate;
-                            
-                            console.log("Restoring backup (Chrome Fix):", key);
-                            loadState(data, dateStr);
-                            updateUI();
-                            historyModal.style.display = 'none'; // إغلاق النافذة
-                            
-                            // تثبيت النسخة المستعادة في السحابة
-                            await saveCurrentStateByDate(dateStr);
-                            alert("✅ تمت الاستعادة بنجاح!");
-                        }
-                    } catch (err) {
-                        alert("حدث خطأ: " + err.message);
-                    }
-                }
-            }
-
-            // ب: هل الضغط على زر الإغلاق؟
-            if (e.target.classList.contains('modal') || 
-                e.target.closest('.modal-close-btn') || 
-                e.target.closest('.modal-close-btn-footer')) {
-                historyModal.style.display = 'none';
-            }
-        });
-    }
     if (d('return-sale-price-group')) {
     const returnTypeRadios = document.querySelectorAll('input[name="return-type"]');
     returnTypeRadios.forEach(radio => {
@@ -10564,7 +10769,6 @@ window.addEventListener('click', (event) => {
 });
 
 // --- END: PARTIAL DEBT PAYMENT LOGIC ---
-
 
 }); // End DOMContentLoaded
 </script>
