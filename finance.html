@@ -11844,6 +11844,78 @@ window.fixInvoiceDates = async function() {
     alert(`✅ تم تصحيح تاريخ ${count} فاتورة إلى (${correctDate}).\n\nالآن اذهب لتقرير المبيعات واختر شهر (${correctDate.substring(0, 7)}) وستظهر الفواتير بإذن الله.`);
     if(msgBox) showMessage(msgBox, "تم التصحيح بنجاح.", false);
 };
+// ==========================================
+// 1. دالة الحفظ الشامل للسحابة (القلب النابض)
+// ==========================================
+async function saveSystemToCloud() {
+    // التحقق من وجود مستخدم
+    if (!window.currentUser) return;
+    const userId = window.currentUser.uid;
+    
+    // تحديد تاريخ اليوم للعمليات
+    const dateStr = currentLoadedDate || new Date().toISOString().split('T')[0];
+    
+    // إظهار مؤشر حفظ صغير (اختياري)
+    const statusEl = document.getElementById('global-message');
+    if(statusEl && !statusEl.textContent) {
+        statusEl.textContent = "جاري المزامنة...";
+        statusEl.style.color = "blue";
+        statusEl.classList.add('visible');
+    }
+
+    // تجهيز كائن البيانات الكامل (Snapshot)
+    const systemState = {
+        products: products || [],
+        suppliers: suppliers || [],
+        accounts: accounts || [],
+        expenses: expenses || 0,
+        debtors: debtors || [],
+        liabilities: liabilities || [],
+        monthlyLiabilities: monthlyLiabilities || [],
+        pendingSales: pendingSales || [], // يشمل العربونات
+        salesToday: salesToday || [],
+        purchaseInvoices: purchaseInvoices || [],
+        pendingPurchases: pendingPurchases || [],
+        completedReturns: completedReturns || [],
+        pendingReturns: pendingReturns || [],
+        liquidityLog: liquidityLog || [],
+        serialNumbersLog: serialNumbersLog || [],
+        log: operationLog || [], // سجل العمليات
+        
+        savedAt: new Date().toISOString(),
+        savedForDate: dateStr
+    };
+
+    // تنظيف البيانات (إزالة القيم غير المعرفة)
+    const sanitizedState = JSON.parse(JSON.stringify(systemState));
+
+    try {
+        // 1. حفظ بيانات اليوم
+        await window.setDoc(window.doc(window.db, "users", userId, "days", dateStr), sanitizedState);
+        
+        // 2. تحديث "ملخص الأرصدة" (للسرعة في الفتح لاحقاً)
+        await window.setDoc(window.doc(window.db, "users", userId, "summaries", "latestBalances"), {
+            ...sanitizedState,
+            lastUpdated: new Date().toISOString()
+        });
+
+        console.log("✅ تمت المزامنة السحابية بنجاح.");
+        
+        // إخفاء مؤشر الحفظ
+        if(statusEl && statusEl.textContent === "جاري المزامنة...") {
+            statusEl.textContent = "تم الحفظ ✓";
+            statusEl.style.color = "green";
+            setTimeout(() => { 
+                statusEl.textContent = ""; 
+                statusEl.classList.remove('visible'); 
+            }, 1500);
+        }
+
+    } catch (error) {
+        console.error("❌ فشل المزامنة التلقائية:", error);
+        // لا نزعج المستخدم برسالة خطأ في كل مرة، لكن نسجلها في الكونسول
+    }
+}
 }); // End DOMContentLoaded
 </script>
 
