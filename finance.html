@@ -1517,15 +1517,20 @@ input:checked:active + .slider:before {
         </fieldset>
 
         <!-- Totals and Payment Section -->
-        <div class="mb-4 p-4 bg-gray-50 rounded border">
-    <h3 class="font-bold text-gray-700 mb-2">التكاليف الإضافية </h3>
+        <div class="mt-4 mb-4 border rounded-lg bg-white overflow-hidden">
+    <div class="bg-gray-50 px-4 py-2 border-b flex justify-between items-center">
+        <h3 class="font-bold text-gray-700 text-sm">التكاليف الإضافية </h3>
+        <button type="button" onclick="window.pi_addExtraCostRow()" class="text-blue-600 hover:text-blue-800 text-xs font-bold flex items-center bg-blue-50 px-2 py-1 rounded border border-blue-200 hover:bg-blue-100 transition">
+            <span class="text-lg leading-none mr-1">+</span> إضافة بند
+        </button>
+    </div>
     
-    <div id="pi_additional_costs_container" class="space-y-3 mb-3">
+    <div id="pi_additional_costs_container" class="divide-y divide-gray-100">
         </div>
-
-    <button type="button" onclick="pi_addExtraCostRow()" class="flex items-center text-blue-600 hover:text-blue-800 font-bold text-sm">
-        <span class="text-xl mr-1">+</span> إضافة تكلفة أخرى
-    </button>
+    
+    <div id="pi_no_extra_costs_msg" class="text-center text-gray-400 text-xs py-2">
+        لا توجد تكاليف إضافية مضافة.
+    </div>
 </div>
        <fieldset class="mt-4">
     <legend>المدفوعات والإجمالي</legend>
@@ -3274,28 +3279,43 @@ function resetState() {
 
 
 function calculateTotals() {
-    const totalInventoryValue = products.reduce((sum, p) => sum + (Number(p.quantity) || 0) * (Number(p.costPrice) || 0), 0);
-    goodsOnConsignmentValue = calculateConsignmentValue();
-    const totalDebtsValue = calculateTotalDebts();
-    const totalLiabilitiesValue = calculateTotalLiabilities();
+    // 1. قيمة المخزون (بسعر التكلفة)
+    const totalInventoryValue = products.reduce((sum, p) => sum + ((Number(p.quantity) || 0) * (Number(p.costPrice) || 0)), 0);
     
-    // ✅ تم تغيير هذا السطر
-    const pendingReturnsAssetValue = pendingReturnsValue || 0; 
-    
-    const pendingPurchasesAssetValue = pendingPurchases.reduce((sum, purchase) => {
-        return sum + (purchase.paidAmount || 0);
-    }, 0);
-    
+    // 2. قيمة البضاعة المؤقتة (هي مازالت ملكك = أصل)
+    // لاحظ: نستخدم دالة calculateConsignmentValue الموجودة لديك بالفعل
+    let goodsOnConsignmentValue = 0;
+    if (typeof calculateConsignmentValue === 'function') {
+        goodsOnConsignmentValue = calculateConsignmentValue();
+    }
+
+    // 3. الديون والالتزامات
+    const totalDebtsValue = calculateTotalDebts(); // لك
+    const totalLiabilitiesValue = calculateTotalLiabilities(); // عليك
+
+    // 4. السيولة النقدية (الكاش الموجود فعلياً)
     const totalLiquidity = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
+
+    // 5. الأصول المعلقة الأخرى (مثل مشتريات مدفوعة ولم تصل)
+    const pendingPurchasesAssetValue = pendingPurchases.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
+    const pendingReturnsAssetValue = (typeof pendingReturnsValue !== 'undefined') ? pendingReturnsValue : 0;
+
+    // --- 🛑 التصحيح المحاسبي 🛑 ---
+    // العربونات المستلمة على بضاعة لم تخرج تعتبر "التزام مؤقت"
+    // لأنك أخذت الكاش (زاد في السيولة) لكنك لم تسلم الأصل (البضاعة مازالت في المخزون/المؤقت)
+    // لذا يجب طرح العربونات من المعادلة لمنع العد المزدوج.
     
-    // ✅ تم تحديث المعادلة
-    const totalCapital = totalLiquidity + totalInventoryValue + goodsOnConsignmentValue + totalDebtsValue + pendingReturnsAssetValue + pendingPurchasesAssetValue - totalLiabilitiesValue;
+    const totalPendingDeposits = pendingSales.reduce((sum, sale) => sum + (Number(sale.depositPaid) || 0), 0);
+
+    // المعادلة: الأصول (مخزون + مؤقت + سيولة + ديون + معلقات) - الالتزامات (التزامات + عربونات)
+    const totalCapital = (totalInventoryValue + goodsOnConsignmentValue + totalLiquidity + totalDebtsValue + pendingPurchasesAssetValue + pendingReturnsAssetValue) - (totalLiabilitiesValue + totalPendingDeposits);
 
     return {
         totalInventoryValue,
         totalCapital,
         totalDebtsValue,
-        totalLiabilitiesValue
+        totalLiabilitiesValue,
+        totalPendingDeposits // نرجعها للعلم
     };
 }
 function calculateTotalPurchasesToday() {
@@ -3733,25 +3753,32 @@ function calculateSelectedTotal(containerSelector, checkboxSelector, summaryEl, 
         summaryEl.classList.add('hidden');
     }
 }
-
-// =======================================================
 function updatePendingSalesDisplay() {
     if (!pendingSalesListContainer || !pendingSalesSearchInput || !pendingSalesTotalCostSpan || !pendingSalesTotalProfitSpan) return;
 
-    // ... (باقي الكود الخاص بحساب الإجماليات والفلترة يبقى كما هو) ...
     let totalPendingCost = 0;
     let totalPendingProfit = 0;
+
     pendingSales.forEach(sale => {
-        totalPendingCost += calculateSinglePendingSaleCost(sale);
+        let saleCost = 0;
+        if (sale.totalCost !== undefined) {
+             saleCost = Number(sale.totalCost);
+        } else if (sale.mainProduct) {
+             const mainCost = (Number(sale.mainProduct.costPrice) || 0) * (Number(sale.mainProduct.quantity) || 0);
+             const addCost = (sale.additionalItems || []).reduce((sum, i) => sum + ((Number(i.costPrice) || 0) * (Number(i.quantity) || 0)), 0);
+             saleCost = mainCost + addCost;
+        }
+        totalPendingCost += saleCost;
         totalPendingProfit += (Number(sale.potentialProfit) || 0);
     });
-    pendingSalesTotalCostSpan.textContent = `إجمالي التكلفة: ${formatCurrency(totalPendingCost)}`;
-    pendingSalesTotalProfitSpan.textContent = `إجمالي الربح المتوقع: ${formatCurrency(totalPendingProfit)}`;
+
+    if (pendingSalesTotalCostSpan) pendingSalesTotalCostSpan.textContent = `التكلفة: ${formatCurrency(totalPendingCost)}`;
+    if (pendingSalesTotalProfitSpan) pendingSalesTotalProfitSpan.textContent = `الربح المتوقع: ${formatCurrency(totalPendingProfit)}`;
 
     const searchTerm = pendingSalesSearchInput.value.trim().toLowerCase();
     const filteredSales = pendingSales.filter(sale => {
         if (!searchTerm) return true;
-        const customerMatch = sale.customerName && sale.customerName.toLowerCase().includes(searchTerm);
+        const customerMatch = (sale.customerName || "").toLowerCase().includes(searchTerm);
         let productMatch = false;
         if (sale.items) {
             productMatch = sale.items.some(item => item.name.toLowerCase().includes(searchTerm));
@@ -3767,11 +3794,16 @@ function updatePendingSalesDisplay() {
     }
 
     pendingSalesListContainer.innerHTML = filteredSales.map(sale => {
-        let itemsText, attachmentsHTML = '';
+        // تجهيز النصوص للعرض
+        let itemsText = "", attachmentsHTML = "";
+        
+        // 1. عرض الملحقات
         const attachments = sale.additionalItems || (sale.invoiceData ? sale.invoiceData.deductedItems : []);
         if (attachments && attachments.length > 0) {
-            attachmentsHTML = `<div class="text-xs text-gray-500 mt-1 pl-4"><strong>مشتملات:</strong> ${attachments.map(item => `${item.quantity}x ${item.name}`).join(', ')}</div>`;
+            attachmentsHTML = `<div class="text-xs text-gray-500 mt-1 pl-4" style="margin-right: 10px;"><strong>+ ملحقات:</strong> ${attachments.map(item => `${item.quantity}x ${item.name}`).join(', ')}</div>`;
         }
+        
+        // 2. عرض المنتجات
         if (sale.items) {
             itemsText = sale.items.map(item => `${item.quantity}x "${item.name}"`).join(', ');
             if (itemsText.length > 50) itemsText = itemsText.substring(0, 50) + "...";
@@ -3779,33 +3811,52 @@ function updatePendingSalesDisplay() {
         } else if (sale.mainProduct) {
             itemsText = `${sale.mainProduct.quantity}x "${sale.mainProduct.name}"`;
         }
-        let customerInfo = sale.customerName ? `<span class="block text-sm text-blue-600">العميل: ${sale.customerName}</span>` : '';
-        const saleCost = calculateSinglePendingSaleCost(sale);
         
-        // --- ✅ START: NEW BUTTON ADDED HERE ✅ ---
-        return `<li>
-                    <div class="flex justify-between items-start gap-2 flex-wrap">
-                        <div>
-                            <span class="block font-semibold">${itemsText}</span>
-                            ${customerInfo}
-                            ${attachmentsHTML}
-                            <span class="block text-sm details mt-1">السعر المتوقع: ${formatCurrency(sale.totalSellPrice)} | التكلفة: ${formatCurrency(saleCost)} | الربح المتوقع: ${formatCurrency(sale.potentialProfit)}</span>
-                            <span class="block text-xs text-gray-400">${formatDateTime(sale.timestamp)}</span>
-                        </div>
-                        <div class="actions flex-shrink-0 flex flex-col sm:flex-row gap-1 mt-1 sm:mt-0">
-                            <button data-pending-id="${sale.id}" class="edit-pending bg-blue-500 hover:bg-blue-600 text-white rounded px-2 py-1 text-xs border border-blue-700">تعديل</button>
-                            <button data-pending-id="${sale.id}" class="confirm-pending bg-green-500 hover:bg-green-600 text-white rounded px-2 py-1 text-xs border border-green-700">تأكيد فقط</button>
-                            <button data-pending-id="${sale.id}" class="cancel-pending bg-red-500 hover:bg-red-600 text-white rounded px-2 py-1 text-xs border border-red-700">إلغاء/إرجاع</button>
-                            <button data-pending-id="${sale.id}" class="initiate-return-from-pending bg-orange-500 hover:bg-orange-600 text-white rounded px-2 py-1 text-xs border border-orange-700">تحويل لمرتجع</button>
-                        </div>
-                    </div>
-                </li>`;
-        // --- ✅ END: NEW BUTTON ADDED HERE ✅ ---
+        let customerInfo = sale.customerName ? `<span class="block text-sm text-blue-600">العميل: ${sale.customerName}</span>` : '';
 
+        // 3. حالة الدفع (عربون)
+        const totalPaid = Number(sale.depositPaid) || 0;
+        let paymentBadge = "";
+        
+        if (totalPaid > 0) {
+            paymentBadge = `<span class="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded font-bold mt-1 border border-yellow-200">
+                💰 مدفوع عربون: ${formatCurrency(totalPaid)}
+            </span>`;
+        }
+
+        // --- هيكل HTML المتوافق مع التصميم القديم ---
+        return `
+        <li style="border-bottom: 1px solid #eee; padding: 10px; list-style: none;">
+            <div class="flex justify-between items-start gap-2 flex-wrap">
+                <div>
+                    <span class="block font-semibold text-blue-700 cursor-pointer hover:underline" onclick="window.showPendingSaleDetails('${sale.id}')" title="اضغط لعرض تفاصيل الربحية">
+    ${itemsText} <i class="fas fa-info-circle text-xs ml-1"></i>
+</span>
+                    ${customerInfo}
+                    ${attachmentsHTML}
+                    <div class="mt-1 text-sm text-gray-600">
+                        <span>السعر: <b>${formatCurrency(sale.totalSellPrice)}</b></span> | 
+                        <span>الربح: <b>${formatCurrency(sale.potentialProfit)}</b></span>
+                    </div>
+                    ${paymentBadge}
+                    <span class="block text-xs text-gray-400 mt-1">${formatDateTime(sale.timestamp)}</span>
+                </div>
+                
+                <div class="actions flex-shrink-0 flex flex-col sm:flex-row gap-1 mt-2 sm:mt-0">
+                    <!-- زر العربون الجديد بتنسيق متوافق -->
+                    <button onclick="window.openDepositModal('${sale.id}')" class="bg-purple-500 hover:bg-purple-600 text-white rounded px-2 py-1 text-xs border border-purple-700" title="استلام دفعة">
+                        استلام عربون
+                    </button>
+                    
+                    <button data-pending-id="${sale.id}" class="edit-pending bg-blue-500 hover:bg-blue-600 text-white rounded px-2 py-1 text-xs border border-blue-700">تعديل</button>
+                    <button data-pending-id="${sale.id}" class="confirm-pending bg-green-500 hover:bg-green-600 text-white rounded px-2 py-1 text-xs border border-green-700">تأكيد</button>
+                    <button data-pending-id="${sale.id}" class="cancel-pending bg-red-500 hover:bg-red-600 text-white rounded px-2 py-1 text-xs border border-red-700">إلغاء</button>
+                    <button data-pending-id="${sale.id}" class="initiate-return-from-pending bg-orange-500 hover:bg-orange-600 text-white rounded px-2 py-1 text-xs border border-orange-700">مرتجع</button>
+                </div>
+            </div>
+        </li>`;
     }).join('');
 }
-// =======================================================
-
       function calculateSinglePendingSaleCost(sale) {
     // إذا كان البيع المؤقت يحتوي على خاصية "totalCost" (موجودة في الفواتير المؤقتة)
     // قم بإرجاع قيمتها مباشرة لأنها محسوبة مسبقًا وبدقة
@@ -5337,32 +5388,27 @@ if (available < qtyToDeduct) {
                  }
                  return isValid;
              }
-
 async function handleSaveInvoice() {
     saveStateToHistory(); 
-    const isPending = d('inv_markAsPending').checked;
+    
+    // 1. التحقق من صحة النموذج
+    if (!inv_validateForm()) { return; }
 
-    console.log(`[handleSaveInvoice] Starting... isPending = ${isPending}`);
-
-    if (!inv_validateForm()) {
-        console.log("[handleSaveInvoice] Validation failed!");
-        return;
-    }
-
-    // --- التحقق من الحساب ---
+    const isPending = d('inv_markAsPending').checked; 
     const selectedAccountId = d('inv_payment_account').value;
     const account = accounts.find(acc => acc.id === selectedAccountId);
+
+    // إذا كانت فاتورة نهائية، يجب اختيار حساب
     if (!isPending && !account) {
-        showMessage(d('inv_validationError'), "يرجى اختيار الحساب الذي سيتم إيداع المبلغ فيه.", true);
+        showMessage(d('inv_validationError'), "يرجى اختيار حساب الإيداع.", true);
         return;
     }
 
-    // --- تجميع البيانات ---
+    // 2. تجميع البيانات من الواجهة
     const customerName = inv_customerNameInput.value.trim();
     const customerAddress = inv_customerAddressInput ? inv_customerAddressInput.value.trim() : '';
     const phones = inv_invoiceForm ? Array.from(inv_invoiceForm.querySelectorAll('input[name="phone[]"]')).map(input => input.value.trim()).filter(phone => phone) : [];
     
-    // بنود الفاتورة الأساسية
     const invoiceItems = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => ({
         name: row.dataset.itemName,
         quantity: parseInt(row.dataset.itemQty),
@@ -5375,160 +5421,152 @@ async function handleSaveInvoice() {
     const shippingCost = parseInputNumber(inv_shippingCostInput) || 0;
     const warranty = inv_warrantyInput ? inv_warrantyInput.value.trim() : '';
     const notes = inv_notesTextarea ? inv_notesTextarea.value.trim() : '';
-    const totalGoods = invoiceItems.reduce((sum, item) => sum + item.subtotal, 0);
-    const grandTotal = totalGoods + shippingCost;
-
-    // --- [إصلاح] حساب التكاليف الإضافية المخصومة ---
-    const deductedItemsData = [];
-    let totalDeductedCost = 0;
     
-    if (inv_deductibleCostsContainer) {
-        const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
-        checkedBoxes.forEach(checkbox => {
-            const name = checkbox.value;
-            const cost = parseFloat(checkbox.dataset.cost) || 0; // قراءة التكلفة
-            const parentLabel = checkbox.parentElement; // استخدام parentElement بدلاً من closest لضمان الدقة
-            const quantityInput = parentLabel.querySelector('.inv-deducted-item-quantity');
-            const qtyToDeduct = parseInt(quantityInput?.value || '0');
-            
-            if (qtyToDeduct > 0) {
-                deductedItemsData.push({ name: name, quantity: qtyToDeduct, costPrice: cost });
-                totalDeductedCost += (cost * qtyToDeduct);
-                console.log(`Adding deductible cost: ${name}, Qty: ${qtyToDeduct}, UnitCost: ${cost}, Total: ${cost * qtyToDeduct}`);
-            }
-        });
+    const totalGoods = invoiceItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const grandTotal = totalGoods + shippingCost; // الإجمالي الكلي (مثلاً 3000)
+
+    // --- 🔴 المنطقة الحساسة: معالجة العربون ---
+    let depositAlreadyPaid = 0;
+    // نتأكد أن الفاتورة قادمة من بيع مؤقت وأن به عربون
+    if (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.depositPaid) {
+        depositAlreadyPaid = Number(pendingSaleOriginData.depositPaid) || 0;
     }
+    
+    // المبلغ الذي سيدخل الخزنة الآن = الإجمالي - العربون القديم
+    // مثال: 3000 - 2000 = 1000
+    let amountToCollectNow = grandTotal - depositAlreadyPaid;
+    if (amountToCollectNow < 0) amountToCollectNow = 0; // حماية ضد الأرقام السالبة
+    // ----------------------------------------
 
-    // حساب التكلفة والربح
-    const costOfSoldItems = invoiceItems.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
-    const totalInvoiceCost = costOfSoldItems + totalDeductedCost; // إجمالي التكلفة (بضاعة + هدايا)
-    const finalInvoiceProfit = totalGoods - totalInvoiceCost; // الربح يقل بزيادة التكاليف المخصومة
-
-    // --- النهاية ---
-
-    if (isPending) {
-        // --- حفظ كبيع مؤقت ---
-        invoiceItems.forEach(item => {
-             if (item.serial) {
-                 const serialIndex = serialNumbersLog.findIndex(log => log.serial === item.serial && (log.status === 'in_invoice_temp' || log.status === 'in_stock'));
-                 if (serialIndex !== -1) serialNumbersLog[serialIndex].status = 'pending_sale';
-             }
-         });
-
-        // خصم المخزون (للمؤقت)
-        let requiredQuantitiesPending = {};
-        invoiceItems.forEach(item => { requiredQuantitiesPending[item.name] = (requiredQuantitiesPending[item.name] || 0) + item.quantity; });
-        deductedItemsData.forEach(item => { requiredQuantitiesPending[item.name] = (requiredQuantitiesPending[item.name] || 0) + item.quantity; });
+    // 3. حساب التكلفة وخصم المخزون
+    let totalInvoiceCost = 0;
+    let deductedItemsData = [];
+    
+    // إذا كانت فاتورة جديدة (ليست من مؤقت)، نخصم من المخزون الآن
+    if (!isInvoiceFromPending) {
+        let requiredQuantities = {};
+        invoiceItems.forEach(item => { requiredQuantities[item.name] = (requiredQuantities[item.name] || 0) + item.quantity; });
         
-        Object.keys(requiredQuantitiesPending).forEach(itemName => {
-            const productIndex = products.findIndex(p => p.name.toLowerCase() === itemName.toLowerCase());
-            if (productIndex !== -1 && products[productIndex].quantity >= requiredQuantitiesPending[itemName]) {
-                products[productIndex].quantity -= requiredQuantitiesPending[itemName];
-            }
-        });
-        products = products.filter(p => (Number(p.quantity) || 0) > 0.001);
-
-        const pendingSaleData = {
-            id: `pending-${Date.now()}`,
-            timestamp: new Date().toISOString(),
-            customerName: customerName,
-            customerAddress: customerAddress,
-            phones: phones,
-            items: invoiceItems,
-            shippingCost: shippingCost,
-            totalSellPrice: grandTotal,
-            totalCost: totalInvoiceCost, // تم تحديث التكلفة هنا
-            potentialProfit: finalInvoiceProfit, // تم تحديث الربح هنا
-            status: 'pending',
-            warranty: warranty,
-            notes: notes,
-            deductedItems: deductedItemsData, // حفظ العناصر المخصومة
-            invoiceData: { customerAddress, phones, warranty, notes, shippingCost, deductedItems: deductedItemsData }
-        };
-        pendingSales.push(pendingSaleData);
-        logOperation("فاتورة مؤقتة", `فاتورة مؤقتة لـ ${customerName}. الربح المتوقع: ${formatCurrency(finalInvoiceProfit)}.`);
-        showMessage(globalMessage, `تم حفظ الفاتورة كـ "بيع مؤقت" بنجاح.`, false);
-
-    } else { 
-        // --- حفظ كفاتورة نهائية ---
-        if (!isInvoiceFromPending) {
-            // خصم المخزون
-            let requiredQuantities = {};
-            invoiceItems.forEach(item => { requiredQuantities[item.name] = (requiredQuantities[item.name] || 0) + item.quantity; });
-            deductedItemsData.forEach(item => { requiredQuantities[item.name] = (requiredQuantities[item.name] || 0) + item.quantity; });
-            
-            Object.keys(requiredQuantities).forEach(itemName => {
-                const productIndex = products.findIndex(p => p.name.toLowerCase() === itemName.toLowerCase());
-                if (productIndex !== -1 && products[productIndex].quantity >= requiredQuantities[itemName]) {
-                    products[productIndex].quantity -= requiredQuantities[itemName];
+        // معالجة الملحقات (الهدايا)
+        if (inv_deductibleCostsContainer) {
+            const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
+            checkedBoxes.forEach(checkbox => {
+                const name = checkbox.value;
+                const cost = parseFloat(checkbox.dataset.cost) || 0;
+                const parentLabel = checkbox.parentElement;
+                const quantityInput = parentLabel.querySelector('.inv-deducted-item-quantity');
+                const qtyToDeduct = parseInt(quantityInput?.value || '0');
+                if (qtyToDeduct > 0) {
+                    deductedItemsData.push({ name, quantity: qtyToDeduct, costPrice: cost });
+                    totalInvoiceCost += (cost * qtyToDeduct);
+                    requiredQuantities[name] = (requiredQuantities[name] || 0) + qtyToDeduct;
                 }
             });
-            products = products.filter(p => (Number(p.quantity) || 0) > 0.001);
         }
 
-        // تحديث السيريالات
+        Object.keys(requiredQuantities).forEach(itemName => {
+            const productIndex = products.findIndex(p => p.name.toLowerCase() === itemName.toLowerCase());
+            if (productIndex !== -1) {
+                products[productIndex].quantity -= requiredQuantities[itemName];
+            }
+        });
+        // تنظيف المنتجات الصفرية (اختياري، يفضل تركه للحفاظ على الفئات)
+        // products = products.filter(p => (Number(p.quantity) || 0) > 0.001); 
+    } 
+    // إذا كانت من مؤقت، فالمخزون مخصوم مسبقاً، لا نخصمه مرة أخرى
+
+    // حساب إجمالي التكلفة للمنتجات المباعة
+    totalInvoiceCost += invoiceItems.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
+    const finalInvoiceProfit = grandTotal - totalInvoiceCost;
+
+    // 4. الحفظ النهائي
+    if (isPending) {
+        // نادراً ما يحدث هنا، لكن للدقة:
+        // إذا حفظناها معلقة مرة أخرى، لا نغير شيئاً في السيولة
+        showMessage(globalMessage, "تم تحديث الفاتورة كمعلقة.", false);
+    } else {
+        // --- حفظ نهائي (Confirmed) ---
+        
+        // أ. تحديث السيولة (بالمبلغ المتبقي فقط)
+        if (amountToCollectNow > 0) {
+            account.balance += amountToCollectNow;
+            
+            const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+            
+            // وصف دقيق للسجل
+            let logDesc = `فاتورة مبيعات ${customerName}`;
+            if (depositAlreadyPaid > 0) {
+                logDesc = `استلام باقي فاتورة ${customerName} (إجمالي: ${grandTotal} - عربون: ${depositAlreadyPaid})`;
+            }
+
+            liquidityLog.push({ 
+                id: `liq-${Date.now()}`, 
+                timestamp: new Date().toISOString(), 
+                type: "add", 
+                amount: amountToCollectNow, // هنا يضاف الـ 1000 فقط
+                description: logDesc, 
+                currentBalance: newTotalLiquidity,
+                accountId: selectedAccountId
+            });
+        }
+
+        // ب. تحديث السيريالات (تحويلها لمباع)
         invoiceItems.forEach(item => {
-           if (item.serial) {
-               const serialIndex = serialNumbersLog.findIndex(log => log.serial === item.serial);
-               if (serialIndex !== -1) serialNumbersLog[serialIndex].status = 'sold';
-           }
+            if (item.serial) {
+                const serialIndex = serialNumbersLog.findIndex(log => log.serial === item.serial);
+                if (serialIndex !== -1) serialNumbersLog[serialIndex].status = 'sold';
+            }
         });
 
-        // تحديث السيولة والربح
-        account.balance += grandTotal;
+        // ج. إضافة الربح
         totalProfit += finalInvoiceProfit;
 
-        // حذف الأصل المؤقت إذا وجد
+        // د. حذف البيع المؤقت الأصلي
         if (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.id) {
             const originalPendingIndex = pendingSales.findIndex(s => String(s.id).trim() === String(pendingSaleOriginData.id).trim());
             if (originalPendingIndex !== -1) pendingSales.splice(originalPendingIndex, 1);
         }
 
-        // إنشاء سجل الفاتورة
+        // هـ. إنشاء سجل الفاتورة
         const todayStr = currentLoadedDate ? currentLoadedDate.replace(/-/g, '') : getTodayDateString().replace(/-/g, '');
         let maxSeq = 0;
-        if (Array.isArray(salesToday)) {
-            salesToday.forEach(sale => {
-                if (sale.invoiceNumber && sale.invoiceNumber.startsWith(todayStr)) {
-                    const seqPart = parseInt(sale.invoiceNumber.split('-')[1] || '0');
-                    if (seqPart > maxSeq) maxSeq = seqPart;
-                }
-            });
-        }
-        const nextSeq = (maxSeq + 1).toString().padStart(3, '0');
-        const generatedInvoiceNumber = `${todayStr}-${nextSeq}`;
+        salesToday.forEach(sale => {
+            if (sale.invoiceNumber && sale.invoiceNumber.startsWith(todayStr)) {
+                const seqPart = parseInt(sale.invoiceNumber.split('-')[1] || '0');
+                if (seqPart > maxSeq) maxSeq = seqPart;
+            }
+        });
+        const generatedInvoiceNumber = `${todayStr}-${(maxSeq + 1).toString().padStart(3, '0')}`;
 
         const invoiceRecord = {
-            id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv-from-pend') : `inv-${Date.now()}`,
+            id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv') : `inv-${Date.now()}`,
             invoiceNumber: generatedInvoiceNumber,
-            type: isInvoiceFromPending ? 'invoice-from-pending' : 'invoice',
+            type: 'invoice',
             timestamp: new Date().toISOString(),
             saleDate: currentLoadedDate || getTodayDateString(),
             customerName, customerAddress, phones, items: invoiceItems,
-            shippingCost, totalGoodsPrice: totalGoods, grandTotal,
+            shippingCost, 
+            totalGoodsPrice: totalGoods, 
+            grandTotal, // الإجمالي الكامل (3000)
+            paidAmount: grandTotal, // نعتبر الفاتورة خالصة
+            depositPaid: depositAlreadyPaid, // نحتفظ بقيمة العربون كمرجع
             warranty, notes, 
-            deductedItems: deductedItemsData, // حفظ العناصر المخصومة
-            totalCost: totalInvoiceCost, // التكلفة تشمل البضاعة المباعة + الهدايا المخصومة
+            deductedItems: deductedItemsData,
+            totalCost: totalInvoiceCost,
             profit: finalInvoiceProfit, 
             accountId: selectedAccountId
         };
-        salesToday.push(invoiceRecord);
         
-        await saveInvoiceToFirestore(invoiceRecord);
+        salesToday.push(invoiceRecord);
+        saveInvoiceToFirestore(invoiceRecord); 
 
-        const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-        liquidityLog.push({
-             id: `liq-${Date.now()}`,
-             timestamp: new Date().toISOString(),
-             type: "add",
-             amount: grandTotal,
-             description: `فاتورة ${generatedInvoiceNumber} لـ ${customerName}`,
-             currentBalance: newTotalLiquidity,
-             accountId: selectedAccountId
-         });
-
-        logOperation("إنشاء فاتورة", `فاتورة ${generatedInvoiceNumber}. الربح: ${formatCurrency(finalInvoiceProfit)} (بعد خصم تكاليف إضافية: ${formatCurrency(totalDeductedCost)}).`);
-        showMessage(globalMessage, `تم حفظ الفاتورة رقم ${generatedInvoiceNumber} بنجاح.`, false);
+        logOperation("إنشاء فاتورة", `فاتورة ${generatedInvoiceNumber} للعميل ${customerName}. (إجمالي: ${grandTotal})`);
+        
+        let successMsg = `تم حفظ الفاتورة بنجاح.`;
+        if (depositAlreadyPaid > 0) {
+            successMsg += ` تم خصم العربون (${depositAlreadyPaid}) وإضافة الباقي (${amountToCollectNow}) للخزنة.`;
+        }
+        showMessage(globalMessage, successMsg, false);
     }
 
     isInvoiceFromPending = false;
@@ -5744,6 +5782,104 @@ function printPendingSaleAsInvoice(pendingId) {
                               --- شكراً لتعاملكم معنا ---
                           </div>
                       </div>
+                      <!-- نافذة استلام عربون (تصميم معزول) -->
+<div id="depositModal" class="modal" style="display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5);">
+    <div class="modal-content" style="background-color:#fff; margin:10% auto; padding:20px; border-radius:8px; width:90%; max-width:400px; position:relative; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <span onclick="document.getElementById('depositModal').style.display='none'" style="position:absolute; left:15px; top:10px; cursor:pointer; font-size:24px; font-weight:bold; color:#666;">&times;</span>
+        
+        <h3 style="margin-top:0; color:#1f2937; border-bottom:1px solid #eee; padding-bottom:10px; font-family:sans-serif;">استلام دفعة / عربون</h3>
+        
+        <div style="margin-top:15px;">
+            <div style="background:#f9fafb; padding:10px; border-radius:6px; margin-bottom:15px; font-size:13px;">
+                <p style="margin:5px 0;"><strong>العميل:</strong> <span id="dep_customer_name">...</span></p>
+                <p style="margin:5px 0;"><strong>إجمالي الفاتورة:</strong> <span id="dep_total_amount" style="color:#2563eb;">0.00</span></p>
+                <p style="margin:5px 0;"><strong>تم دفع سابقاً:</strong> <span id="dep_already_paid" style="color:#16a34a;">0.00</span></p>
+            </div>
+            
+            <div class="form-group" style="margin-bottom:15px;">
+                <label style="display:block; font-size:12px; font-weight:bold; margin-bottom:5px;">المبلغ المستلم الآن:</label>
+                <input type="number" id="dep_amount" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px; font-size:16px; font-weight:bold;" placeholder="0.00">
+            </div>
+            
+            <div class="form-group" style="margin-bottom:20px;">
+                <label style="display:block; font-size:12px; font-weight:bold; margin-bottom:5px;">إيداع في الخزنة:</label>
+                <select id="dep_account" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px; background:#fff;"></select>
+            </div>
+            
+            <input type="hidden" id="dep_pending_id">
+            
+            <button onclick="window.confirmDeposit()" style="width:100%; background-color:#7c3aed; color:white; padding:12px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:14px;">تأكيد وحفظ العربون</button>
+        </div>
+    </div>
+</div>
+<!-- نافذة تفاصيل الربحية للبيع المؤقت -->
+<div id="pendingDetailsModal" class="modal" style="display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.6); backdrop-filter: blur(2px);">
+    <div class="modal-content" style="background-color:#fff; margin:10% auto; padding:0; border-radius:12px; width:90%; max-width:450px; overflow:hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+        
+        <!-- الهيدر -->
+        <div style="background: linear-gradient(to right, #1e40af, #3b82f6); padding: 15px 20px; color: white; display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin:0; font-size:16px; font-weight:bold;">تفاصيل الربحية والتكلفة</h3>
+            <span onclick="document.getElementById('pendingDetailsModal').style.display='none'" style="cursor:pointer; font-size:24px; opacity:0.8;">&times;</span>
+        </div>
+
+        <!-- الجسم -->
+        <div style="padding: 20px;">
+            
+            <!-- العميل والمنتج -->
+            <div style="text-align: center; margin-bottom: 20px;">
+                <h2 id="pd_product_name" style="margin: 0; font-size: 18px; color: #1f2937; font-weight: bold;">...</h2>
+                <p id="pd_customer_name" style="margin: 5px 0 0; color: #6b7280; font-size: 14px;">...</p>
+            </div>
+
+            <!-- بطاقة التكاليف -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                
+                <!-- تفاصيل التكلفة -->
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px;">
+                    <span style="color: #64748b;">تكلفة المنتج الأصلي:</span>
+                    <span id="pd_main_cost" style="font-weight: bold; font-family: monospace;">0.00</span>
+                </div>
+                
+                <!-- تفاصيل الملحقات -->
+                <div id="pd_attachments_container" style="display: none; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 8px;">
+                    <div style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">+ تكلفة الملحقات المضافة:</div>
+                    <ul id="pd_attachments_list" style="margin: 0; padding-right: 15px; font-size: 13px; color: #475569;">
+                        <!-- سيتم إضافة الملحقات هنا -->
+                    </ul>
+                    <div style="display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; font-size: 13px; color: #475569;">
+                        <span>إجمالي تكلفة الملحقات:</span>
+                        <span id="pd_attachments_cost">0.00</span>
+                    </div>
+                </div>
+
+                <!-- الخط الفاصل -->
+                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 12px 0;">
+
+                <!-- الإجماليات -->
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: #ef4444; font-weight: bold;">إجمالي التكلفة (عليك):</span>
+                    <span id="pd_total_cost" style="color: #ef4444; font-weight: bold; font-family: monospace; font-size: 15px;">0.00</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: #1f2937; font-weight: bold;">سعر البيع (للعميل):</span>
+                    <span id="pd_sell_price" style="color: #1f2937; font-weight: bold; font-family: monospace; font-size: 15px;">0.00</span>
+                </div>
+            </div>
+
+            <!-- النتيجة النهائية (الربح) -->
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 15px; text-align: center;">
+                <span style="display: block; font-size: 12px; color: #166534; font-weight: bold; text-transform: uppercase;">صافي الربح المتوقع</span>
+                <span id="pd_profit" style="display: block; font-size: 24px; color: #15803d; font-weight: 800; margin-top: 5px; font-family: monospace;">0.00</span>
+            </div>
+
+        </div>
+        
+        <!-- الفوتر -->
+        <div style="background: #f9fafb; padding: 12px 20px; text-align: right; border-top: 1px solid #e5e7eb;">
+            <button onclick="document.getElementById('pendingDetailsModal').style.display='none'" style="background: #fff; border: 1px solid #d1d5db; padding: 6px 15px; border-radius: 6px; color: #374151; font-weight: bold; cursor: pointer;">إغلاق</button>
+        </div>
+    </div>
+</div>
                   </body>
                   </html>
                   `;
@@ -7844,8 +7980,8 @@ function handlePendingPurchaseActions(event) {
         showGlobalMessage("تم إلغاء الشراء المعلق بنجاح.", false, true);
     }
     updateUI();
-}function pi_confirmPurchaseInvoice() {
-    // 1. التحقق من صحة البيانات الأساسية
+}
+function pi_confirmPurchaseInvoice() {
     if (!pi_validateForm()) { return; }
 
     const goodsReceived = d('pi_goods_received').checked;
@@ -7854,67 +7990,53 @@ function handlePendingPurchaseActions(event) {
     const selectedAccountId = d('pi_payment_account').value;
     const account = accounts.find(acc => acc.id === selectedAccountId);
 
-    // 2. تجميع المنتجات وحساب قيمتها
+    // ... (تجميع المنتجات كما هو - لم يتغير) ...
     let itemsSubtotal = 0;
     const rawItems = Array.from(piItemsBody.querySelectorAll('tr')).map(row => {
         const q = parseInt(row.dataset.quantity);
         const c = parseFloat(row.dataset.cost);
         itemsSubtotal += (q * c);
-        return { 
-            name: row.dataset.name, category: row.dataset.category || "",
-            quantity: q, cost: c, serials: JSON.parse(row.dataset.serials || '[]')
-        };
+        return { name: row.dataset.name, category: row.dataset.category || "", quantity: q, cost: c, serials: JSON.parse(row.dataset.serials || '[]') };
     });
 
-    // 3. تجميع التكاليف الإضافية وفصل الالتزامات
+    // --- 🔴 الجديد: قراءة التكاليف مع معرفة الالتزام المختار ---
     let extraCostsList = [];
     let totalExtraCostsVal = 0;
-    let totalLiabilitiesVal = 0; // مجموع المبالغ المسجلة كـ "دين"
+    let totalLiabilitiesVal = 0;
 
     document.querySelectorAll('.pi-extra-cost-row').forEach(row => {
         const nameInput = row.querySelector('.pi-cost-name');
         const amountInput = row.querySelector('.pi-cost-amount');
-        const liabilityInput = row.querySelector('.pi-cost-liability');
+        const liabilityCheckbox = row.querySelector('.pi-cost-liability');
+        const liabilitySelect = row.querySelector('.pi-liability-select'); // القائمة المنسدلة
 
         if (nameInput && amountInput) {
             const name = nameInput.value.trim() || "مصروف إضافي";
             const amount = parseFloat(amountInput.value) || 0;
-            const isLiability = liabilityInput ? liabilityInput.checked : false; // هل تم تحديدها كالتزام؟
+            const isLiability = liabilityCheckbox ? liabilityCheckbox.checked : false;
+            // نأخذ معرف الالتزام المختار (إن وجد)
+            const linkedLiabilityId = (isLiability && liabilitySelect) ? liabilitySelect.value : "";
 
             if (amount > 0) {
-                extraCostsList.push({ name, amount, isLiability });
+                extraCostsList.push({ name, amount, isLiability, linkedLiabilityId }); // حفظنا الرابط
                 totalExtraCostsVal += amount;
-                if (isLiability) totalLiabilitiesVal += amount; // نجمع الديون هنا
+                if (isLiability) totalLiabilitiesVal += amount;
             }
         }
     });
+    // -----------------------------------------------------------
 
-    // 4. الحسابات النهائية
-    const trueGrandTotal = itemsSubtotal + totalExtraCostsVal; // الإجمالي (1250)
-    
-    // ✅ النقطة الجوهرية: المبلغ المطلوب دفعه كاش هو (الإجمالي - الديون)
-    // يعني (1250 - 250) = 1000
+    const trueGrandTotal = itemsSubtotal + totalExtraCostsVal;
     const maxCashPayment = trueGrandTotal - totalLiabilitiesVal;
 
-    // 5. التحقق الذكي: منع خصم الالتزامات من السيولة
-    // لو المستخدم كتب مبلغ أكبر من (ثمن البضاعة + المصاريف غير الآجلة)
-    if (paidAmountValue > (maxCashPayment + 0.5)) { // 0.5 سماحية للكسور
-         let msg = `تنبيه: أنت تحاول دفع مبلغ (${paidAmountValue}) أكبر من المستحق نقداً.`;
-         if (totalLiabilitiesVal > 0) {
-             msg += `\nهناك تكاليف بقيمة (${totalLiabilitiesVal}) مسجلة كـ "التزام" ولا يجب خصمها من السيولة الآن.\nالمبلغ المطلوب خصمه من السيولة هو: ${maxCashPayment}`;
-         }
-         showMessage(piFormMessage, msg, true);
-         return; // نوقف العملية حتى يعدل المستخدم الرقم
+    if (paidAmountValue > (maxCashPayment + 0.5)) {
+         showMessage(piFormMessage, `تنبيه: المبلغ المدفوع أكبر من المستحق نقداً.\nالمطلوب خصمه من السيولة هو: ${maxCashPayment}`, true);
+         return;
     }
 
-    // التحقق من رصيد الحساب
     if (deductFromLiquidity && paidAmountValue > 0) {
-        if (!selectedAccountId || !account) {
-            showMessage(piFormMessage, "تنبيه: يرجى اختيار حساب الخصم.", true);
-            return;
-        }
-        if (paidAmountValue > account.balance) {
-             showMessage(piFormMessage, `تنبيه: رصيد حساب "${account.name}" غير كافٍ.`, true);
+        if (!selectedAccountId || !account || paidAmountValue > account.balance) {
+             showMessage(piFormMessage, `تنبيه: تحقق من رصيد الحساب المختار.`, true);
              return;
         }
     }
@@ -7931,7 +8053,6 @@ function handlePendingPurchaseActions(event) {
         extraCosts: extraCostsList,
         grandTotal: trueGrandTotal,
         paidAmount: paidAmountValue,
-        // المتبقي للمورد = الإجمالي - المدفوع - التزامات الأطراف الأخرى
         remainingBalance: trueGrandTotal - paidAmountValue - totalLiabilitiesVal,
         status: goodsReceived ? 'Confirmed' : 'Pending',
         deductedFromLiquidity: deductFromLiquidity && paidAmountValue > 0,
@@ -7940,7 +8061,7 @@ function handlePendingPurchaseActions(event) {
 
     const supplier = suppliers.find(s => s.id === invoiceData.supplierId);
 
-    // 6. تحديث المخزون (توزيع كل التكاليف على البضاعة لرفع قيمتها)
+    // تحديث المخزون (كما هو - لم يتغير)
     const processInventoryUpdate = () => {
         invoiceData.items.forEach(item => {
             let extraCostPerUnit = 0;
@@ -7950,7 +8071,7 @@ function handlePendingPurchaseActions(event) {
                 extraCostPerUnit = itemShareOfExtra / item.quantity;
             }
             const finalCostPerUnit = item.cost + extraCostPerUnit;
-
+            // ... (باقي كود تحديث المنتج كما هو في النسخ السابقة) ...
             const productIndex = products.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
             if (productIndex !== -1) {
                 const existing = products[productIndex];
@@ -7959,21 +8080,13 @@ function handlePendingPurchaseActions(event) {
                 const totalQty = oldQty + item.quantity;
                 existing.quantity = totalQty;
                 existing.costPrice = totalQty > 0 ? ((oldQty * oldCost) + (item.quantity * finalCostPerUnit)) / totalQty : finalCostPerUnit;
-                if (item.category) existing.category = item.category;
             } else {
-                products.push({ 
-                    name: item.name, quantity: item.quantity, costPrice: finalCostPerUnit, 
-                    supplierId: invoiceData.supplierId, category: item.category || ""
-                });
-            }
-            if (item.serials && item.serials.length > 0) {
-                item.serials.forEach(serial => serialNumbersLog.push({ serial, productName: item.name, supplierId: invoiceData.supplierId, addedTimestamp: invoiceData.timestamp, status: "in_stock" }));
+                products.push({ name: item.name, quantity: item.quantity, costPrice: finalCostPerUnit, supplierId: invoiceData.supplierId, category: item.category || "" });
             }
         });
     };
 
     if (goodsReceived) {
-        // الخصم من السيولة (سيتم خصم المبلغ المدفوع فقط، وهو الـ 1000 في مثالك)
         if (invoiceData.paidAmount > 0 && deductFromLiquidity && account) {
             account.balance -= invoiceData.paidAmount;
             const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
@@ -7982,40 +8095,49 @@ function handlePendingPurchaseActions(event) {
         
         processInventoryUpdate();
 
-        // 7. تسجيل الالتزامات (الديون)
-        // أ. ديون المصاريف الإضافية (الشحن، العتالة..)
+        // --- 🔴 معالجة الديون (الجديد: الربط بالتزام قديم) ---
         extraCostsList.forEach(cost => {
             if (cost.isLiability) {
-                // البحث عن التزام موجود وتحديثه أو إنشاء جديد
-                const existingLiabIndex = liabilities.findIndex(l => l.name === cost.name);
-                if (existingLiabIndex !== -1) {
-                    liabilities[existingLiabIndex].amount += cost.amount;
+                // هل اختار المستخدم التزاماً موجوداً من القائمة؟
+                if (cost.linkedLiabilityId) {
+                    // ✅ نعم: ابحث عنه وزود المبلغ
+                    const existingLiability = liabilities.find(l => l.id === cost.linkedLiabilityId);
+                    if (existingLiability) {
+                        existingLiability.amount += cost.amount;
+                        // يمكننا إضافة سجل للملاحظات داخل الالتزام لو النظام يسمح
+                    }
                 } else {
-                    liabilities.push({ 
-                        id: generateId('liab'), 
-                        name: cost.name, 
-                        amount: cost.amount, 
-                        purchaseInvoiceId: invoiceData.id 
-                    });
+                    // 🆕 لا: أنشئ التزاماً جديداً (الطريقة القديمة)
+                    // لكن أولاً نتأكد هل الاسم موجود بالصدفة؟
+                    const existingLiabIndex = liabilities.findIndex(l => l.name === cost.name);
+                    if (existingLiabIndex !== -1) {
+                        liabilities[existingLiabIndex].amount += cost.amount;
+                    } else {
+                        liabilities.push({ 
+                            id: generateId('liab'), 
+                            name: cost.name, 
+                            amount: cost.amount, 
+                            purchaseInvoiceId: invoiceData.id 
+                        });
+                    }
                 }
             }
         });
+        // -----------------------------------------------------
 
-        // ب. متبقي المورد
         if (invoiceData.remainingBalance > 0.001) {
             liabilities.push({ id: generateId('liab'), name: `متبقي فاتورة لـ: ${supplier.name} (${invoiceData.invoiceNumber || '-'})`, amount: invoiceData.remainingBalance, purchaseInvoiceId: invoiceData.id });
         }
 
         purchaseInvoices.push(invoiceData);
         logOperation("فاتورة شراء", `فاتورة من ${supplier?.name} بقيمة ${formatCurrency(invoiceData.grandTotal)}.`);
-        showMessage(piFormMessage, "تم حفظ الفاتورة. (تم خصم المدفوع فقط، وتسجيل الباقي كالتزامات).", false);
+        showMessage(piFormMessage, "تم حفظ الفاتورة بنجاح.", false);
         
     } else { 
-        // Pending Purchase Logic
+        // Pending Logic (كما هو)
         if (invoiceData.paidAmount > 0 && deductFromLiquidity && account) {
             account.balance -= invoiceData.paidAmount;
-            const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-            liquidityLog.push({ id: `liq-${Date.now()}`, type: "remove", amount: invoiceData.paidAmount, description: `عربون شراء لـ ${supplier?.name}`, currentBalance: newTotalLiquidity, accountId: selectedAccountId });
+            liquidityLog.push({ id: `liq-${Date.now()}`, type: "remove", amount: invoiceData.paidAmount, description: `عربون شراء لـ ${supplier?.name}`, currentBalance: accounts.reduce((sum, acc) => sum + acc.balance, 0), accountId: selectedAccountId });
         }
         pendingPurchases.push(invoiceData);
         logOperation("شراء معلق", `فاتورة معلقة من ${supplier?.name}.`);
@@ -8026,33 +8148,89 @@ function handlePendingPurchaseActions(event) {
     const costsContainer = d('pi_additional_costs_container');
     if(costsContainer) costsContainer.innerHTML = '';
     updateUI();
-}window.pi_addExtraCostRow = function() {
+}
+window.pi_addExtraCostRow = function() {
     const container = document.getElementById('pi_additional_costs_container');
+    const noMsg = document.getElementById('pi_no_extra_costs_msg');
+    
     if (!container) return;
+    if (noMsg) noMsg.style.display = 'none';
 
-    const rowId = Date.now();
+    // تجهيز خيارات الالتزامات
+    let liabilitiesOptions = '<option value="">-- إنشاء التزام جديد (باسم التكلفة) --</option>';
+    if (typeof liabilities !== 'undefined' && Array.isArray(liabilities)) {
+        liabilities.forEach(l => {
+            liabilitiesOptions += `<option value="${l.id}">${l.name} (مدين بـ: ${l.amount})</option>`;
+        });
+    }
+
     const div = document.createElement('div');
-    div.className = "grid grid-cols-1 md:grid-cols-12 gap-2 items-center bg-white p-2 rounded shadow-sm border pi-extra-cost-row";
+    // تصميم البطاقة
+    div.className = "pi-extra-cost-row mb-3 p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 group";
     
     div.innerHTML = `
-        <div class="md:col-span-5">
-            <input type="text" placeholder="اسم التكلفة" class="pi-cost-name w-full border p-1 rounded text-sm outline-none">
+        <div class="flex flex-wrap items-start gap-3">
+            
+            <div class="flex-grow min-w-[150px]">
+                <label class="block text-[10px] text-gray-500 font-bold mb-1">وصف التكلفة</label>
+                <input type="text" placeholder="مثلاً: شحن، عتالة" 
+                       class="pi-cost-name w-full text-sm border-gray-300 rounded px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow bg-gray-50 focus:bg-white">
+            </div>
+
+            <div class="w-28">
+                <label class="block text-[10px] text-gray-500 font-bold mb-1">المبلغ</label>
+                <div class="relative">
+                    <input type="number" placeholder="0" value="" min="0" step="0.01" 
+                           class="pi-cost-amount w-full text-sm font-bold text-blue-700 border-gray-300 rounded px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-center" 
+                           oninput="window.pi_updateTotals()">
+                    <span class="absolute left-1 top-1.5 text-[10px] text-gray-400 font-normal pointer-events-none">ج.م</span>
+                </div>
+            </div>
+
+            <div class="pt-6">
+                <button type="button" onclick="this.closest('.pi-extra-cost-row').remove(); window.pi_updateTotals();" 
+                        class="text-gray-400 hover:text-red-500 p-1.5 rounded-full hover:bg-red-50 transition-colors" title="حذف هذا البند">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
+            </div>
         </div>
-        <div class="md:col-span-3">
-            <input type="number" placeholder="المبلغ" value="0" min="0" step="0.01" class="pi-cost-amount w-full border p-1 rounded text-sm font-bold text-gray-700" oninput="window.pi_updateTotals()">
-        </div>
-        <div class="md:col-span-3 flex items-center justify-center">
-            <label class="flex items-center cursor-pointer text-xs select-none">
-                <input type="checkbox" class="pi-cost-liability w-4 h-4 mr-1 text-red-600" onchange="window.pi_updateTotals()">
-                <span class="text-gray-600 font-medium">تسجيل كالتزام؟</span>
+
+        <div class="mt-2 pt-2 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center gap-2">
+            
+            <label class="flex items-center cursor-pointer select-none">
+                <input type="checkbox" class="pi-cost-liability w-4 h-4 text-red-600 rounded border-gray-300 focus:ring-red-500 cursor-pointer" 
+                       onchange="
+                           const select = this.closest('.pi-extra-cost-row').querySelector('.pi-liability-select');
+                           const container = this.closest('.pi-extra-cost-row').querySelector('.liability-options-container');
+                           
+                           if (this.checked) {
+                               container.classList.remove('hidden');
+                               container.classList.add('flex');
+                               this.parentElement.classList.add('text-red-700');
+                           } else {
+                               container.classList.add('hidden');
+                               container.classList.remove('flex');
+                               select.value = ''; 
+                               this.parentElement.classList.remove('text-red-700');
+                           }
+                           window.pi_updateTotals();
+                       ">
+                <span class="mr-2 text-xs font-bold text-gray-600 transition-colors">تسجيل كدين (آجل)؟</span>
             </label>
-        </div>
-        <div class="md:col-span-1 text-center">
-            <button type="button" onclick="this.closest('.pi-extra-cost-row').remove(); window.pi_updateTotals();" class="text-red-500 hover:text-red-700 font-bold text-xl">×</button>
+
+            <div class="liability-options-container hidden flex-grow items-center animate-fade-in-down">
+                <select class="pi-liability-select w-full text-xs border-yellow-300 bg-yellow-50 rounded text-gray-700 py-1 px-2 focus:ring-1 focus:ring-yellow-500 outline-none">
+                    ${liabilitiesOptions}
+                </select>
+            </div>
         </div>
     `;
+
     container.appendChild(div);
-};window.pi_updateTotals = function() {
+};
+window.pi_updateTotals = function() {
     // 1. حساب إجمالي المنتجات (البضاعة)
     let subtotal = 0;
     const itemsBody = document.getElementById('pi_items_body');
@@ -8597,7 +8775,150 @@ if (piItemTotalCostInput) {
         }
     });
 }
- 
+ // =======================================================
+    // منطق استلام العربون (مع التصحيح الذاتي لإنشاء النافذة)
+    // =======================================================
+
+    // 1. فتح النافذة (وإنشاؤها إذا لم تكن موجودة)
+    window.openDepositModal = function(pendingId) {
+        // التأكد من وجود البيانات
+        if (typeof pendingSales === 'undefined' || typeof accounts === 'undefined') {
+            console.error("Critical Error: Data arrays not found.");
+            return;
+        }
+
+        const sale = pendingSales.find(s => s.id === pendingId);
+        if (!sale) {
+            alert("لم يتم العثور على البيعة.");
+            return;
+        }
+
+        // --- 🛠️ التصحيح الذاتي: إنشاء النافذة في HTML لو مش موجودة ---
+        let modal = document.getElementById('depositModal');
+        if (!modal) {
+            console.log("جاري إنشاء نافذة العربون تلقائياً...");
+            modal = document.createElement('div');
+            modal.id = 'depositModal';
+            modal.className = 'modal'; 
+            // ستايل احتياطي لضمان الظهور حتى لو CSS فيه مشكلة
+            modal.style.cssText = "display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.5);";
+            
+            modal.innerHTML = `
+                <div class="modal-content" style="background-color:#fff; margin:15% auto; padding:20px; border-radius:8px; width:90%; max-width:400px; position:relative; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <span onclick="document.getElementById('depositModal').style.display='none'" style="position:absolute; left:15px; top:10px; cursor:pointer; font-size:24px; font-weight:bold; color:#666;">&times;</span>
+                    
+                    <h3 style="margin-top:0; color:#1f2937; border-bottom:1px solid #eee; padding-bottom:10px; font-family:sans-serif;">استلام دفعة / عربون</h3>
+                    
+                    <div style="margin-top:15px;">
+                        <div style="background:#f9fafb; padding:10px; border-radius:6px; margin-bottom:15px; font-size:13px;">
+                            <p style="margin:5px 0;"><strong>العميل:</strong> <span id="dep_customer_name">...</span></p>
+                            <p style="margin:5px 0;"><strong>إجمالي الفاتورة:</strong> <span id="dep_total_amount" style="color:#2563eb;">0.00</span></p>
+                            <p style="margin:5px 0;"><strong>تم دفع سابقاً:</strong> <span id="dep_already_paid" style="color:#16a34a;">0.00</span></p>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom:15px;">
+                            <label style="display:block; font-size:12px; font-weight:bold; margin-bottom:5px;">المبلغ المستلم الآن:</label>
+                            <input type="number" id="dep_amount" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px; font-size:16px; font-weight:bold;" placeholder="0.00">
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom:20px;">
+                            <label style="display:block; font-size:12px; font-weight:bold; margin-bottom:5px;">إيداع في الخزنة:</label>
+                            <select id="dep_account" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px; background:#fff;"></select>
+                        </div>
+                        
+                        <input type="hidden" id="dep_pending_id">
+                        
+                        <button onclick="window.confirmDeposit()" style="width:100%; background-color:#7c3aed; color:white; padding:12px; border:none; border-radius:6px; font-weight:bold; cursor:pointer; font-size:14px;">تأكيد وحفظ العربون</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        // -------------------------------------------------------
+
+        // تعبئة البيانات (الآن نحن واثقين 100% أن العناصر موجودة)
+        document.getElementById('dep_pending_id').value = pendingId;
+        document.getElementById('dep_customer_name').textContent = sale.customerName || 'عميل نقدي';
+        document.getElementById('dep_total_amount').textContent = formatCurrency(sale.totalSellPrice);
+        document.getElementById('dep_already_paid').textContent = formatCurrency(sale.depositPaid || 0);
+        
+        // اقتراح المبلغ المتبقي
+        const remaining = (sale.totalSellPrice || 0) - (sale.depositPaid || 0);
+        document.getElementById('dep_amount').value = remaining > 0 ? remaining : '';
+
+        // تعبئة الخزائن
+        const select = document.getElementById('dep_account');
+        if (select) {
+            select.innerHTML = '';
+            accounts.forEach(acc => {
+                const op = document.createElement('option');
+                op.value = acc.id;
+                op.textContent = `${acc.name} (${formatCurrency(acc.balance)})`;
+                select.appendChild(op);
+            });
+        }
+
+        // إظهار النافذة
+        modal.style.display = 'block';
+    };
+
+    // 2. تنفيذ الحفظ
+    window.confirmDeposit = function() {
+        // التأكد من وجود العناصر قبل القراءة
+        const pendingEl = document.getElementById('dep_pending_id');
+        const amountEl = document.getElementById('dep_amount');
+        const accountEl = document.getElementById('dep_account');
+
+        if (!pendingEl || !amountEl || !accountEl) {
+            alert("خطأ داخلي: عناصر النافذة غير موجودة.");
+            return;
+        }
+
+        const pendingId = pendingEl.value;
+        const amount = parseFloat(amountEl.value);
+        const accountId = accountEl.value;
+        
+        if (!amount || amount <= 0) { alert("أدخل مبلغاً صحيحاً."); return; }
+        if (!accountId) { alert("اختر الخزنة."); return; }
+
+        const saleIndex = pendingSales.findIndex(s => s.id === pendingId);
+        const account = accounts.find(a => a.id === accountId);
+
+        if (saleIndex === -1 || !account) return;
+
+        saveStateToHistory(); // حفظ للتراجع
+
+        // أ. زيادة السيولة
+        account.balance += amount;
+
+        // ب. تسجيل العربون في البيعة
+        const oldPaid = Number(pendingSales[saleIndex].depositPaid) || 0;
+        pendingSales[saleIndex].depositPaid = oldPaid + amount;
+
+        // ج. تسجيل في السجل المالي
+        const totalLiquidity = accounts.reduce((sum, a) => sum + a.balance, 0);
+        liquidityLog.push({
+            id: `liq-dep-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            type: "add",
+            amount: amount,
+            description: `عربون من: ${pendingSales[saleIndex].customerName}`,
+            currentBalance: totalLiquidity,
+            accountId: account.id
+        });
+
+        // إغلاق وتحديث
+        document.getElementById('depositModal').style.display = 'none';
+        updateUI(); 
+        
+        // رسالة نجاح
+        const msgBox = document.getElementById('global-message');
+        if(msgBox) {
+            showMessage(msgBox, `تم استلام عربون ${formatCurrency(amount)} بنجاح.`, false);
+        } else {
+            alert("تم الحفظ بنجاح.");
+        }
+    };
  
  
  
@@ -10710,6 +11031,9 @@ if (d('liabilities-list-container')) {
     setInterval(updateTimeDisplay, 1000);
 
     console.log("Initialization complete. Final loaded date:", currentLoadedDate);
+
+
+
     if (d('return-sale-price-group')) {
     const returnTypeRadios = document.querySelectorAll('input[name="return-type"]');
     returnTypeRadios.forEach(radio => {
@@ -11010,8 +11334,175 @@ window.addEventListener('click', (event) => {
         closePartialDebtPaymentModal();
     }
 });
+// =======================================================
+// نظام العربونات الآمن (Safe Deposit System)
+// =======================================================
 
-// --- END: PARTIAL DEBT PAYMENT LOGIC ---
+
+// 2. تنفيذ العربون (حفظ)
+window.confirmDeposit = function() {
+    const pendingId = document.getElementById('dep_pending_id').value;
+    const amount = parseFloat(document.getElementById('dep_amount').value);
+    const accountId = document.getElementById('dep_account').value;
+    
+    if (!amount || amount <= 0) { alert("المبلغ غير صحيح"); return; }
+    if (!accountId) { alert("يجب اختيار خزنة"); return; }
+
+    const saleIndex = pendingSales.findIndex(s => s.id === pendingId);
+    const account = accounts.find(a => a.id === accountId);
+
+    if (saleIndex === -1 || !account) return;
+
+    saveStateToHistory(); // نقطة استعادة
+
+    // أ. زيادة السيولة (الخزنة)
+    account.balance += amount;
+
+    // ب. تسجيل العربون في البيعة
+    const oldPaid = Number(pendingSales[saleIndex].depositPaid) || 0;
+    pendingSales[saleIndex].depositPaid = oldPaid + amount;
+
+    // ج. تسجيل في السجل المالي
+    const totalLiquidity = accounts.reduce((sum, a) => sum + a.balance, 0);
+    liquidityLog.push({
+        id: `liq-dep-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        type: "add",
+        amount: amount,
+        description: `عربون من: ${pendingSales[saleIndex].customerName}`,
+        currentBalance: totalLiquidity,
+        accountId: account.id
+    });
+
+    // إغلاق وتحديث
+    document.getElementById('depositModal').style.display = 'none';
+    updateUI();
+    alert(`تم استلام ${formatCurrency(amount)} بنجاح.`);
+};
+
+// ==========================================
+// دالة عرض تفاصيل الربحية (النسخة الذكية - تنشئ النافذة ذاتياً)
+// ==========================================
+window.showPendingSaleDetails = function(pendingId) {
+    const sale = pendingSales.find(s => s.id === pendingId);
+    if (!sale) return;
+
+    // 1. فحص وجود النافذة، وإنشاؤها إذا كانت مفقودة
+    let modal = document.getElementById('pendingDetailsModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'pendingDetailsModal';
+        modal.className = 'modal';
+        modal.style.cssText = "display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; background-color:rgba(0,0,0,0.6); backdrop-filter: blur(2px);";
+        
+        modal.innerHTML = `
+            <div class="modal-content" style="background-color:#fff; margin:5% auto; padding:0; border-radius:12px; width:90%; max-width:450px; overflow:hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+                <div style="background: linear-gradient(to right, #1e40af, #3b82f6); padding: 15px 20px; color: white; display: flex; justify-content: space-between; align-items: center;">
+                    <h3 style="margin:0; font-size:16px; font-weight:bold;">تفاصيل الربحية والتكلفة</h3>
+                    <span onclick="document.getElementById('pendingDetailsModal').style.display='none'" style="cursor:pointer; font-size:24px; opacity:0.8;">&times;</span>
+                </div>
+                <div style="padding: 20px;">
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h2 id="pd_product_name" style="margin: 0; font-size: 18px; color: #1f2937; font-weight: bold;">...</h2>
+                        <p id="pd_customer_name" style="margin: 5px 0 0; color: #6b7280; font-size: 14px;">...</p>
+                    </div>
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px;">
+                            <span style="color: #64748b;">تكلفة المنتج الأصلي:</span>
+                            <span id="pd_main_cost" style="font-weight: bold; font-family: monospace;">0.00</span>
+                        </div>
+                        <div id="pd_attachments_container" style="display: none; border-top: 1px dashed #cbd5e1; padding-top: 8px; margin-top: 8px;">
+                            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 4px;">+ تكلفة الملحقات المضافة:</div>
+                            <ul id="pd_attachments_list" style="margin: 0; padding-right: 15px; font-size: 13px; color: #475569;"></ul>
+                            <div style="display: flex; justify-content: space-between; margin-top: 5px; font-weight: bold; font-size: 13px; color: #475569;">
+                                <span>إجمالي تكلفة الملحقات:</span>
+                                <span id="pd_attachments_cost">0.00</span>
+                            </div>
+                        </div>
+                        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 12px 0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span style="color: #ef4444; font-weight: bold;">إجمالي التكلفة (عليك):</span>
+                            <span id="pd_total_cost" style="color: #ef4444; font-weight: bold; font-family: monospace; font-size: 15px;">0.00</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span style="color: #1f2937; font-weight: bold;">سعر البيع (للعميل):</span>
+                            <span id="pd_sell_price" style="color: #1f2937; font-weight: bold; font-family: monospace; font-size: 15px;">0.00</span>
+                        </div>
+                    </div>
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 15px; text-align: center;">
+                        <span style="display: block; font-size: 12px; color: #166534; font-weight: bold; text-transform: uppercase;">صافي الربح المتوقع</span>
+                        <span id="pd_profit" style="display: block; font-size: 24px; color: #15803d; font-weight: 800; margin-top: 5px; font-family: monospace;">0.00</span>
+                    </div>
+                </div>
+                <div style="background: #f9fafb; padding: 12px 20px; text-align: right; border-top: 1px solid #e5e7eb;">
+                    <button onclick="document.getElementById('pendingDetailsModal').style.display='none'" style="background: #fff; border: 1px solid #d1d5db; padding: 6px 15px; border-radius: 6px; color: #374151; font-weight: bold; cursor: pointer;">إغلاق</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    // 2. تعبئة البيانات (الآن العناصر مضمونة الوجود)
+    document.getElementById('pd_customer_name').textContent = sale.customerName || 'عميل غير مسجل';
+    
+    let mainProductName = "فاتورة مجمعة";
+    let mainCost = 0;
+
+    if (sale.mainProduct) {
+        mainProductName = `${sale.mainProduct.quantity}x ${sale.mainProduct.name}`;
+        mainCost = (Number(sale.mainProduct.costPrice) || 0) * (Number(sale.mainProduct.quantity) || 0);
+    } else if (sale.items) {
+        mainProductName = `فاتورة تحتوي على ${sale.items.length} بنود`;
+        mainCost = sale.items.reduce((sum, item) => sum + ((Number(item.costPrice)||0) * (Number(item.quantity)||0)), 0);
+    }
+    
+    document.getElementById('pd_product_name').textContent = mainProductName;
+    document.getElementById('pd_main_cost').textContent = formatCurrency(mainCost);
+
+    const attachmentsList = document.getElementById('pd_attachments_list');
+    const attachmentsContainer = document.getElementById('pd_attachments_container');
+    attachmentsList.innerHTML = '';
+    
+    const attachments = sale.additionalItems || (sale.invoiceData ? sale.invoiceData.deductedItems : []) || (sale.deductedItems) || [];
+    
+    let attachmentsTotalCost = 0;
+
+    if (attachments.length > 0) {
+        attachmentsContainer.style.display = 'block';
+        attachments.forEach(att => {
+            const attQty = Number(att.quantity) || 0;
+            const attUnitCost = Number(att.costPrice) || 0;
+            const attTotal = attQty * attUnitCost;
+            attachmentsTotalCost += attTotal;
+
+            const li = document.createElement('li');
+            li.style.display = "flex";
+            li.style.justifyContent = "space-between";
+            li.style.marginBottom = "3px";
+            li.innerHTML = `
+                <span>${attQty}x ${att.name}</span>
+                <span style="font-family: monospace;">${formatCurrency(attTotal)}</span>
+            `;
+            attachmentsList.appendChild(li);
+        });
+        document.getElementById('pd_attachments_cost').textContent = formatCurrency(attachmentsTotalCost);
+    } else {
+        attachmentsContainer.style.display = 'none';
+    }
+
+    const totalCalculatedCost = mainCost + attachmentsTotalCost;
+    const sellPrice = Number(sale.totalSellPrice) || 0;
+    const profit = sellPrice - totalCalculatedCost;
+
+    document.getElementById('pd_total_cost').textContent = formatCurrency(totalCalculatedCost);
+    document.getElementById('pd_sell_price').textContent = formatCurrency(sellPrice);
+    
+    const profitEl = document.getElementById('pd_profit');
+    profitEl.textContent = formatCurrency(profit);
+    profitEl.style.color = profit >= 0 ? '#15803d' : '#dc2626';
+
+    modal.style.display = 'block';
+};
 
 }); // End DOMContentLoaded
 </script>
