@@ -10,6 +10,63 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
+    /* === تصميم تقرير المبيعات الجديد === */
+.report-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s;
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-card:hover { transform: translateY(-3px); }
+
+.stat-title { font-size: 0.875rem; font-weight: 600; color: #64748b; margin-bottom: 0.5rem; }
+.stat-value { font-size: 1.5rem; font-weight: 800; font-family: 'Segoe UI', monospace; }
+
+.stat-sales { border-bottom: 4px solid #3b82f6; }
+.stat-sales .stat-value { color: #1d4ed8; }
+
+.stat-cost { border-bottom: 4px solid #f59e0b; }
+.stat-cost .stat-value { color: #b45309; }
+
+.stat-profit { border-bottom: 4px solid #10b981; }
+.stat-profit .stat-value { color: #047857; }
+
+/* تصميم الجدول */
+.report-table-container {
+    background: white;
+    border-radius: 1rem;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.modern-table { width: 100%; border-collapse: collapse; text-align: right; }
+.modern-table thead { background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+.modern-table th { padding: 1rem; font-size: 0.85rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; }
+.modern-table td { padding: 1rem; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; }
+.modern-table tr:last-child td { border-bottom: none; }
+.modern-table tr:hover { background-color: #f8fafc; }
+
+/* بادجات الحالة */
+.badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; display: inline-block; }
+.badge-invoice { background-color: #e0e7ff; color: #3730a3; }
+.badge-quick { background-color: #f0fdf4; color: #166534; }
+.badge-pending { background-color: #fff7ed; color: #9a3412; }
+
+/* أيقونات الجدول */
+.td-icon { color: #94a3b8; margin-left: 0.5rem; }
     /* === START: Professional Inline Payment Form Styles === */
 .inline-payment-form {
     background-color: #f0f5ff; /* خلفية زرقاء فاتحة جداً */
@@ -2039,69 +2096,88 @@ input:checked:active + .slider:before {
                 <div id="offset-message" class="section-message text-sm mt-3"></div>
             </section>
 
-            <section id="sales-report-section" class="widget-card content-section hidden">
-                <h2>تقرير المبيعات الشهرية</h2>
-                <p class="text-sm text-gray-600 mb-4">
-                    اختر الشهر والسنة لعرض تقرير المبيعات المفصل. سيتم عرض كل عملية بيع تمت خلال الشهر المحدد (من البيانات المحفوظة).
-                </p>
-                <div class="flex flex-col sm:flex-row justify-start items-end gap-4 mb-4">
-                    <div>
-                        <label for="report-month-year" class="block text-gray-700 text-sm font-bold mb-1">اختر الشهر:<span class="required">*</span></label>
-                        <input type="month" id="report-month-year" class="shadow-sm w-full sm:w-auto">
-                    </div>
-                    <button id="generate-report-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded w-full sm:w-auto">
-                        عرض التقرير
-                    </button>
-                </div>
-               <div id="sales-report-search-container" class="mt-4 pt-4 border-t border-dashed ">
-    <label for="report-search-input" class="block text-gray-700 text-sm font-bold mb-2">
-        بحث في نتائج التقرير:
-    </label>
-    <div class="flex flex-wrap gap-2">
-        <input type="text" id="report-search-input" placeholder="اكتب اسم العميل، المنتج، أو رقم الفاتورة..." class="shadow-sm flex-grow min-w-[200px]">
+           <section id="sales-report-section" class="content-section hidden">
+    
+    <!-- رأس الصفحة -->
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+        <div>
+            <h2 style="font-size: 1.8rem; font-weight: 800; color: #1e293b; display: flex; align-items: center; gap: 0.5rem;">
+                <span style="background: #eff6ff; color: #3b82f6; padding: 8px; border-radius: 12px;">
+                    <i class="fas fa-chart-pie"></i>
+                </span>
+                تقارير المبيعات
+            </h2>
+            <p style="color: #64748b; margin-top: 5px;">متابعة الأداء المالي والأرباح الشهرية</p>
+        </div>
         
-        <button id="report-direct-search-btn" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded">
-            بحث مباشر
-        </button>
-
-        <button id="report-clear-search-btn" class="bg-gray-200 text-gray-700 hover:bg-gray-300 text-xs font-bold py-2 px-3 rounded">
-            مسح وتصفية
-        </button>
+        <!-- أدوات التحكم (الشهر والبحث) -->
+        <div style="display: flex; gap: 10px; align-items: center; background: white; padding: 5px; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <input type="month" id="report-month-year" style="border: none; background: transparent; font-weight: bold; color: #334155; outline: none;">
+            <button id="generate-report-button" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.2s;">
+                <i class="fas fa-filter"></i> عرض التقرير
+            </button>
+        </div>
     </div>
-</div>
-                <div id="report-message" class="section-message text-sm mb-4"></div>
 
-                <div id="sales-report-display">
-                    <h3 class="text-lg font-medium text-gray-700 mb-3">تفاصيل المبيعات للشهر المحدد</h3>
-                    <div class="overflow-x-auto">
-                        <table id="sales-report-table" class="min-w-full">
-                            <thead>
-                                <tr>
-                                    <th class="px-4 py-2">تاريخ العملية</th>
-                                    <th class="px-4 py-2">العميل</th>
-                                    <th class="px-4 py-2">المنتجات/البنود</th>
-                                    <th class="px-4 py-2">إجمالي البيع</th>
-                                    <th class="px-4 py-2">إجمالي التكلفة</th>
-                                    <th class="px-4 py-2">الربح</th>
-                                    <th class="px-4 py-2">نوع العملية</th>
-                                </tr>
-                            </thead>
-                            <tbody id="sales-report-table-body">
-                                <tr><td colspan="7" class="text-center text-gray-500 py-4">اختر الشهر واضغط "عرض التقرير".</td></tr>
-                            </tbody>
-                            <tfoot>
-                                <tr>
-                                    <td colspan="3" class="font-semibold text-right">الإجماليات الشهرية (للعمليات المعروضة):</td>
-                                    <td id="report-total-sales" class="font-bold text-center">0 جنيه</td>
-                                    <td id="report-total-cost" class="font-bold text-center">0 جنيه</td>
-                                    <td id="report-total-profit" class="font-bold text-center">0 جنيه</td>
-                                    <td></td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
-            </section>
+    <!-- رسائل التنبيه -->
+    <div id="report-message" class="section-message"></div>
+
+    <!-- 1. بطاقات الملخص (Stats Cards) -->
+    <div class="report-grid">
+        <div class="stat-card stat-sales">
+            <span class="stat-title"><i class="fas fa-coins td-icon"></i> إجمالي المبيعات</span>
+            <span id="report-total-sales" class="stat-value">0.00</span>
+        </div>
+        <div class="stat-card stat-cost">
+            <span class="stat-title"><i class="fas fa-boxes td-icon"></i> تكلفة البضاعة</span>
+            <span id="report-total-cost" class="stat-value">0.00</span>
+        </div>
+        <div class="stat-card stat-profit">
+            <span class="stat-title"><i class="fas fa-chart-line td-icon"></i> صافي الربح</span>
+            <span id="report-total-profit" class="stat-value">0.00</span>
+        </div>
+    </div>
+
+    <!-- 2. شريط البحث والتصفية -->
+    <div style="margin-bottom: 1rem; position: relative;">
+        <i class="fas fa-search" style="position: absolute; right: 15px; top: 12px; color: #94a3b8;"></i>
+        <input type="text" id="report-search-input" placeholder="بحث باسم العميل، المنتج، أو رقم الفاتورة..." 
+               style="width: 100%; padding: 10px 40px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.9rem; outline: none; transition: border-color 0.2s;"
+               onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#cbd5e1'">
+        
+        <div style="position: absolute; left: 5px; top: 5px;">
+            <button id="report-direct-search-btn" style="background: #f1f5f9; border: 1px solid #e2e8f0; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; color: #475569; cursor: pointer;">
+                بحث شامل
+            </button>
+            <button id="report-clear-search-btn" style="background: white; border: 1px solid #e2e8f0; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; color: #ef4444; cursor: pointer;">
+                مسح
+            </button>
+        </div>
+    </div>
+
+    <!-- 3. جدول البيانات -->
+    <div class="report-table-container">
+        <div style="overflow-x: auto;">
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th style="width: 15%">التاريخ / الوقت</th>
+                        <th style="width: 15%">العميل</th>
+                        <th style="width: 30%">تفاصيل البنود</th>
+                        <th style="width: 10%; text-align: center;">القيمة</th>
+                        <th style="width: 10%; text-align: center;">التكلفة</th>
+                        <th style="width: 10%; text-align: center;">الربح</th>
+                        <th style="width: 10%; text-align: center;">النوع</th>
+                    </tr>
+                </thead>
+                <tbody id="sales-report-table-body">
+                    <tr><td colspan="7" class="text-center text-gray-500 py-8">اختر الشهر لعرض البيانات.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</section>
           <section id="expenses-report-section" class="widget-card content-section hidden">
     <h2>تقرير المصروفات الشهرية</h2>
     <p class="text-sm text-gray-600 mb-4">
@@ -2437,6 +2513,7 @@ input:checked:active + .slider:before {
                 </div>
 
                 <div id="import-export-section" class="mb-6 pb-4 border-b">
+
                     <h3 class="text-lg font-medium text-gray-700 mb-3">نسخ احتياطي واستعادة</h3>
                     <div class="flex flex-col sm:flex-row justify-center items-center gap-4 flex-wrap">
                         <button id="export-data-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
@@ -2448,7 +2525,16 @@ input:checked:active + .slider:before {
                         <input type="file" id="import-file-input" accept=".json,.txt">
                     </div>
                      <p class="text-xs text-gray-500 mt-2 text-center">ملاحظة: عند الاستيراد، اختر أولاً التاريخ الذي تريد الاستيراد إليه من قسم "تحميل بيانات تاريخ سابق".</p>
+                   
                     <div id="import-message" class="section-message text-sm mt-2"></div>
+
+                 <div class="mt-4 pt-4 border-t border-gray-200">
+    <h4 class="text-sm font-bold text-indigo-700 mb-2">مزامنة سحابية (إصلاح الأخطاء)</h4>
+    <button onclick="syncLocalSalesToCloud()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded w-full sm:w-auto flex items-center justify-center gap-2">
+        <i class="fas fa-sync-alt"></i> مزامنة الفواتير المحلية مع السحابة
+    </button>
+    <p class="text-xs text-gray-500 mt-1">اضغط هنا إذا لاحظت اختفاء بعض الفواتير الحديثة من التقرير (بسبب ضعف الإنترنت).</p>
+</div>   
                 </div>
                 <div id="safety-net-section" class="mb-6 pb-4 border-b">
     <h3 class="text-lg font-medium text-yellow-700 mb-3">🛡️ شبكة الأمان (استعادة الطوارئ)</h3>
@@ -2997,23 +3083,23 @@ function sanitizeDataForFirebase(obj) {
         }
         // ================== بداية الدالة المساعدة الجديدة ==================
 async function saveInvoiceToFirestore(invoiceRecord) {
-    if (!window.currentUser) {
-        console.error("Cannot save invoice, no user logged in.");
-        return;
-    }
+    if (!window.currentUser) return;
     const userId = window.currentUser.uid;
     
-    // إضافة تاريخ البيع للمستند ليسهل البحث به لاحقًا
-    invoiceRecord.saleDate = currentLoadedDate || getTodayDateString();
+    // ضمان وجود تاريخ البيع
+    if (!invoiceRecord.saleDate) {
+        invoiceRecord.saleDate = currentLoadedDate || new Date().toISOString().split('T')[0];
+    }
 
     try {
-        // الحفظ في المجموعة الجديدة invoices باستخدام ID الفاتورة
         const invoiceDocRef = window.doc(window.db, "users", userId, "invoices", invoiceRecord.id);
+        // ننتظر حتى ينتهي الحفظ تماماً
         await window.setDoc(invoiceDocRef, invoiceRecord);
-        console.log(`Invoice ${invoiceRecord.invoiceNumber || invoiceRecord.id} saved to the new invoices collection.`);
+        console.log(`تم رفع الفاتورة ${invoiceRecord.invoiceNumber} للسحابة بنجاح.`);
     } catch (error) {
-        console.error("Error saving invoice to the new collection: ", error);
-        // يمكنك هنا إظهار رسالة خطأ للمستخدم إذا أردت
+        console.error("خطأ في الرفع للسحابة:", error);
+        // تنبيه المستخدم بوجود مشكلة في السحابة
+        alert(`تنبيه: تم حفظ الفاتورة محلياً، ولكن فشل رفعها للسحابة.\nالسبب: ${error.message}`);
     }
 }
 // ================== بداية دالة ترحيل البيانات القديمة ==================
@@ -4790,54 +4876,77 @@ async function loadDataForDate(dateString) {
     }
 }
 // =======================================================
-        function exportData() {
-             console.log("Export button clicked. currentLoadedDate:", currentLoadedDate);
-             const dateToExport = currentLoadedDate || getTodayDateString(); // Use loaded date or today if none loaded
-              // Recalculate totals just before export to ensure consistency
-              const { totalInventoryValue, totalCapital, totalDebtsValue, totalLiabilitiesValue } = calculateTotals();
-             // ✅✅✅ استبدل هذا البلوك بالكامل داخل دالة exportData ✅✅✅
-const stateToExport = {
-    // البيانات الأساسية
-    products, 
-    suppliers, 
-    accounts, // <-- ✅ الأهم: تصدير نظام الخزائن الجديد بدلاً من المتغير القديم
-    expenses, 
-    debtors, 
-    liabilities, 
-    monthlyLiabilities,
+       function exportData() {
+    console.log("Starting full system backup...");
     
-    // بيانات العمليات والسجلات
-    profit: totalProfit, 
-    log: operationLog, 
-    pendingSales,
-    liquidityLog, 
-    salesToday, 
-    serialNumbersLog, 
-    inboxTasks,
+    // تحديد تاريخ البيانات المصدرة (إما التاريخ المحمل حالياً أو اليوم)
+    const dateToExport = currentLoadedDate || getTodayDateString();
 
-    // البيانات الجديدة التي كانت مفقودة
-    purchaseInvoices, 
-    pendingPurchases, 
-    completedReturns, 
-    pendingReturns,
-    pendingReturnsValue,
+    // تجميع الحالة الكاملة للنظام (شاملة كل التحديثات الجديدة)
+    const stateToExport = {
+        // 1. بيانات التعريف
+        meta: {
+            appName: "نظام إدارة البضائع",
+            version: "3.0 (تحديث العربونات والتكاليف)",
+            backupDate: new Date().toISOString(),
+            targetDate: dateToExport
+        },
 
-    // بيانات تعريفية للملف
-    savedAt: new Date().toISOString(),
-    savedForDate: dateToExport
-};
-              const jsonString = JSON.stringify(stateToExport, null, 2);
-              const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = url;
-              link.download = `بيانات_ادارة_البضائع_${dateToExport}.json`;
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              URL.revokeObjectURL(url);
-              showGlobalMessage(`تم تجهيز ملف التصدير للبيانات المعروضة (تاريخ ${formatDateForDisplay(dateToExport)}).`, false);
-          }
+        // 2. البيانات الأساسية (المخزون والعملاء)
+        products: products || [],       // يشمل الفئة (Category) وتكلفة الشراء المحدثة
+        suppliers: suppliers || [],
+        
+        // 3. النظام المالي الجديد (الخزائن المتعددة)
+        accounts: accounts || [],       // بديل السيولة الواحدة القديمة
+
+        // 4. المبيعات (شاملة العربونات)
+        salesToday: salesToday || [],       // الفواتير النهائية
+        pendingSales: pendingSales || [],   // يشمل حقل depositPaid (العربون) الجديد
+        completedReturns: completedReturns || [],
+        pendingReturns: pendingReturns || [],
+        pendingReturnsValue: (typeof pendingReturnsValue !== 'undefined') ? pendingReturnsValue : 0,
+
+        // 5. المشتريات (شاملة التكاليف الإضافية)
+        purchaseInvoices: purchaseInvoices || [], // يشمل حقل extraCosts والديون المرتبطة
+        pendingPurchases: pendingPurchases || [],
+
+        // 6. الديون والالتزامات
+        debtors: debtors || [],
+        liabilities: liabilities || [],
+        monthlyLiabilities: monthlyLiabilities || [],
+
+        // 7. السجلات والتقارير
+        expenses: expenses || 0,
+        totalProfit: totalProfit || 0,
+        operationLog: operationLog || [],
+        liquidityLog: liquidityLog || [], // سجل الخزينة التفصيلي
+        serialNumbersLog: serialNumbersLog || [],
+        inboxTasks: inboxTasks || []
+    };
+
+    // تحويل البيانات لنص JSON وتنزيل الملف
+    try {
+        const jsonString = JSON.stringify(stateToExport, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        // تسمية الملف باسم معبر يحتوي على التاريخ
+        link.download = `Backup_${dateToExport}_WithDeposits.json`;
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        showGlobalMessage(`تم تصدير نسخة احتياطية شاملة لتاريخ ${formatDateForDisplay(dateToExport)} بنجاح.`, false);
+        console.log("Backup completed successfully.");
+    } catch (e) {
+        console.error("Export failed:", e);
+        showGlobalMessage("حدث خطأ أثناء التصدير. راجع الـ Console.", true);
+    }
+}
    function importData(event) {
     const file = event.target.files[0];
     const importMsgElement = d("import-message");
@@ -5406,8 +5515,11 @@ async function handleSaveInvoice() {
 
     // 2. تجميع البيانات من الواجهة
     const customerName = inv_customerNameInput.value.trim();
+    
+    // ✅✅✅ تم إضافة هذه السطور المفقودة لإصلاح الخطأ
     const customerAddress = inv_customerAddressInput ? inv_customerAddressInput.value.trim() : '';
     const phones = inv_invoiceForm ? Array.from(inv_invoiceForm.querySelectorAll('input[name="phone[]"]')).map(input => input.value.trim()).filter(phone => phone) : [];
+    // ---------------------------------------------------
     
     const invoiceItems = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => ({
         name: row.dataset.itemName,
@@ -5423,31 +5535,27 @@ async function handleSaveInvoice() {
     const notes = inv_notesTextarea ? inv_notesTextarea.value.trim() : '';
     
     const totalGoods = invoiceItems.reduce((sum, item) => sum + item.subtotal, 0);
-    const grandTotal = totalGoods + shippingCost; // الإجمالي الكلي (مثلاً 3000)
+    const grandTotal = totalGoods + shippingCost; 
 
-    // --- 🔴 المنطقة الحساسة: معالجة العربون ---
+    // --- معالجة العربون ---
     let depositAlreadyPaid = 0;
-    // نتأكد أن الفاتورة قادمة من بيع مؤقت وأن به عربون
     if (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.depositPaid) {
         depositAlreadyPaid = Number(pendingSaleOriginData.depositPaid) || 0;
     }
     
-    // المبلغ الذي سيدخل الخزنة الآن = الإجمالي - العربون القديم
-    // مثال: 3000 - 2000 = 1000
+    // المبلغ الذي سيدخل الخزنة الآن
     let amountToCollectNow = grandTotal - depositAlreadyPaid;
-    if (amountToCollectNow < 0) amountToCollectNow = 0; // حماية ضد الأرقام السالبة
-    // ----------------------------------------
+    if (amountToCollectNow < 0) amountToCollectNow = 0; 
+    // ----------------------
 
     // 3. حساب التكلفة وخصم المخزون
     let totalInvoiceCost = 0;
     let deductedItemsData = [];
     
-    // إذا كانت فاتورة جديدة (ليست من مؤقت)، نخصم من المخزون الآن
     if (!isInvoiceFromPending) {
         let requiredQuantities = {};
         invoiceItems.forEach(item => { requiredQuantities[item.name] = (requiredQuantities[item.name] || 0) + item.quantity; });
         
-        // معالجة الملحقات (الهدايا)
         if (inv_deductibleCostsContainer) {
             const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
             checkedBoxes.forEach(checkbox => {
@@ -5470,30 +5578,22 @@ async function handleSaveInvoice() {
                 products[productIndex].quantity -= requiredQuantities[itemName];
             }
         });
-        // تنظيف المنتجات الصفرية (اختياري، يفضل تركه للحفاظ على الفئات)
-        // products = products.filter(p => (Number(p.quantity) || 0) > 0.001); 
     } 
-    // إذا كانت من مؤقت، فالمخزون مخصوم مسبقاً، لا نخصمه مرة أخرى
 
-    // حساب إجمالي التكلفة للمنتجات المباعة
     totalInvoiceCost += invoiceItems.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
-    const finalInvoiceProfit = grandTotal - totalInvoiceCost;
+    const finalInvoiceProfit = grandTotal - totalInvoiceCost; 
 
     // 4. الحفظ النهائي
     if (isPending) {
-        // نادراً ما يحدث هنا، لكن للدقة:
-        // إذا حفظناها معلقة مرة أخرى، لا نغير شيئاً في السيولة
-        showMessage(globalMessage, "تم تحديث الفاتورة كمعلقة.", false);
+        showMessage(globalMessage, "تم حفظ الفاتورة كمعلقة.", false);
     } else {
-        // --- حفظ نهائي (Confirmed) ---
+        // --- حفظ نهائي ---
         
-        // أ. تحديث السيولة (بالمبلغ المتبقي فقط)
+        // أ. تحديث السيولة
         if (amountToCollectNow > 0) {
             account.balance += amountToCollectNow;
             
             const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-            
-            // وصف دقيق للسجل
             let logDesc = `فاتورة مبيعات ${customerName}`;
             if (depositAlreadyPaid > 0) {
                 logDesc = `استلام باقي فاتورة ${customerName} (إجمالي: ${grandTotal} - عربون: ${depositAlreadyPaid})`;
@@ -5503,14 +5603,14 @@ async function handleSaveInvoice() {
                 id: `liq-${Date.now()}`, 
                 timestamp: new Date().toISOString(), 
                 type: "add", 
-                amount: amountToCollectNow, // هنا يضاف الـ 1000 فقط
+                amount: amountToCollectNow, 
                 description: logDesc, 
                 currentBalance: newTotalLiquidity,
                 accountId: selectedAccountId
             });
         }
 
-        // ب. تحديث السيريالات (تحويلها لمباع)
+        // ب. تحديث السيريالات
         invoiceItems.forEach(item => {
             if (item.serial) {
                 const serialIndex = serialNumbersLog.findIndex(log => log.serial === item.serial);
@@ -5544,12 +5644,15 @@ async function handleSaveInvoice() {
             type: 'invoice',
             timestamp: new Date().toISOString(),
             saleDate: currentLoadedDate || getTodayDateString(),
-            customerName, customerAddress, phones, items: invoiceItems,
+            customerName, 
+            customerAddress, 
+            phones, // ✅ الآن المتغير موجود ولن يحدث خطأ
+            items: invoiceItems,
             shippingCost, 
             totalGoodsPrice: totalGoods, 
-            grandTotal, // الإجمالي الكامل (3000)
-            paidAmount: grandTotal, // نعتبر الفاتورة خالصة
-            depositPaid: depositAlreadyPaid, // نحتفظ بقيمة العربون كمرجع
+            grandTotal, 
+            paidAmount: grandTotal, 
+            depositPaid: depositAlreadyPaid, 
             warranty, notes, 
             deductedItems: deductedItemsData,
             totalCost: totalInvoiceCost,
@@ -5558,7 +5661,9 @@ async function handleSaveInvoice() {
         };
         
         salesToday.push(invoiceRecord);
-        saveInvoiceToFirestore(invoiceRecord); 
+        
+        // الرفع للسحابة مع الانتظار
+        await saveInvoiceToFirestore(invoiceRecord); 
 
         logOperation("إنشاء فاتورة", `فاتورة ${generatedInvoiceNumber} للعميل ${customerName}. (إجمالي: ${grandTotal})`);
         
@@ -6188,20 +6293,13 @@ function printPendingSaleAsInvoice(pendingId) {
                 updateUI();
             }
 
-             // --- دالة إنشاء تقرير المبيعات الشهري (نسخة مصححة للتأكد من استخدام Backticks) ---
-           // --- دالة إنشاء تقرير المبيعات الشهري (نسخة معدلة للعمل مع Firebase) ---
-// --- دالة إنشاء تقرير المبيعات الشهرية (النسخة النهائية والمحصّنة) ---
-// =====================================================================
-// == بداية الكود الجديد لتقرير المبيعات (يشمل دالة العرض والبحث) ==
-// =====================================================================
-
-// الدالة الجديدة الأولى: مسؤولة فقط عن عرض البيانات في الجدول
+       
 // salesToDisplay: هي مصفوفة المبيعات التي سيتم عرضها
 function displaySalesReport(salesToDisplay) {
     if (!salesReportTableBody || !reportTotalSales || !reportTotalCost || !reportTotalProfit) return;
 
-    // هذه الدالة الآن تقوم بالبحث فقط في البيانات التي تم تمريرها إليها
-    const searchTerm = reportSearchInput.value.trim().toLowerCase();
+    // تصفية البيانات
+    const searchTerm = reportSearchInput ? reportSearchInput.value.trim().toLowerCase() : "";
     const filteredSales = !searchTerm ? salesToDisplay : salesToDisplay.filter(sale => {
         const customerMatch = (sale.customerName || '').toLowerCase().includes(searchTerm);
         const invoiceNumberMatch = (sale.invoiceNumber || '').toLowerCase().includes(searchTerm);
@@ -6215,12 +6313,21 @@ function displaySalesReport(salesToDisplay) {
     let tableHTML = '';
 
     if (filteredSales.length === 0) {
-        tableHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-4">لا توجد نتائج.</td></tr>`;
+        tableHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-8 font-medium">لا توجد بيانات للعرض.</td></tr>`;
     } else {
         filteredSales.forEach(sale => {
             const saleDateDisplay = formatDateForDisplay(sale.saleDate);
-            const customer = sale.customerName || '-';
-            let itemsDesc = (sale.items || []).filter(item => item).map(item => `${item.quantity}x ${item.name} ${item.serial ? '(S/N: '+item.serial+')' : ''}`).join('<br>');
+            const timeDisplay = sale.timestamp ? new Date(sale.timestamp).toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'}) : '';
+            const customer = sale.customerName || '<span class="text-gray-400">نقدي</span>';
+            
+            // تنسيق البنود بشكل أنيق
+            let itemsDesc = (sale.items || []).map(item => `
+                <div style="font-size: 0.85rem; margin-bottom: 2px;">
+                    <span style="font-weight:bold; color:#334155;">${item.quantity}x</span> ${item.name}
+                    ${item.serial ? `<span style="font-size:0.7rem; color:#64748b; background:#f1f5f9; padding:0 4px; border-radius:4px;">${item.serial}</span>` : ''}
+                </div>
+            `).join('');
+
             const saleAmount = Number(sale.grandTotal ?? sale.totalSellPrice) || 0;
             const costAmount = Number(sale.totalCost) || 0;
             const profitAmount = Number(sale.profit) || 0;
@@ -6229,39 +6336,47 @@ function displaySalesReport(salesToDisplay) {
             totalMonthCost += costAmount;
             totalMonthProfit += profitAmount;
 
-            let saleTypeDesc = sale.type === 'invoice' ? 'فاتورة' : sale.type === 'quick' ? 'بيع سريع' : sale.type === 'invoice-from-pending' ? 'فاتورة (من مؤكد)' : 'مؤكد';
+            // تحديد نوع البادج (Badge)
+            let badgeClass = 'badge-invoice';
+            let typeName = 'فاتورة';
+            if (sale.type === 'quick') { badgeClass = 'badge-quick'; typeName = 'سريع'; }
+            else if (sale.type === 'invoice-from-pending') { badgeClass = 'badge-pending'; typeName = 'مؤكدة'; }
+
+            // لون الربح
+            const profitColor = profitAmount >= 0 ? '#16a34a' : '#dc2626';
+
             tableHTML += `
                 <tr>
-                    <td>${saleDateDisplay}<br><small>${formatDateTime(sale.timestamp)}</small></td>
-                    <td>${customer}</td>
+                    <td>
+                        <div style="font-weight:bold; color:#334155;">${saleDateDisplay}</div>
+                        <div style="font-size:0.75rem; color:#94a3b8;">${timeDisplay}</div>
+                        ${sale.invoiceNumber ? `<div style="font-size:0.7rem; color:#6366f1; margin-top:2px;">#${sale.invoiceNumber}</div>` : ''}
+                    </td>
+                    <td style="font-weight:500;">${customer}</td>
                     <td>${itemsDesc}</td>
-                    <td class="text-center font-mono">${formatCurrency(saleAmount)}</td>
-                    <td class="text-center font-mono">${formatCurrency(costAmount)}</td>
-                    <td class="text-center font-mono">${formatCurrency(profitAmount)}</td>
-                    <td class="text-center">${saleTypeDesc}</td>
+                    <td class="text-center" style="font-family:monospace; font-weight:bold; font-size:1rem;">${formatCurrency(saleAmount)}</td>
+                    <td class="text-center" style="font-family:monospace; color:#64748b;">${formatCurrency(costAmount)}</td>
+                    <td class="text-center" style="font-family:monospace; font-weight:bold; color:${profitColor};">${formatCurrency(profitAmount)}</td>
+                    <td class="text-center">
+                        <span class="badge ${badgeClass}">${typeName}</span>
+                    </td>
                 </tr>
             `;
         });
     }
 
     salesReportTableBody.innerHTML = tableHTML;
+    
+    // تحديث بطاقات الملخص بالأعلى
     reportTotalSales.textContent = formatCurrency(totalMonthSales);
     reportTotalCost.textContent = formatCurrency(totalMonthCost);
     reportTotalProfit.textContent = formatCurrency(totalMonthProfit);
+    
+    // تغيير لون بطاقة الربح حسب النتيجة
+    const profitCardValue = document.querySelector('.stat-profit .stat-value');
+    if(profitCardValue) profitCardValue.style.color = totalMonthProfit >= 0 ? '#047857' : '#dc2626';
 }
 
-// =====================================================================
-// == بداية الكود الجديد والمحسّن لتقرير المبيعات (نسخة ضد التكرار) ==
-// =====================================================================
-
-// دالة جلب كل بيانات الشهر (الطريقة الأولى) - نسخة محدثة
-// ================== بداية دالة التقرير الجديدة والسريعة ==================
-// ================== بداية دالة التقرير الجديدة والسريعة ==================
-// =======================================================
-// START: دالة تقرير المبيعات (النسخة النهائية فائقة السرعة)
-// =======================================================
-// =======================================================
-// START: دالة البحث المباشر (النسخة النهائية فائقة السرعة)
 // =======================================================
 async function performDirectSearch() {
     if (!reportMonthYearInput || !reportMessage || !reportSearchInput || !window.currentUser) return;
@@ -6342,9 +6457,6 @@ function parseAmountFromLogDetails(details) {
     }
     return 0; // إذا لم تجد مبلغًا، ترجع صفرًا
 }
-// =======================================================
-// START: دالة تقرير المصروفات (تعتمد على السجل النصي فقط)
-// =======================================================
 async function generateExpensesReport() {
     const monthInput = document.getElementById('exp-report-month-year');
     const messageEl = document.getElementById('exp-report-message');
@@ -6356,197 +6468,257 @@ async function generateExpensesReport() {
 
     const yearMonth = monthInput.value;
     if (!yearMonth) {
-        if(typeof showMessage === 'function') showMessage(messageEl, "يرجى اختيار الشهر والسنة.", true);
+        showMessage(messageEl, "يرجى اختيار الشهر والسنة.", true);
         return;
     }
 
-    if(typeof showMessage === 'function') showMessage(messageEl, `جاري تحليل سجلات المصروفات لشهر ${yearMonth}...`, false, true);
+    showMessage(messageEl, `جاري جلب وتحليل بيانات المصروفات (سحابة + محلي)...`, false, true);
     
     summaryContainer.classList.add('hidden');
-    tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">جاري التحميل...</td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</td></tr>`;
 
-    // دالة مساعدة لتوليد تواريخ الشهر
-    const getDates = (ym) => {
-        const [y, m] = ym.split('-');
-        const date = new Date(y, m - 1, 1);
-        const dates = [];
-        while (date.getMonth() === m - 1) {
-            dates.push(new Date(date).toISOString().split('T')[0]);
-            date.setDate(date.getDate() + 1);
-        }
-        return dates;
-    };
-
-    // دالة لاستخراج المبلغ من النص (محسنة جداً)
+    // دالة مساعدة لاستخراج المبلغ (مدمجة لضمان العمل)
     const extractAmountFromText = (text) => {
         if (!text || typeof text !== 'string') return 0;
-        
-        // 1. تنظيف النص من العملة لتسهيل البحث
         let cleanText = text.replace('جنيه', '').replace('EGP', '');
-        
-        // 2. البحث عن الأنماط الشائعة (بقيمة 500، سحب 500، خصم 500)
-        // يبحث عن كلمة مفتاحية متبوعة برقم (قد يحتوي على فواصل أو نقاط عشرية)
+        // البحث عن أنماط الأرقام بعد كلمات مفتاحية أو في البداية
         const regex = /(?:بقيمة|سحب|خصم|مبلغ|بدفع)\s*([\d,]+(?:\.\d+)?)/;
         const match = cleanText.match(regex);
-        
-        if (match && match[1]) {
-            // إزالة الفواصل (,) لتحويلها لرقم صحيح
-            return parseFloat(match[1].replace(/,/g, ''));
-        }
-        
-        // 3. محاولة أخيرة: البحث عن أي رقم كبير في بداية النص إذا لم نجد الكلمات المفتاحية
-        // (مفيد في حال كان الوصف يبدأ بالرقم مباشرة مثل "500 مصروفات")
+        if (match && match[1]) return parseFloat(match[1].replace(/,/g, ''));
         const startNumberMatch = cleanText.match(/^([\d,]+(?:\.\d+)?)/);
-        if (startNumberMatch && startNumberMatch[1]) {
-             return parseFloat(startNumberMatch[1].replace(/,/g, ''));
-        }
-
+        if (startNumberMatch && startNumberMatch[1]) return parseFloat(startNumberMatch[1].replace(/,/g, ''));
         return 0;
     };
 
-    const datesInMonth = getDates(yearMonth);
-    let allExpenses = [];
+    let allDaysData = [];
+    let isOffline = false;
 
     try {
-        // جلب البيانات
-        const fetchPromises = datesInMonth.map(dateStr => {
-            if (typeof fetchOnlineDataForDate === 'function') return fetchOnlineDataForDate(dateStr);
-            return null;
-        });
+        const userId = window.currentUser ? window.currentUser.uid : null;
         
-        const allDaysData = await Promise.all(fetchPromises);
-        
-        console.log("--- بدء تحليل المصروفات ---");
-
-        allDaysData.forEach((dayData, index) => {
-            const dateStr = datesInMonth[index];
-            if (dayData && Array.isArray(dayData.log)) {
+        // 1. محاولة الجلب من السحابة (Cloud)
+        if (userId) {
+            try {
+                // تحديد نطاق الشهر (يمكننا جلب الأيام بناءً على ID المستند الذي يبدأ بالسنة-الشهر)
+                // لكن للسهولة والدقة سنستخدم الاستعلام عن النطاق إذا كانت الأيام مخزنة بتواريخ
+                // أو نجلب الأيام يوماً بيوم (Loop) كما في السابق لكن بشكل أسرع
                 
+                // الطريقة الأفضل: جلب مجموعة الأيام وتصفيتها (أو استخدام where لو كان هناك حقل تاريخ مفهرس)
+                // سنستخدم الطريقة الآمنة: Loop over days in month (Parallel Requests)
+                const getDates = (ym) => {
+                    const [y, m] = ym.split('-');
+                    const date = new Date(y, m - 1, 1);
+                    const dates = [];
+                    while (date.getMonth() === m - 1) {
+                        dates.push(new Date(date).toISOString().split('T')[0]);
+                        date.setDate(date.getDate() + 1);
+                    }
+                    return dates;
+                };
+
+                const dates = getDates(yearMonth);
+                // استخدام Promise.all لجلب كل الأيام في وقت واحد (أسرع بكثير)
+                const promises = dates.map(date => window.getDoc(window.doc(window.db, "users", userId, "days", date)));
+                const snapshots = await Promise.all(promises);
+                
+                snapshots.forEach(snap => {
+                    if (snap.exists()) {
+                        allDaysData.push({ date: snap.id, ...snap.data() });
+                    }
+                });
+
+            } catch (cloudError) {
+                console.warn("فشل الاتصال بالسحابة للمصروفات:", cloudError);
+                isOffline = true;
+            }
+        }
+
+        // 2. دمج البيانات المحلية (Local Injection) - هذا هو السحر
+        // إذا كان "اليوم الحالي المحمل" يقع في هذا الشهر، نستخدم نسخته المحلية
+        // لأن النسخة المحلية في الذاكرة (operationLog) هي الأحدث دائماً وتحتوي على ما لم يحفظ
+        if (currentLoadedDate && currentLoadedDate.startsWith(yearMonth)) {
+            // البحث هل هذا اليوم موجود في البيانات القادمة من السحابة؟
+            const existingIndex = allDaysData.findIndex(d => d.date === currentLoadedDate);
+            
+            // تجهيز كائن بيانات اليوم الحالي من الذاكرة
+            const localDayData = {
+                date: currentLoadedDate,
+                log: operationLog || [], // السجل الحالي في الذاكرة
+                // يمكن إضافة liquidityLog أيضاً لو أردنا الدقة المالية
+            };
+
+            if (existingIndex !== -1) {
+                // ✅ استبدال: النسخة المحلية "تغطي" على نسخة السحابة لهذا اليوم فقط
+                // لأنك قد تكون سجلت مصروفاً الآن ولم تضغط حفظ بعد
+                allDaysData[existingIndex] = localDayData;
+                console.log("تم استخدام البيانات المحلية ليوم:", currentLoadedDate);
+            } else {
+                // ✅ إضافة: اليوم غير موجود في السحابة أصلاً، نضيفه
+                allDaysData.push(localDayData);
+            }
+        }
+        
+        // 3. تحليل البيانات واستخراج المصروفات
+        let allExpenses = [];
+        
+        allDaysData.forEach(dayData => {
+            if (dayData.log && Array.isArray(dayData.log)) {
                 dayData.log.forEach(log => {
-                    // التحقق من أن السجل هو مصروف
-                    // الشروط: النوع يحتوي على كلمة "مصروف" أو "سحب" أو التفاصيل تحتوي عليها
-                    const isExpenseType = ["تسجيل مصروف", "سحب سيولة", "صرف مصروف", "مصروف مباشر"].includes(log.type);
-                    const isExpenseDetails = log.details && (log.details.includes("مصروف") || log.details.includes("سحب"));
+                    // شروط اعتبار العملية "مصروف"
+                    const isExpenseType = ["تسجيل مصروف", "سحب سيولة", "صرف مصروف", "مصروف مباشر", "دفع فاتورة شراء"].some(t => log.type.includes(t));
+                    const isExpenseDetails = log.details && (log.details.includes("مصروف") || log.details.includes("سحب") || log.details.includes("دفع فاتورة"));
 
                     if (isExpenseType || isExpenseDetails) {
+                        // استثناء عمليات العربون المسترد (لأنها دخل وليس خرج)
+                        if (log.type === "add" || log.details.includes("استرداد")) return;
+
                         const amount = extractAmountFromText(log.details);
-                        
-                        // إضافة للتقرير فقط إذا كان المبلغ أكبر من صفر
                         if (amount > 0) {
-                            console.log(`تم رصد مصروف يوم ${dateStr}: ${amount} - ${log.details}`);
                             allExpenses.push({
-                                date: dateStr,
+                                date: dayData.date, // استخدام تاريخ اليوم الخاص بالسجل
+                                timestamp: log.timestamp || dayData.date, // للترتيب
                                 type: log.type || "مصروف",
                                 details: log.details,
                                 amount: amount
                             });
-                        } else {
-                            console.warn(`تم تجاهل سجل يوم ${dateStr} لعدم القدرة على استخراج المبلغ: ${log.details}`);
                         }
                     }
                 });
             }
         });
-        console.log("--- انتهاء التحليل ---");
 
-    } catch (error) {
-        console.error("Error fetching expenses:", error);
-        if(typeof showMessage === 'function') showMessage(messageEl, "حدث خطأ أثناء جلب البيانات.", true);
-        return;
-    }
+        // 4. العرض في الجدول
+        tableBody.innerHTML = '';
+        
+        if (allExpenses.length === 0) {
+            let emptyMsg = `لا توجد مصروفات مسجلة لشهر ${yearMonth}.`;
+            if (isOffline) emptyMsg += " (تعذر الاتصال بالسحابة، وتم فحص البيانات المحلية فقط).";
+            showMessage(messageEl, emptyMsg, false, true);
+            tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">لا توجد نتائج.</td></tr>`;
+            summaryTotalEl.textContent = "0.00 جنيه";
+            summaryContainer.classList.remove('hidden');
+            return;
+        }
 
-    // عرض النتائج
-    tableBody.innerHTML = '';
-    
-    if (allExpenses.length === 0) {
-        if(typeof showMessage === 'function') showMessage(messageEl, `لا توجد مصروفات مسجلة (بالنص) لهذا الشهر.`, false, true);
-        tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">لا توجد نتائج.</td></tr>`;
-        summaryTotalEl.textContent = "0.00 جنيه";
-        summaryContainer.classList.remove('hidden');
-        return;
-    }
+        // ترتيب حسب التاريخ والوقت
+        allExpenses.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-    // تجميع وترتيب
-    const groupedExpenses = allExpenses.reduce((acc, exp) => {
-        const date = exp.date;
-        if (!acc[date]) { acc[date] = []; }
-        acc[date].push(exp);
-        return acc;
-    }, {});
-
-    const sortedDates = Object.keys(groupedExpenses).sort((a, b) => new Date(a) - new Date(b));
-    let totalAmount = 0;
-    
-    const fmtCurr = (num) => typeof formatCurrency === 'function' ? formatCurrency(num) : `${Number(num).toFixed(2)} جنيه`;
-
-    sortedDates.forEach(date => {
-        const dateHeaderRow = tableBody.insertRow();
-        dateHeaderRow.className = 'date-group-header';
-        dateHeaderRow.innerHTML = `<td colspan="4">${date}</td>`;
-
-        const expensesForDay = groupedExpenses[date];
-        expensesForDay.forEach(exp => {
+        let totalAmount = 0;
+        
+        // تجميع حسب اليوم للعرض الجميل
+        // (مجموعة بسيطة لعرض الجدول)
+        allExpenses.forEach(exp => {
             totalAmount += exp.amount;
             const row = tableBody.insertRow();
-            row.className = 'expense-row';
+            row.className = 'expense-row border-b hover:bg-gray-50';
             row.innerHTML = `
-                <td></td>
-                <td>${exp.type}</td>
-                <td>${exp.details}</td>
-                <td class="text-center font-mono" style="color:#dc2626;">-${fmtCurr(exp.amount)}</td>
+                <td class="p-3 text-sm">${formatDateForDisplay(exp.date)}</td>
+                <td class="p-3 text-sm font-bold text-gray-700">${exp.type}</td>
+                <td class="p-3 text-sm text-gray-600">${exp.details}</td>
+                <td class="p-3 text-sm text-center font-mono font-bold text-red-600">-${formatCurrency(exp.amount)}</td>
             `;
         });
-    });
 
-    summaryTotalEl.textContent = fmtCurr(totalAmount);
-    summaryContainer.classList.remove('hidden');
-    if(typeof showMessage === 'function') showMessage(messageEl, `تم عرض ${allExpenses.length} عملية مصروف.`, false);
+        summaryTotalEl.textContent = formatCurrency(totalAmount);
+        summaryContainer.classList.remove('hidden');
+        
+        let successMsg = `تم عرض ${allExpenses.length} عملية مصروف.`;
+        if (isOffline) successMsg += " (وضع هجين: بيانات محلية + أرشيف الجهاز).";
+        showMessage(messageEl, successMsg, false);
+
+    } catch (error) {
+        console.error("Expenses Report Error:", error);
+        showMessage(messageEl, "حدث خطأ غير متوقع أثناء بناء التقرير.", true);
+    }
 }
 async function generateMonthlySalesReport() {
-    if (!reportMonthYearInput || !reportMessage || !window.currentUser) return;
+    // 1. التحقق والتهيئة
+    const monthInput = document.getElementById('report-month-year');
+    const msgEl = document.getElementById('report-message');
+    if (!monthInput || !msgEl || !window.currentUser) return;
+    
+    // تنظيف النتائج السابقة
     currentMonthlySalesData = [];
     if (reportSearchInput) reportSearchInput.value = '';
     
-    const yearMonth = reportMonthYearInput.value;
+    const yearMonth = monthInput.value;
     if (!yearMonth) {
-        showMessage(reportMessage, "يرجى اختيار الشهر والسنة.", true); return;
+        showMessage(msgEl, "يرجى اختيار الشهر والسنة.", true); return;
     }
 
-    showMessage(reportMessage, `جاري تحميل تقرير شهر ${yearMonth} بسرعة فائقة...`, false, true);
-    displaySalesReport([]); // عرض جدول فارغ مبدئيًا
+    showMessage(msgEl, `جاري جلب وتحليل البيانات...`, false, true);
+    if(typeof displaySalesReport === 'function') displaySalesReport([]); 
 
     try {
         const userId = window.currentUser.uid;
         const [year, month] = yearMonth.split('-');
         const startDate = `${yearMonth}-01`;
-        const endDate = new Date(year, month, 0).toISOString().split('T')[0]; // آخر يوم في الشهر
+        const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
-        const invoicesColRef = window.collection(window.db, "users", userId, "invoices");
-        const q = window.query(invoicesColRef, 
-            window.where("saleDate", ">=", startDate), 
-            window.where("saleDate", "<=", endDate),
-            window.orderBy("saleDate", "asc") // هذا السطر هو الذي كان يسبب الخطأ
-        );
+        // مصفوفة لتجميع كل الفواتير (سحابة + محلي)
+        let allInvoicesMap = new Map();
 
-        const querySnapshot = await window.getDocs(q);
-        
-        let allMonthSales = [];
-        querySnapshot.forEach((doc) => {
-            allMonthSales.push(doc.data());
-        });
-
-        if (allMonthSales.length === 0) {
-            showMessage(reportMessage, `لا توجد مبيعات محفوظة للشهر المحدد.`, false, true);
-        } else {
-             showMessage(reportMessage, `تم عرض ${allMonthSales.length} عملية بيع لشهر ${yearMonth}.`, false);
+        // 2. جلب البيانات من السحابة (Firestore)
+        try {
+            const invoicesColRef = window.collection(window.db, "users", userId, "invoices");
+            // نستخدم استعلام بسيط بدون ترتيب لتجنب مشاكل الفهرسة (Index)
+            const q = window.query(invoicesColRef, 
+                window.where("saleDate", ">=", startDate), 
+                window.where("saleDate", "<=", endDate)
+            );
+            
+            const querySnapshot = await window.getDocs(q);
+            querySnapshot.forEach((doc) => {
+                allInvoicesMap.set(doc.id, doc.data());
+            });
+        } catch (cloudError) {
+            console.warn("فشل الاتصال بالسحابة أو مشكلة في الفهرس:", cloudError);
+            showMessage(msgEl, "تنبيه: تعذر جلب البيانات من السحابة. يتم عرض البيانات المحلية فقط.", true, true);
         }
+
+        // 3. دمج البيانات المحلية (salesToday)
+        // هذا يضمن ظهور الفواتير التي قمت بها للتو حتى لو لم ترفع للسحابة، أو لو فشل الاستعلام
+        if (typeof salesToday !== 'undefined' && Array.isArray(salesToday)) {
+            salesToday.forEach(localSale => {
+                // استخراج التاريخ بدقة (دعم للنظامين القديم والجديد)
+                let sDate = localSale.saleDate;
+                if (!sDate && localSale.timestamp) {
+                    sDate = localSale.timestamp.split('T')[0]; // استنتاج من الوقت
+                }
+
+                // هل التاريخ يقع في الشهر المختار؟
+                if (sDate && sDate.startsWith(yearMonth)) {
+                    // نضعها في الـ Map (ستقوم بتحديث النسخة السحابية لو كانت أحدث، أو إضافتها لو جديدة)
+                    allInvoicesMap.set(localSale.id, localSale);
+                }
+            });
+        }
+
+        // 4. تحويل الـ Map إلى مصفوفة للترتيب والعرض
+        let finalSalesList = Array.from(allInvoicesMap.values());
+
+        // الترتيب حسب الوقت (الأحدث أولاً)
+        finalSalesList.sort((a, b) => {
+            const dateA = new Date(a.timestamp || a.saleDate);
+            const dateB = new Date(b.timestamp || b.saleDate);
+            return dateB - dateA;
+        });
         
-        currentMonthlySalesData = allMonthSales;
-        displaySalesReport(currentMonthlySalesData);
+        currentMonthlySalesData = finalSalesList;
+        
+        // عرض البيانات
+        if(typeof displaySalesReport === 'function') displaySalesReport(finalSalesList);
+
+        // رسائل الحالة
+        if (finalSalesList.length === 0) {
+            showMessage(msgEl, `لا توجد مبيعات مسجلة لشهر ${yearMonth}.`, false, true);
+        } else {
+            showMessage(msgEl, `تم عرض ${finalSalesList.length} فاتورة.`, false);
+        }
 
     } catch (error) {
-        console.error("Error fetching monthly sales report with new method:", error);
-        showMessage(reportMessage, "حدث خطأ أثناء جلب التقرير.", true);
+        console.error("Critical Report Error:", error);
+        showMessage(msgEl, "حدث خطأ غير متوقع أثناء بناء التقرير.", true);
     }
 }
 
@@ -11503,7 +11675,175 @@ window.showPendingSaleDetails = function(pendingId) {
 
     modal.style.display = 'block';
 };
+// ==========================================
+// دالة المزامنة اليدوية (لإصلاح الفواتير غير المرفوعة)
+// ==========================================
+async function syncLocalSalesToCloud() {
+    if (!window.currentUser) {
+        alert("يجب تسجيل الدخول أولاً.");
+        return;
+    }
+    
+    if (!salesToday || salesToday.length === 0) {
+        alert("لا توجد فواتير مسجلة محلياً لليوم الحالي للمزامنة.");
+        return;
+    }
 
+    const userId = window.currentUser.uid;
+    let successCount = 0;
+    let failCount = 0;
+
+    // إظهار مؤشر تحميل على الزر
+    const btn = document.querySelector('button[onclick="syncLocalSalesToCloud()"]');
+    const originalText = btn ? btn.innerHTML : "";
+    if(btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري المزامنة...'; }
+
+    for (const sale of salesToday) {
+        // التأكد من وجود تاريخ صالح
+        if (!sale.saleDate) sale.saleDate = sale.timestamp.split('T')[0];
+        
+        try {
+            // نستخدم setDoc مع merge لضمان عدم مسح بيانات إضافية إن وجدت
+            const docRef = window.doc(window.db, "users", userId, "invoices", sale.id);
+            await window.setDoc(docRef, sale, { merge: true });
+            successCount++;
+        } catch (e) {
+            console.error("فشل رفع الفاتورة:", sale.id, e);
+            failCount++;
+        }
+    }
+
+    if(btn) { btn.disabled = false; btn.innerHTML = originalText; }
+    
+    alert(`تمت العملية:\n✅ تم رفع/تحديث: ${successCount} فاتورة.\n❌ فشل: ${failCount} فاتورة.`);
+}
+// ==========================================
+// دالة المزامنة اليدوية (لإصلاح الفواتير غير المرفوعة)
+// ==========================================
+window.syncLocalSalesToCloud = async function() {
+    // 1. التحقق من تسجيل الدخول
+    if (!window.currentUser) {
+        alert("يجب تسجيل الدخول أولاً.");
+        return;
+    }
+    
+    // 2. التحقق من وجود فواتير محلية
+    if (typeof salesToday === 'undefined' || !salesToday || salesToday.length === 0) {
+        alert("لا توجد فواتير مسجلة محلياً لليوم الحالي للمزامنة.");
+        return;
+    }
+
+    const userId = window.currentUser.uid;
+    let successCount = 0;
+    let failCount = 0;
+
+    // إظهار مؤشر تحميل على الزر (تجميد الزر لمنع التكرار)
+    const btn = document.querySelector('button[onclick="syncLocalSalesToCloud()"]');
+    const originalText = btn ? btn.innerHTML : "";
+    if(btn) { 
+        btn.disabled = true; 
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري المزامنة...'; 
+    }
+
+    // 3. بدء عملية الرفع
+    console.log("Starting manual sync...");
+    
+    for (const sale of salesToday) {
+        // ضمان وجود تاريخ صالح
+        if (!sale.saleDate) {
+            sale.saleDate = sale.timestamp ? sale.timestamp.split('T')[0] : new Date().toISOString().split('T')[0];
+        }
+        
+        try {
+            // نستخدم setDoc مع merge لضمان عدم مسح بيانات إضافية إن وجدت
+            const docRef = window.doc(window.db, "users", userId, "invoices", sale.id);
+            await window.setDoc(docRef, sale, { merge: true });
+            successCount++;
+        } catch (e) {
+            console.error("فشل رفع الفاتورة:", sale.id, e);
+            failCount++;
+        }
+    }
+
+    // 4. إعادة الزر لحالته
+    if(btn) { 
+        btn.disabled = false; 
+        btn.innerHTML = originalText; 
+    }
+    
+    // 5. رسالة النتيجة
+    alert(`تمت عملية المزامنة:\n✅ تم رفع/تحديث: ${successCount} فاتورة.\n❌ فشل: ${failCount} فاتورة.`);
+};
+// ==========================================
+// أداة البحث عن الفواتير المفقودة
+// ==========================================
+window.debugShowAllInvoices = function() {
+    if (!salesToday || salesToday.length === 0) {
+        alert("⚠️ ذاكرة المتصفح (salesToday) فارغة تماماً! لم يتم حفظ أي فاتورة في هذه الجلسة.");
+        return;
+    }
+
+    let report = "تقرير بكل الفواتير في الذاكرة:\n--------------------------------\n";
+    
+    salesToday.forEach((inv, index) => {
+        report += `${index + 1}. رقم: ${inv.invoiceNumber || 'بدون'}\n`;
+        report += `   - العميل: ${inv.customerName}\n`;
+        report += `   - المبلغ: ${inv.grandTotal}\n`;
+        report += `   - التاريخ المسجل: ${inv.saleDate} (Timestamp: ${inv.timestamp})\n`;
+        report += `   - النوع: ${inv.type}\n`;
+        report += "--------------------------------\n";
+    });
+
+    console.log(report); // طباعة في الكونسول للمراجعة الدقيقة
+    alert(report); // إظهار للمستخدم
+};
+// ==========================================
+// أداة إصلاح تواريخ الفواتير (لحل مشكلة الاختفاء من التقرير)
+// ==========================================
+window.fixInvoiceDates = async function() {
+    if (!salesToday || salesToday.length === 0) {
+        alert("⚠️ لا توجد فواتير حالياً في ذاكرة المتصفح لإصلاحها.");
+        return;
+    }
+
+    // 1. طلب التاريخ الصحيح من المستخدم
+    const defaultDate = new Date().toISOString().split('T')[0]; // تاريخ اليوم
+    const correctDate = prompt("أدخل التاريخ الصحيح الذي تريد أن تظهر فيه هذه الفواتير (YYYY-MM-DD):", defaultDate);
+    
+    if (!correctDate) return; // إلغاء
+
+    // 2. تغيير رسالة الزر للتحميل
+    const msgBox = document.getElementById('global-message');
+    if(msgBox) showMessage(msgBox, "جاري تصحيح التواريخ والمزامنة...", false, true);
+
+    let count = 0;
+    const userId = window.currentUser ? window.currentUser.uid : null;
+
+    // 3. المرور على الفواتير وتصحيحها
+    for (const inv of salesToday) {
+        // تحديث التاريخ في الذاكرة المحلية
+        inv.saleDate = correctDate;
+        
+        // إذا كان هناك اتصال، نحدث السحابة أيضاً
+        if (userId) {
+            try {
+                 const docRef = window.doc(window.db, "users", userId, "invoices", inv.id);
+                 await window.setDoc(docRef, inv, { merge: true });
+            } catch(e) { 
+                console.error("فشل تحديث السحابة للفاتورة:", inv.id); 
+            }
+        }
+        count++;
+    }
+
+    // 4. حفظ النسخة المحلية الجديدة
+    if(typeof saveCurrentStateByDate === 'function') {
+        saveCurrentStateByDate(correctDate); 
+    }
+
+    alert(`✅ تم تصحيح تاريخ ${count} فاتورة إلى (${correctDate}).\n\nالآن اذهب لتقرير المبيعات واختر شهر (${correctDate.substring(0, 7)}) وستظهر الفواتير بإذن الله.`);
+    if(msgBox) showMessage(msgBox, "تم التصحيح بنجاح.", false);
+};
 }); // End DOMContentLoaded
 </script>
 
