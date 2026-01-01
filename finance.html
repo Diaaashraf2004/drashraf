@@ -2116,6 +2116,9 @@ input:checked:active + .slider:before {
             <button id="generate-report-button" style="background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: background 0.2s;">
                 <i class="fas fa-filter"></i> عرض التقرير
             </button>
+           <button onclick="window.deleteAllReportData()" style="background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; transition: all 0.2s;" title="حذف البيانات المعروضة نهائياً">
+    <i class="fas fa-trash-alt"></i> حذف المعروض
+</button>
         </div>
     </div>
 
@@ -3226,43 +3229,138 @@ function updateUndoRedoButtons() {
     if (undoBtn) undoBtn.disabled = stateHistory.length === 0;
     if (redoBtn) redoBtn.disabled = redoHistory.length === 0;
 }
-
-function undo() {
+// ==========================================
+// 1. دالة التراجع الذكية (Super Undo)
+// ==========================================
+async function undo() {
     if (stateHistory.length === 0) {
         console.log("No more states to undo.");
-        return; // لا يوجد شيء للتراجع عنه
+        return;
     }
 
-    // 1. احفظ الحالة الحالية في ذاكرة الإعادة قبل التراجع
+    // لقطة للوضع الحالي قبل التغيير
+    const currentInvoiceIds = salesToday.map(inv => inv.id);
+
+    // نقل الحالة الحالية إلى ذاكرة "الإعادة"
     redoHistory.push(createStateSnapshot());
 
-    // 2. استرجع آخر حالة من ذاكرة التراجع
+    // استرجاع الحالة السابقة
     const lastState = stateHistory.pop();
+    const previousInvoiceIds = lastState.salesToday.map(inv => inv.id);
+
+    // تطبيق الحالة السابقة محلياً
     loadStateFromSnapshot(lastState);
 
-    // 3. تحديث الواجهة والأزرار
-    updateUI();
-    updateUndoRedoButtons();
-    console.log("Undo action performed.");
-}
+    const userId = window.currentUser ? window.currentUser.uid : null;
 
-function redo() {
-    if (redoHistory.length === 0) {
-        console.log("No more states to redo.");
-        return; // لا يوجد شيء للإعادة
+    if (userId) {
+        // أ. السيناريو الأول: التراجع عن "إنشاء" (حذف ما تم إنشاؤه)
+        // الفواتير الموجودة "الآن" وليست في "الماضي" = تم إنشاؤها حديثاً ويجب حذفها
+        const createdInvoiceIds = currentInvoiceIds.filter(id => !previousInvoiceIds.includes(id));
+        
+        if (createdInvoiceIds.length > 0) {
+            console.log(`Undo: جاري حذف ${createdInvoiceIds.length} فاتورة من السحابة...`);
+            await Promise.all(createdInvoiceIds.map(id => 
+                window.deleteDoc(window.doc(window.db, "users", userId, "invoices", id)).catch(e => console.error(e))
+            ));
+        }
+
+        // ب. السيناريو الثاني: التراجع عن "حذف" (استعادة ما تم حذفه)
+        // الفواتير الموجودة في "الماضي" وليست "الآن" = تم حذفها ويجب استعادتها
+        const restoredInvoiceIds = previousInvoiceIds.filter(id => !currentInvoiceIds.includes(id));
+        
+        if (restoredInvoiceIds.length > 0) {
+            console.log(`Undo: جاري استعادة ${restoredInvoiceIds.length} فاتورة محذوفة للسحابة...`);
+            const restorePromises = restoredInvoiceIds.map(id => {
+                const invoiceData = lastState.salesToday.find(inv => inv.id === id);
+                if (invoiceData) {
+                    if (!invoiceData.saleDate) invoiceData.saleDate = invoiceData.timestamp.split('T')[0];
+                    return window.setDoc(window.doc(window.db, "users", userId, "invoices", id), invoiceData, { merge: true });
+                }
+            });
+            await Promise.all(restorePromises);
+        }
     }
 
-    // 1. احفظ الحالة الحالية في ذاكرة التراجع قبل الإعادة
-    stateHistory.push(createStateSnapshot());
-
-    // 2. استرجع آخر حالة من ذاكرة الإعادة
-    const nextState = redoHistory.pop();
-    loadStateFromSnapshot(nextState);
-
-    // 3. تحديث الواجهة والأزرار
+    // حفظ التغييرات الشاملة (المخزون، السيولة، إلخ)
+    await saveSystemToCloud();
+    
     updateUI();
     updateUndoRedoButtons();
-    console.log("Redo action performed.");
+    
+    // تحديث التقرير إذا كان مفتوحاً
+    if(typeof generateMonthlySalesReport === 'function' && document.getElementById('sales-report-section') && !document.getElementById('sales-report-section').classList.contains('hidden')) {
+        generateMonthlySalesReport();
+    }
+    
+    showGlobalMessage("تم التراجع ومزامنة السحابة بنجاح.", false);
+}
+
+// ==========================================
+// 2. دالة الإعادة الذكية (Super Redo)
+// ==========================================
+async function redo() {
+    if (redoHistory.length === 0) {
+        console.log("No more states to redo.");
+        return;
+    }
+
+    // لقطة للوضع الحالي قبل التغيير
+    const currentInvoiceIds = salesToday.map(inv => inv.id);
+
+    // نقل الحالة الحالية إلى ذاكرة "التراجع"
+    stateHistory.push(createStateSnapshot());
+
+    // استرجاع الحالة القادمة (المستقبل)
+    const nextState = redoHistory.pop();
+    const nextInvoiceIds = nextState.salesToday.map(inv => inv.id);
+
+    // تطبيق الحالة القادمة محلياً
+    loadStateFromSnapshot(nextState);
+
+    const userId = window.currentUser ? window.currentUser.uid : null;
+
+    if (userId) {
+        // أ. السيناريو الأول: إعادة "الإنشاء" (استعادة ما تم التراجع عن إنشائه)
+        // الفواتير الموجودة في "المستقبل" وليست "الآن" = يجب رفعها للسحابة
+        const reCreatedInvoiceIds = nextInvoiceIds.filter(id => !currentInvoiceIds.includes(id));
+
+        if (reCreatedInvoiceIds.length > 0) {
+            console.log(`Redo: جاري إعادة رفع ${reCreatedInvoiceIds.length} فاتورة للسحابة...`);
+            const restorePromises = reCreatedInvoiceIds.map(id => {
+                const invoiceData = nextState.salesToday.find(inv => inv.id === id);
+                if (invoiceData) {
+                    if (!invoiceData.saleDate) invoiceData.saleDate = invoiceData.timestamp.split('T')[0];
+                    return window.setDoc(window.doc(window.db, "users", userId, "invoices", id), invoiceData, { merge: true });
+                }
+            });
+            await Promise.all(restorePromises);
+        }
+
+        // ب. السيناريو الثاني: إعادة "الحذف" (حذف ما تم التراجع عن حذفه)
+        // الفواتير الموجودة "الآن" وليست في "المستقبل" = يجب حذفها من السحابة مرة أخرى
+        const reDeletedInvoiceIds = currentInvoiceIds.filter(id => !nextInvoiceIds.includes(id));
+
+        if (reDeletedInvoiceIds.length > 0) {
+            console.log(`Redo: جاري إعادة حذف ${reDeletedInvoiceIds.length} فاتورة من السحابة...`);
+            await Promise.all(reDeletedInvoiceIds.map(id => 
+                window.deleteDoc(window.doc(window.db, "users", userId, "invoices", id)).catch(e => console.error(e))
+            ));
+        }
+    }
+
+    // حفظ التغييرات الشاملة
+    await saveSystemToCloud();
+
+    updateUI();
+    updateUndoRedoButtons();
+
+    // تحديث التقرير إذا كان مفتوحاً
+    if(typeof generateMonthlySalesReport === 'function' && document.getElementById('sales-report-section') && !document.getElementById('sales-report-section').classList.contains('hidden')) {
+        generateMonthlySalesReport();
+    }
+    
+    showGlobalMessage("تمت الإعادة ومزامنة السحابة.", false);
 }
 
         // --- دوال المنطق الأساسي ---
@@ -4694,185 +4792,124 @@ function toggleAutoSave() {
     }
 }
 async function loadDataForDate(dateString) {
-    console.log(`\n--- محاولة تحميل ذكية لتاريخ: ${dateString} ---`);
+    console.log(`--- بدء عملية التحميل لتاريخ: ${dateString} ---`);
+    const loadMsg = document.getElementById("load-message-alt");
     
-    if (!window.currentUser) { return false; }
-    
+    if (!window.currentUser || !dateString) return false;
     const userId = window.currentUser.uid;
-    const loadMessageElement = d("load-message-alt");
-
-    if (!dateString) return false;
-
-    // 1. البحث عن نسخة محلية لليوم (احتياطي سريع)
-    let localRescueData = null;
-    let localRescueTime = 0;
-    for (let i = 0; i < 20; i++) {
-        const backupKey = `goodsMgmt_backup_${dateString}_slot_${i}`;
-        const raw = localStorage.getItem(backupKey);
-        if (raw) {
-            try {
-                const data = JSON.parse(raw);
-                const hasContent = (data.products?.length > 0) || (data.log?.length > 0);
-                if (hasContent && data.savedAt) {
-                    const time = new Date(data.savedAt).getTime();
-                    if (time > localRescueTime) {
-                        localRescueTime = time;
-                        localRescueData = data;
-                    }
-                }
-            } catch (e) { }
-        }
-    }
 
     try {
-        // 2. الاتصال بالسحابة لجلب بيانات "اليوم المحدد"
-        console.log("جاري الاتصال بـ Firebase...");
+        // أ. محاولة جلب بيانات اليوم المطلوب من السحابة
         const docRef = window.doc(window.db, "users", userId, "days", dateString);
-        
-        // Timeout (3 ثواني)
-        const docSnap = await Promise.race([
-            window.getDoc(docRef),
-            new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 3000))
-        ]);
+        const docSnap = await window.getDoc(docRef);
 
         if (docSnap.exists()) {
-            // وجدنا بيانات لليوم (تحميل عادي)
-            const cloudData = docSnap.data();
-            const cloudTime = cloudData.savedAt ? new Date(cloudData.savedAt).getTime() : 0;
-            
-            if (localRescueData && localRescueTime > cloudTime) {
-                console.log("⚠️ المحلي أحدث.");
-                loadState(localRescueData, dateString);
-                showMessage(loadMessageElement, `تم تحميل نسخة جهازك (أحدث).`, false);
-            } else {
-                loadState(cloudData, dateString);
-                showMessage(loadMessageElement, `تم التحميل من السيرفر.`, false);
-            }
+            // الحالة 1: اليوم موجود -> تحميل مباشر
+            console.log("تم العثور على بيانات لهذا اليوم في السحابة.");
+            loadState(docSnap.data(), dateString);
+            if(loadMsg) showMessage(loadMsg, `تم تحميل بيانات يوم ${dateString} من السحابة.`, false);
             updateUI();
             return true;
-
         } else {
-            // ==============================================================
-            // 🔥 منطقة الترحيل (هنا الإصلاح: البحث عن الملخص أو الأمس) 🔥
-            // ==============================================================
-            console.log("يوم جديد. جاري البحث عن مصدر للترحيل...");
+            // الحالة 2: يوم جديد -> بدء الترحيل
+            console.log("يوم جديد.. جاري البحث عن مصدر للترحيل (الأولوية للسحابة)...");
             
-            let previousData = null;
-            let source = "";
+            let dataToMigrate = null;
+            let sourceName = "";
 
-            // أ: المحاولة الأولى: البحث عن "ملخص الأرصدة" (latestBalances)
+            // 1. الأولوية القصوى: البحث عن بيانات "الأمس" في السحابة
+            const yesterday = new Date(dateString);
+            yesterday.setDate(yesterday.getDate() - 1);
+            const prevDateStr = yesterday.toISOString().split('T')[0];
+            
             try {
-                const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
-                const summaryDocSnap = await window.getDoc(summaryDocRef);
-                if (summaryDocSnap.exists()) {
-                    previousData = summaryDocSnap.data();
-                    source = "ملخص الأرصدة";
+                const prevDocRef = window.doc(window.db, "users", userId, "days", prevDateStr);
+                const prevSnap = await window.getDoc(prevDocRef);
+                
+                if (prevSnap.exists()) {
+                    dataToMigrate = prevSnap.data();
+                    sourceName = `سحابة يوم ${prevDateStr}`;
                 }
-            } catch (err) {
-                console.warn("فشل جلب الملخص:", err);
+            } catch (cloudErr) {
+                console.warn("فشل الاتصال بالسحابة لجلب بيانات الأمس:", cloudErr);
             }
 
-            // ب: المحاولة الثانية (الجديدة): البحث عن بيانات "الأمس" مباشرة
-            if (!previousData) {
+            // 2. الأولوية الثانية: البحث في "ملخص الأرصدة" (سحابي)
+            if (!dataToMigrate) {
                 try {
-                    // حساب تاريخ الأمس
-                    const currentObj = new Date(dateString);
-                    currentObj.setDate(currentObj.getDate() - 1);
-                    const prevDateStr = currentObj.toISOString().split('T')[0];
-                    
-                    console.log(`محاولة جلب بيانات الأمس (${prevDateStr})...`);
-                    const prevDocRef = window.doc(window.db, "users", userId, "days", prevDateStr);
-                    const prevDocSnap = await window.getDoc(prevDocRef);
-                    
-                    if (prevDocSnap.exists()) {
-                        previousData = prevDocSnap.data();
-                        source = `بيانات يوم ${prevDateStr}`;
+                    const summaryDocRef = window.doc(window.db, "users", userId, "summaries", "latestBalances");
+                    const summarySnap = await window.getDoc(summaryDocRef);
+                    if (summarySnap.exists()) {
+                        dataToMigrate = summarySnap.data();
+                        sourceName = "آخر ملخص محفوظ";
                     }
-                } catch (err) {
-                    console.warn("فشل جلب بيانات الأمس:", err);
-                }
+                } catch (e) {}
             }
 
-            // ج: المحاولة الثالثة: البحث في الجهاز (Local Summary)
-            if (!previousData) {
+            // 3. الأولوية الثالثة: البحث المحلي (للطوارئ)
+            if (!dataToMigrate) {
                 const localSummaryRaw = localStorage.getItem("goodsMgmt_local_summary");
                 if (localSummaryRaw) {
                     try {
-                        previousData = JSON.parse(localSummaryRaw);
-                        source = "الجهاز (Local)";
+                        dataToMigrate = JSON.parse(localSummaryRaw);
+                        sourceName = "ذاكرة الجهاز المحلية";
                     } catch(e) {}
                 }
             }
 
-            // د: تنفيذ الترحيل إذا وجدنا أي بيانات سابقة
-            if (previousData) {
-                console.log(`[نجاح الترحيل] المصدر: ${source}`);
+            if (dataToMigrate) {
+                // 🛑 منطقة التطهير (Cleaning Zone) 🛑
+                // ترحيل الأرصدة فقط وحذف التعاملات اليومية
+                dataToMigrate.salesToday = [];       
+                dataToMigrate.purchaseInvoices = []; 
+                dataToMigrate.completedReturns = []; 
+                dataToMigrate.expenses = 0;          
+                dataToMigrate.profit = 0;            
                 
-                // ترحيل الأرصدة والثوابت
-                products = previousData.products || [];
-                suppliers = previousData.suppliers || [];
-                accounts = previousData.accounts || [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0 }];
-                debtors = previousData.debtors || [];
-                liabilities = previousData.liabilities || [];
-                monthlyLiabilities = previousData.monthlyLiabilities || [];
-                pendingSales = previousData.pendingSales || [];
-                serialNumbersLog = previousData.serialNumbersLog || [];
-                inboxTasks = previousData.inboxTasks || [];
-                pendingPurchases = previousData.pendingPurchases || [];
-                pendingReturns = previousData.pendingReturns || [];
-                pendingReturnsValue = previousData.pendingReturnsValue || 0;
-
-                // تصفير سجلات اليوم الجديد
-                expenses = 0;
-                totalProfit = 0;
-                operationLog = [];
-                liquidityLog = [];
-                salesToday = [];
-                purchaseInvoices = [];
-                completedReturns = [];
-                
-                operationLog.push({
+                dataToMigrate.log = [{
                     timestamp: new Date().toISOString(),
-                    type: "ترحيل تلقائي",
-                    details: `تم ترحيل الأرصدة من: ${source}.`
-                });
+                    type: "بداية يوم جديد",
+                    details: `تم بدء يوم جديد وترحيل الأرصدة من: ${sourceName}`
+                }];
 
-                currentLoadedDate = dateString;
+                // الاحتفاظ برصيد الخزنة الافتتاحي
+                const totalBalance = (dataToMigrate.accounts || []).reduce((s, a) => s + a.balance, 0);
+                dataToMigrate.liquidityLog = [{
+                    id: `start-${Date.now()}`,
+                    timestamp: new Date().toISOString(),
+                    type: "adjust", 
+                    amount: 0,
+                    description: `رصيد مرحل من ${sourceName}`,
+                    currentBalance: totalBalance
+                }];
+
+                // تحميل البيانات "النظيفة"
+                loadState(dataToMigrate, dateString);
                 
-                // حفظ البيانات المرحلة فوراً لليوم الجديد لتثبيتها
-                saveCurrentStateByDate(dateString); 
+                // حفظ فوري لليوم الجديد
+                await saveSystemToCloud();
                 
+                if(loadMsg) showMessage(loadMsg, `تم بدء يوم جديد (مرحل من ${sourceName}).`, false);
                 updateUI();
-                showMessage(loadMessageElement, `تم بدء يوم جديد وترحيل الأرصدة من (${source}).`, false);
                 return true;
+
             } else {
-                // هـ: فشل تام -> يوم جديد فارغ
-                console.log("لم يتم العثور على أي بيانات سابقة للترحيل.");
-                resetState();
+                // بداية جديدة تماماً (تصفير)
+                console.log("لم يتم العثور على أي بيانات سابقة.");
+                resetState(); 
                 accounts = [{ id: 'main', name: 'الخزينة الرئيسية', balance: 0.00 }];
                 currentLoadedDate = dateString;
+                await saveSystemToCloud();
                 updateUI();
-                showMessage(loadMessageElement, `بداية جديدة (لا توجد بيانات سابقة للترحيل).`, false, true);
+                if(loadMsg) showMessage(loadMsg, `تم بدء يوم جديد (فارغ).`, false, true);
                 return true;
             }
         }
 
     } catch (error) {
-        // التعامل مع حالة الأوفلاين (كما هي)
-        console.warn("⚠️ فشل الاتصال (Offline Handling):", error);
-        if (localRescueData) {
-            loadState(localRescueData, dateString);
-            currentLoadedDate = dateString;
-            if (d("load-date-alt")) d("load-date-alt").value = dateString;
-            updateLoadDateDayName(dateString, d("load-date-day-name-alt"));
-            updateUI();
-            showGlobalMessage(`⚠️ وضع الأوفلاين: تم تحميل البيانات من جهازك.`, false, true);
-            return true;
-        } else {
-            // في حالة الأوفلاين وعدم وجود نسخة محلية، نمنع الفتح الفارغ
-            showMessage(loadMessageElement, "فشل الاتصال ولا توجد بيانات محفوظة.", true);
-            return false;
-        }
+        console.error("خطأ عام في التحميل:", error);
+        if(loadMsg) showMessage(loadMsg, "حدث خطأ أثناء تحميل البيانات.", true);
+        return false;
     }
 }
 // =======================================================
@@ -4947,71 +4984,69 @@ async function loadDataForDate(dateString) {
         showGlobalMessage("حدث خطأ أثناء التصدير. راجع الـ Console.", true);
     }
 }
-   function importData(event) {
+ function importData(event) {
     const file = event.target.files[0];
-    const importMsgElement = d("import-message");
-    if (!file) { showMessage(importMsgElement, "لم يتم اختيار ملف.", true); return; }
-    if (!/\.(json|txt)$/i.test(file.name)) { showMessage(importMsgElement, "الرجاء اختيار ملف بصيغة JSON أو TXT.", true); event.target.value = null; return; }
+    const importMsgElement = document.getElementById("import-message");
+    
+    if (!file) return;
+    
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
             const importedData = JSON.parse(e.target.result);
-            if (typeof importedData !== 'object' || importedData === null || !importedData.savedForDate || typeof importedData.savedForDate !== 'string') {
-                throw new Error("ملف JSON غير صالح أو لا يحتوي على حقل 'savedForDate' صحيح.");
+            
+            // التحقق الأساسي من صحة الملف
+            if (typeof importedData !== 'object' || importedData === null) {
+                throw new Error("صيغة الملف غير صالحة.");
             }
 
-            // ✅ كود الترحيل (Migration) المضاف
-            console.log("Starting data migration...");
-            if (!Array.isArray(importedData.serialNumbersLog)) importedData.serialNumbersLog = [];
-            if (!Array.isArray(importedData.inboxTasks)) importedData.inboxTasks = [];
-            if (!Array.isArray(importedData.monthlyLiabilities)) importedData.monthlyLiabilities = [];
-            if (!Array.isArray(importedData.purchaseInvoices)) importedData.purchaseInvoices = [];
-            if (!Array.isArray(importedData.pendingPurchases)) importedData.pendingPurchases = [];
-            if (!Array.isArray(importedData.completedReturns)) importedData.completedReturns = [];
-            if (!Array.isArray(importedData.pendingReturns)) importedData.pendingReturns = [];
-            if (importedData.pendingReturnsValue === undefined) importedData.pendingReturnsValue = 0;
-            console.log("Migration complete.");
-            // ✅ نهاية كود الترحيل
+            // 🛠️ الإصلاح: إذا لم يكن التاريخ موجوداً في الملف، نستخدم التاريخ المختار في الواجهة
+            const targetDateInput = document.getElementById("load-date-alt");
+            let targetDate = targetDateInput ? targetDateInput.value : null;
 
-            const originalDate = importedData.savedForDate;
-            const targetDateInputElement = d("load-date-alt");
-            const targetDate = targetDateInputElement ? targetDateInputElement.value : null;
-
-            if (!targetDate) {
-                showMessage(importMsgElement, "يرجى اختيار التاريخ الذي تريد استيراد البيانات إليه أولاً من قسم التحميل.", true);
-                event.target.value = null;
-                return;
+            if (!importedData.savedForDate) {
+                console.warn("الملف لا يحتوي على تاريخ محفوظ، سيتم استخدام التاريخ المختار.");
+                if (targetDate) {
+                    importedData.savedForDate = targetDate;
+                } else {
+                    // إذا لم يحدد المستخدم تاريخاً، نستخدم تاريخ اليوم
+                    importedData.savedForDate = new Date().toISOString().split('T')[0];
+                }
+            } else {
+                // إذا كان الملف يحتوي على تاريخ، نستخدمه
+                // لكن، الأفضل دائماً أن نسأل المستخدم هل يريد الاستيراد لليوم المحدد أم لتاريخ الملف
+                if (!targetDate) targetDate = importedData.savedForDate;
             }
+            
+            // التأكد النهائي من التاريخ المستهدف
+            const finalDate = targetDate || importedData.savedForDate;
 
-            const confirmationMsg = `الملف يحتوي على بيانات بتاريخ ${formatDateForDisplay(originalDate)}. هل تريد استيرادها وتطبيقها على تاريخ ${formatDateForDisplay(targetDate)}؟\n\nتحذير: سيتم الكتابة فوق أي بيانات موجودة لتاريخ ${formatDateForDisplay(targetDate)}.`;
+            const confirmationMsg = `سيتم استيراد البيانات وتطبيقها على تاريخ (${finalDate}).\n\nتحذير: سيتم استبدال البيانات الحالية لهذا اليوم. هل أنت متأكد؟`;
 
             if (confirm(confirmationMsg)) {
-                console.log(`Import confirmed. Importing data originally from ${originalDate} TO ${targetDate}`);
-                importedData.savedForDate = targetDate;
-                loadState(importedData, targetDate);
-                saveCurrentStateByDate(targetDate);
+                loadState(importedData, finalDate);
+                saveCurrentStateByDate(finalDate); // حفظ فوري
                 updateUI();
-                const dayDisplayElement = d("load-date-day-name-alt");
-                if (targetDateInputElement) targetDateInputElement.value = targetDate;
-                updateLoadDateDayName(targetDate, dayDisplayElement);
-                showMessage(importMsgElement, `تم استيراد البيانات وتطبيقها بنجاح على تاريخ ${formatDateForDisplay(targetDate)}.`, false);
+                
+                // تحديث الواجهة
+                if (targetDateInput) targetDateInput.value = finalDate;
+                if (typeof updateLoadDateDayName === 'function') {
+                    updateLoadDateDayName(finalDate, document.getElementById("load-date-day-name-alt"));
+                }
+                
+                showMessage(importMsgElement, "تم استيراد البيانات بنجاح.", false);
             } else {
-                console.log("Import cancelled by user.");
-                showMessage(importMsgElement, "تم إلغاء عملية الاستيراد.", false, true);
+                showMessage(importMsgElement, "تم إلغاء الاستيراد.", false, true);
             }
+
         } catch (error) {
-            console.error("Error parsing or validating imported file:", error);
-            showMessage(importMsgElement, `حدث خطأ أثناء قراءة أو تحليل الملف: ${error.message}`, true);
+            console.error("Import Error:", error);
+            showMessage(importMsgElement, `خطأ في الملف: ${error.message}`, true);
         } finally {
-            event.target.value = null;
+            event.target.value = null; // تصفير الحقل للسماح بإعادة الاختيار
         }
     };
-    reader.onerror = function(e) {
-        console.error("Error reading file:", e);
-        showMessage(importMsgElement, "حدث خطأ أثناء قراءة الملف.", true);
-        event.target.value = null;
-    };
-    reader.readAsText(file, 'UTF-8');
+    reader.readAsText(file);
 }
 
         // --- تقرير الطباعة العام ---
@@ -5497,6 +5532,144 @@ if (available < qtyToDeduct) {
                  }
                  return isValid;
              }
+function getInvoiceFormData() {
+    return {
+        customerName: inv_customerNameInput.value.trim(),
+        customerAddress: inv_customerAddressInput ? inv_customerAddressInput.value.trim() : '',
+        phones: inv_invoiceForm ? Array.from(inv_invoiceForm.querySelectorAll('input[name="phone[]"]')).map(i => i.value.trim()).filter(Boolean) : [],
+        shippingCost: parseInputNumber(inv_shippingCostInput) || 0,
+        warranty: inv_warrantyInput ? inv_warrantyInput.value.trim() : '',
+        notes: inv_notesTextarea ? inv_notesTextarea.value.trim() : '',
+        selectedAccountId: d('inv_payment_account').value,
+        isPendingCheckbox: d('inv_markAsPending').checked,
+        
+        // تجميع البنود من الجدول
+        items: inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => ({
+            name: row.dataset.itemName,
+            quantity: parseInt(row.dataset.itemQty),
+            unitPrice: parseFloat(row.dataset.itemPrice),
+            subtotal: parseFloat(row.dataset.itemSubtotal),
+            costPrice: parseFloat(row.dataset.itemCost),
+            serial: row.dataset.itemSerial || null
+        })) : []
+    };
+}
+
+/**
+ * ب. دالة الحسابات المالية (Financial Logic)
+ * وظيفتها: حساب الإجماليات، والتعامل مع العربون، وتحديد المبلغ المطلوب تحصيله الآن
+ */
+function calculateInvoiceFinancials(items, shippingCost, isFromPending, originData) {
+    const totalGoods = items.reduce((sum, item) => sum + item.subtotal, 0);
+    const grandTotal = totalGoods + shippingCost;
+    
+    // --- منطق العربون الحساس ---
+    let depositPaid = 0;
+    if (isFromPending && originData && originData.depositPaid) {
+        depositPaid = Number(originData.depositPaid) || 0;
+    }
+
+    // حساب المطلوب دفعه الآن (الإجمالي - العربون)
+    let amountToCollect = grandTotal - depositPaid;
+    if (amountToCollect < 0) amountToCollect = 0;
+
+    return { 
+        totalGoods, 
+        grandTotal, 
+        depositPaid, 
+        amountToCollect 
+    };
+}
+
+/**
+ * ج. دالة معالجة المخزون والتكلفة (Inventory & Cost Logic)
+ * وظيفتها: خصم الكميات من المخزون (لو فاتورة جديدة) وحساب التكلفة الكلية شاملة الملحقات
+ */
+function processInventoryAndCosts(items, isFromPending) {
+    let totalItemsCost = 0;
+    let deductedItemsData = [];
+    let requiredQuantities = {};
+
+    // 1. تجميع المنتجات المباعة وحساب تكلفتها
+    items.forEach(item => {
+        totalItemsCost += (item.costPrice * item.quantity);
+        if (!isFromPending) { 
+            // نجمع الكميات لخصمها لاحقاً (فقط لو فاتورة جديدة)
+            requiredQuantities[item.name] = (requiredQuantities[item.name] || 0) + item.quantity;
+        }
+    });
+
+    // 2. تجميع وخصم الملحقات (الهدايا)
+    // يتم هذا فقط للفواتير الجديدة، لأن الفواتير القادمة من "معلق" تم خصم ملحقاتها مسبقاً
+    if (!isFromPending && inv_deductibleCostsContainer) {
+        const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
+        checkedBoxes.forEach(checkbox => {
+            const name = checkbox.value;
+            const cost = parseFloat(checkbox.dataset.cost) || 0;
+            const parentLabel = checkbox.parentElement;
+            const qtyInput = parentLabel.querySelector('.inv-deducted-item-quantity');
+            const qtyToDeduct = parseInt(qtyInput?.value || '0');
+            
+            if (qtyToDeduct > 0) {
+                deductedItemsData.push({ name, quantity: qtyToDeduct, costPrice: cost });
+                totalItemsCost += (cost * qtyToDeduct); // نضيف تكلفة الهدية للتكلفة الكلية
+                requiredQuantities[name] = (requiredQuantities[name] || 0) + qtyToDeduct;
+            }
+        });
+    }
+
+    // 3. التنفيذ الفعلي للخصم من مصفوفة المنتجات العامة
+    Object.keys(requiredQuantities).forEach(itemName => {
+        const productIndex = products.findIndex(p => p.name.toLowerCase() === itemName.toLowerCase());
+        if (productIndex !== -1) {
+            products[productIndex].quantity -= requiredQuantities[itemName];
+        }
+    });
+
+    return { totalItemsCost, deductedItemsData };
+}
+
+/**
+ * د. دالة تحديث الحالة العامة (Global State Updates)
+ * وظيفتها: تحديث السيولة، السيريالات، وحذف البيع المؤقت القديم
+ */
+function updateGlobalState(account, amountToCollect, customerName, grandTotal, depositPaid, accountId, items, isFromPending, pendingOrigin) {
+    // 1. تحديث السيولة
+    if (amountToCollect > 0 && account) {
+        account.balance += amountToCollect;
+        const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+        
+        let logDesc = `فاتورة مبيعات ${customerName}`;
+        if (depositPaid > 0) {
+            logDesc = `استلام باقي فاتورة ${customerName} (إجمالي: ${grandTotal} - عربون: ${depositPaid})`;
+        }
+        
+        liquidityLog.push({ 
+            id: `liq-${Date.now()}`, 
+            timestamp: new Date().toISOString(), 
+            type: "add", 
+            amount: amountToCollect, 
+            description: logDesc, 
+            currentBalance: newTotalLiquidity,
+            accountId: accountId
+        });
+    }
+
+    // 2. تحديث السيريالات
+    items.forEach(item => {
+        if (item.serial) {
+            const idx = serialNumbersLog.findIndex(log => log.serial === item.serial);
+            if (idx !== -1) serialNumbersLog[idx].status = 'sold';
+        }
+    });
+
+    // 3. حذف البيع المؤقت الأصلي
+    if (isFromPending && pendingOrigin && pendingOrigin.id) {
+        const idx = pendingSales.findIndex(s => String(s.id).trim() === String(pendingOrigin.id).trim());
+        if (idx !== -1) pendingSales.splice(idx, 1);
+    }
+}
+
 async function handleSaveInvoice() {
     saveStateToHistory(); 
     
@@ -5513,13 +5686,10 @@ async function handleSaveInvoice() {
         return;
     }
 
-    // 2. تجميع البيانات من الواجهة
+    // 2. تجميع البيانات
     const customerName = inv_customerNameInput.value.trim();
-    
-    // ✅✅✅ تم إضافة هذه السطور المفقودة لإصلاح الخطأ
     const customerAddress = inv_customerAddressInput ? inv_customerAddressInput.value.trim() : '';
     const phones = inv_invoiceForm ? Array.from(inv_invoiceForm.querySelectorAll('input[name="phone[]"]')).map(input => input.value.trim()).filter(phone => phone) : [];
-    // ---------------------------------------------------
     
     const invoiceItems = inv_invoiceItemsBody ? Array.from(inv_invoiceItemsBody.querySelectorAll('.invoice-item-row')).map(row => ({
         name: row.dataset.itemName,
@@ -5548,52 +5718,108 @@ async function handleSaveInvoice() {
     if (amountToCollectNow < 0) amountToCollectNow = 0; 
     // ----------------------
 
-    // 3. حساب التكلفة وخصم المخزون
+    // 3. حساب التكلفة ومعالجة الملحقات (المنطق المصحح 4.0)
     let totalInvoiceCost = 0;
     let deductedItemsData = [];
-    
-    if (!isInvoiceFromPending) {
-        let requiredQuantities = {};
-        invoiceItems.forEach(item => { requiredQuantities[item.name] = (requiredQuantities[item.name] || 0) + item.quantity; });
-        
-        if (inv_deductibleCostsContainer) {
-            const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
-            checkedBoxes.forEach(checkbox => {
-                const name = checkbox.value;
-                const cost = parseFloat(checkbox.dataset.cost) || 0;
-                const parentLabel = checkbox.parentElement;
-                const quantityInput = parentLabel.querySelector('.inv-deducted-item-quantity');
-                const qtyToDeduct = parseInt(quantityInput?.value || '0');
-                if (qtyToDeduct > 0) {
-                    deductedItemsData.push({ name, quantity: qtyToDeduct, costPrice: cost });
-                    totalInvoiceCost += (cost * qtyToDeduct);
-                    requiredQuantities[name] = (requiredQuantities[name] || 0) + qtyToDeduct;
-                }
-            });
-        }
+    let quantitiesToDeduct = {}; // لتجميع الكميات التي سيتم خصمها من المخزون
 
-        Object.keys(requiredQuantities).forEach(itemName => {
-            const productIndex = products.findIndex(p => p.name.toLowerCase() === itemName.toLowerCase());
-            if (productIndex !== -1) {
-                products[productIndex].quantity -= requiredQuantities[itemName];
+    // أ. حساب تكلفة المنتجات الأساسية
+    invoiceItems.forEach(item => {
+        totalInvoiceCost += (item.costPrice * item.quantity);
+        
+        // نجهز الكميات للخصم فقط إذا كانت فاتورة جديدة
+        if (!isInvoiceFromPending) {
+            quantitiesToDeduct[item.name] = (quantitiesToDeduct[item.name] || 0) + item.quantity;
+        }
+    });
+
+    // ب. قراءة وحساب تكلفة الملحقات (يتم دائماً الآن لضمان دقة التكلفة وتسجيل البيانات)
+    if (inv_deductibleCostsContainer) {
+        const checkedBoxes = inv_deductibleCostsContainer.querySelectorAll('input[type="checkbox"]:checked');
+        checkedBoxes.forEach(checkbox => {
+            const name = checkbox.value;
+            const cost = parseFloat(checkbox.dataset.cost) || 0;
+            const parentLabel = checkbox.parentElement;
+            const quantityInput = parentLabel.querySelector('.inv-deducted-item-quantity');
+            const qtyToDeduct = parseInt(quantityInput?.value || '0');
+            
+            if (qtyToDeduct > 0) {
+                // تسجيل البيانات للحفظ في الفاتورة
+                deductedItemsData.push({ name, quantity: qtyToDeduct, costPrice: cost });
+                
+                // إضافة التكلفة للإجمالي (للحصول على صافي ربح دقيق)
+                totalInvoiceCost += (cost * qtyToDeduct);
+                
+                // إضافة للكميات المطلوب خصمها من المخزون (فقط للجديد)
+                if (!isInvoiceFromPending) {
+                    quantitiesToDeduct[name] = (quantitiesToDeduct[name] || 0) + qtyToDeduct;
+                }
             }
         });
-    } 
+    }
 
-    totalInvoiceCost += invoiceItems.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
+    // ج. تنفيذ خصم المخزون (فقط للفواتير الجديدة)
+    if (!isInvoiceFromPending) {
+        Object.keys(quantitiesToDeduct).forEach(itemName => {
+            const productIndex = products.findIndex(p => p.name.toLowerCase() === itemName.toLowerCase());
+            if (productIndex !== -1) {
+                products[productIndex].quantity -= quantitiesToDeduct[itemName];
+            }
+        });
+    }
+
     const finalInvoiceProfit = grandTotal - totalInvoiceCost; 
 
-    // 4. الحفظ النهائي
+    // 4. الحفظ
     if (isPending) {
-        showMessage(globalMessage, "تم حفظ الفاتورة كمعلقة.", false);
+        // --- حفظ الفاتورة المؤقتة ---
+        const pendingInvoiceData = {
+            id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id : `pending-inv-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            customerName,
+            customerAddress,
+            phones,
+            items: invoiceItems,
+            shippingCost,
+            warranty,
+            notes,
+            deductedItems: deductedItemsData, // ✅ الملحقات محفوظة
+            
+            totalSellPrice: grandTotal,
+            totalCost: totalInvoiceCost, // ✅ التكلفة دقيقة
+            potentialProfit: finalInvoiceProfit,
+            
+            depositPaid: depositAlreadyPaid, // ✅ العربون محفوظ
+            status: 'pending',
+            
+            invoiceData: {
+                customerAddress,
+                phones,
+                warranty,
+                notes,
+                deductedItems: deductedItemsData
+            }
+        };
+
+        // حذف القديم إذا كان تعديل
+        if (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.id) {
+            const idx = pendingSales.findIndex(s => String(s.id).trim() === String(pendingSaleOriginData.id).trim());
+            if (idx !== -1) pendingSales.splice(idx, 1);
+        }
+
+        pendingSales.push(pendingInvoiceData);
+        
+        logOperation("فاتورة مؤقتة", `تم حفظ فاتورة مفصلة مؤقتة للعميل ${customerName} بقيمة ${formatCurrency(grandTotal)}.`);
+        showMessage(globalMessage, "تم حفظ الفاتورة في قائمة المبيعات المؤقتة بنجاح.", false);
+
     } else {
-        // --- حفظ نهائي ---
+        // --- حفظ نهائي (Confirmed) ---
         
         // أ. تحديث السيولة
         if (amountToCollectNow > 0) {
             account.balance += amountToCollectNow;
-            
             const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+            
             let logDesc = `فاتورة مبيعات ${customerName}`;
             if (depositAlreadyPaid > 0) {
                 logDesc = `استلام باقي فاتورة ${customerName} (إجمالي: ${grandTotal} - عربون: ${depositAlreadyPaid})`;
@@ -5613,27 +5839,27 @@ async function handleSaveInvoice() {
         // ب. تحديث السيريالات
         invoiceItems.forEach(item => {
             if (item.serial) {
-                const serialIndex = serialNumbersLog.findIndex(log => log.serial === item.serial);
-                if (serialIndex !== -1) serialNumbersLog[serialIndex].status = 'sold';
+                const idx = serialNumbersLog.findIndex(log => log.serial === item.serial);
+                if (idx !== -1) serialNumbersLog[idx].status = 'sold';
             }
         });
 
-        // ج. إضافة الربح
+        // ج. تحديث الأرباح
         totalProfit += finalInvoiceProfit;
 
         // د. حذف البيع المؤقت الأصلي
         if (isInvoiceFromPending && pendingSaleOriginData && pendingSaleOriginData.id) {
-            const originalPendingIndex = pendingSales.findIndex(s => String(s.id).trim() === String(pendingSaleOriginData.id).trim());
-            if (originalPendingIndex !== -1) pendingSales.splice(originalPendingIndex, 1);
+            const idx = pendingSales.findIndex(s => String(s.id).trim() === String(pendingSaleOriginData.id).trim());
+            if (idx !== -1) pendingSales.splice(idx, 1);
         }
 
-        // هـ. إنشاء سجل الفاتورة
+        // هـ. إنشاء السجل
         const todayStr = currentLoadedDate ? currentLoadedDate.replace(/-/g, '') : getTodayDateString().replace(/-/g, '');
         let maxSeq = 0;
         salesToday.forEach(sale => {
             if (sale.invoiceNumber && sale.invoiceNumber.startsWith(todayStr)) {
-                const seqPart = parseInt(sale.invoiceNumber.split('-')[1] || '0');
-                if (seqPart > maxSeq) maxSeq = seqPart;
+                const seq = parseInt(sale.invoiceNumber.split('-')[1] || '0');
+                if (seq > maxSeq) maxSeq = seq;
             }
         });
         const generatedInvoiceNumber = `${todayStr}-${(maxSeq + 1).toString().padStart(3, '0')}`;
@@ -5644,25 +5870,20 @@ async function handleSaveInvoice() {
             type: 'invoice',
             timestamp: new Date().toISOString(),
             saleDate: currentLoadedDate || getTodayDateString(),
-            customerName, 
-            customerAddress, 
-            phones, // ✅ الآن المتغير موجود ولن يحدث خطأ
-            items: invoiceItems,
+            customerName, customerAddress, phones, items: invoiceItems,
             shippingCost, 
             totalGoodsPrice: totalGoods, 
             grandTotal, 
             paidAmount: grandTotal, 
             depositPaid: depositAlreadyPaid, 
             warranty, notes, 
-            deductedItems: deductedItemsData,
+            deductedItems: deductedItemsData, // ✅ سيتم حفظ الملحقات هنا
             totalCost: totalInvoiceCost,
             profit: finalInvoiceProfit, 
             accountId: selectedAccountId
         };
         
         salesToday.push(invoiceRecord);
-        
-        // الرفع للسحابة مع الانتظار
         await saveInvoiceToFirestore(invoiceRecord); 
 
         logOperation("إنشاء فاتورة", `فاتورة ${generatedInvoiceNumber} للعميل ${customerName}. (إجمالي: ${grandTotal})`);
@@ -6466,23 +6687,22 @@ async function generateExpensesReport() {
 
     if (!monthInput || !messageEl || !tableBody || !summaryTotalEl || !summaryContainer) return;
 
-    const yearMonth = monthInput.value;
+    const yearMonth = monthInput.value; // مثال: "2026-01"
     if (!yearMonth) {
         showMessage(messageEl, "يرجى اختيار الشهر والسنة.", true);
         return;
     }
 
-    showMessage(messageEl, `جاري جلب وتحليل بيانات المصروفات (سحابة + محلي)...`, false, true);
+    showMessage(messageEl, `جاري جلب وتحليل المصروفات (دمج سحابي + محلي)...`, false, true);
     
     summaryContainer.classList.add('hidden');
-    tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4"><i class="fas fa-spinner fa-spin"></i> جاري معالجة البيانات...</td></tr>`;
 
-    // دالة مساعدة لاستخراج المبلغ (مدمجة لضمان العمل)
+    // دالة استخراج الأرقام (نفسها)
     const extractAmountFromText = (text) => {
         if (!text || typeof text !== 'string') return 0;
         let cleanText = text.replace('جنيه', '').replace('EGP', '');
-        // البحث عن أنماط الأرقام بعد كلمات مفتاحية أو في البداية
-        const regex = /(?:بقيمة|سحب|خصم|مبلغ|بدفع)\s*([\d,]+(?:\.\d+)?)/;
+        const regex = /(?:بقيمة|سحب|خصم|مبلغ|بدفع|دفع)\s*([\d,]+(?:\.\d+)?)/;
         const match = cleanText.match(regex);
         if (match && match[1]) return parseFloat(match[1].replace(/,/g, ''));
         const startNumberMatch = cleanText.match(/^([\d,]+(?:\.\d+)?)/);
@@ -6496,36 +6716,26 @@ async function generateExpensesReport() {
     try {
         const userId = window.currentUser ? window.currentUser.uid : null;
         
-        // 1. محاولة الجلب من السحابة (Cloud)
+        // 1. جلب البيانات من السحابة (Cloud)
         if (userId) {
             try {
-                // تحديد نطاق الشهر (يمكننا جلب الأيام بناءً على ID المستند الذي يبدأ بالسنة-الشهر)
-                // لكن للسهولة والدقة سنستخدم الاستعلام عن النطاق إذا كانت الأيام مخزنة بتواريخ
-                // أو نجلب الأيام يوماً بيوم (Loop) كما في السابق لكن بشكل أسرع
-                
-                // الطريقة الأفضل: جلب مجموعة الأيام وتصفيتها (أو استخدام where لو كان هناك حقل تاريخ مفهرس)
-                // سنستخدم الطريقة الآمنة: Loop over days in month (Parallel Requests)
-                const getDates = (ym) => {
-                    const [y, m] = ym.split('-');
-                    const date = new Date(y, m - 1, 1);
-                    const dates = [];
-                    while (date.getMonth() === m - 1) {
-                        dates.push(new Date(date).toISOString().split('T')[0]);
-                        date.setDate(date.getDate() + 1);
-                    }
-                    return dates;
-                };
+                // توليد تواريخ الشهر
+                const [y, m] = yearMonth.split('-');
+                const date = new Date(y, m - 1, 1);
+                const dates = [];
+                while (date.getMonth() === m - 1) {
+                    dates.push(new Date(date).toISOString().split('T')[0]);
+                    date.setDate(date.getDate() + 1);
+                }
 
-                const dates = getDates(yearMonth);
-                // استخدام Promise.all لجلب كل الأيام في وقت واحد (أسرع بكثير)
-                const promises = dates.map(date => window.getDoc(window.doc(window.db, "users", userId, "days", date)));
-                const snapshots = await Promise.all(promises);
+                const promises = dates.map(dateStr => 
+                    window.getDoc(window.doc(window.db, "users", userId, "days", dateStr))
+                    .then(snap => snap.exists() ? { date: snap.id, ...snap.data() } : null)
+                    .catch(() => null)
+                );
                 
-                snapshots.forEach(snap => {
-                    if (snap.exists()) {
-                        allDaysData.push({ date: snap.id, ...snap.data() });
-                    }
-                });
+                const snapshots = await Promise.all(promises);
+                allDaysData = snapshots.filter(d => d !== null);
 
             } catch (cloudError) {
                 console.warn("فشل الاتصال بالسحابة للمصروفات:", cloudError);
@@ -6533,52 +6743,64 @@ async function generateExpensesReport() {
             }
         }
 
-        // 2. دمج البيانات المحلية (Local Injection) - هذا هو السحر
-        // إذا كان "اليوم الحالي المحمل" يقع في هذا الشهر، نستخدم نسخته المحلية
-        // لأن النسخة المحلية في الذاكرة (operationLog) هي الأحدث دائماً وتحتوي على ما لم يحفظ
-        if (currentLoadedDate && currentLoadedDate.startsWith(yearMonth)) {
-            // البحث هل هذا اليوم موجود في البيانات القادمة من السحابة؟
-            const existingIndex = allDaysData.findIndex(d => d.date === currentLoadedDate);
-            
-            // تجهيز كائن بيانات اليوم الحالي من الذاكرة
-            const localDayData = {
-                date: currentLoadedDate,
-                log: operationLog || [], // السجل الحالي في الذاكرة
-                // يمكن إضافة liquidityLog أيضاً لو أردنا الدقة المالية
-            };
+        // 2. الحقن المحلي الذكي (Local Injection)
+        // هنا التعديل: نتأكد أن التاريخ المحلي يطابق الشهر المختار
+        if (typeof currentLoadedDate !== 'undefined' && currentLoadedDate) {
+            // هل التاريخ المحلي يقع في الشهر الذي نبحث عنه؟
+            if (currentLoadedDate.startsWith(yearMonth)) {
+                const cloudDayIndex = allDaysData.findIndex(d => d.date === currentLoadedDate);
+                
+                // استخدام السجل المحلي الحقيقي الموجود في الذاكرة الآن
+                const localDayData = {
+                    date: currentLoadedDate,
+                    log: typeof operationLog !== 'undefined' ? operationLog : []
+                };
 
-            if (existingIndex !== -1) {
-                // ✅ استبدال: النسخة المحلية "تغطي" على نسخة السحابة لهذا اليوم فقط
-                // لأنك قد تكون سجلت مصروفاً الآن ولم تضغط حفظ بعد
-                allDaysData[existingIndex] = localDayData;
-                console.log("تم استخدام البيانات المحلية ليوم:", currentLoadedDate);
-            } else {
-                // ✅ إضافة: اليوم غير موجود في السحابة أصلاً، نضيفه
-                allDaysData.push(localDayData);
+                if (cloudDayIndex !== -1) {
+                    // استبدال نسخة السحابة القديمة بالنسخة المحلية الحية
+                    allDaysData[cloudDayIndex] = localDayData;
+                } else {
+                    // إضافة اليوم الجديد
+                    allDaysData.push(localDayData);
+                }
             }
         }
         
-        // 3. تحليل البيانات واستخراج المصروفات
+        // 3. الفلترة الصارمة (Strict Filtering)
+        // التأكد من أننا نعرض فقط المصروفات التي تخص الشهر المحدد
         let allExpenses = [];
         
         allDaysData.forEach(dayData => {
+            // تحقق إضافي: هل تاريخ الملف يطابق الشهر؟
+            if (!dayData.date.startsWith(yearMonth)) return;
+
             if (dayData.log && Array.isArray(dayData.log)) {
-                dayData.log.forEach(log => {
-                    // شروط اعتبار العملية "مصروف"
-                    const isExpenseType = ["تسجيل مصروف", "سحب سيولة", "صرف مصروف", "مصروف مباشر", "دفع فاتورة شراء"].some(t => log.type.includes(t));
-                    const isExpenseDetails = log.details && (log.details.includes("مصروف") || log.details.includes("سحب") || log.details.includes("دفع فاتورة"));
+                dayData.log.forEach(logEntry => {
+                    // --- 🔴 الفلتر الزمني الدقيق ---
+                    // بعض السجلات القديمة قد تكون مرحلة بالخطأ، لذا نتأكد من تاريخ السجل نفسه إن وجد
+                    // أو نعتمد على تاريخ الملف (dayData.date) وهو الأضمن هنا
+                    const entryDate = dayData.date; // نعتمد تاريخ الملف الحاوي
 
-                    if (isExpenseType || isExpenseDetails) {
-                        // استثناء عمليات العربون المسترد (لأنها دخل وليس خرج)
-                        if (log.type === "add" || log.details.includes("استرداد")) return;
+                    const type = logEntry.type || "";
+                    const details = logEntry.details || "";
 
-                        const amount = extractAmountFromText(log.details);
+                    const isExpense = 
+                        type.includes("مصروف") || 
+                        type.includes("سحب") || 
+                        details.includes("مصروف") || 
+                        details.includes("سحب") ||
+                        details.includes("فاتورة شراء");
+
+                    const isRefund = type.includes("add") || details.includes("استرداد") || details.includes("إلغاء") || type.includes("ترحيل");
+
+                    if (isExpense && !isRefund) {
+                        const amount = extractAmountFromText(details);
                         if (amount > 0) {
                             allExpenses.push({
-                                date: dayData.date, // استخدام تاريخ اليوم الخاص بالسجل
-                                timestamp: log.timestamp || dayData.date, // للترتيب
-                                type: log.type || "مصروف",
-                                details: log.details,
+                                date: entryDate,
+                                timestamp: logEntry.timestamp || entryDate,
+                                type: type,
+                                details: details,
                                 amount: amount
                             });
                         }
@@ -6587,33 +6809,36 @@ async function generateExpensesReport() {
             }
         });
 
-        // 4. العرض في الجدول
+        // 4. العرض
         tableBody.innerHTML = '';
         
         if (allExpenses.length === 0) {
-            let emptyMsg = `لا توجد مصروفات مسجلة لشهر ${yearMonth}.`;
-            if (isOffline) emptyMsg += " (تعذر الاتصال بالسحابة، وتم فحص البيانات المحلية فقط).";
-            showMessage(messageEl, emptyMsg, false, true);
+            showMessage(messageEl, `لا توجد مصروفات مسجلة لشهر ${yearMonth}.`, false, true);
             tableBody.innerHTML = `<tr><td colspan="4" class="text-center text-gray-500 py-4">لا توجد نتائج.</td></tr>`;
             summaryTotalEl.textContent = "0.00 جنيه";
             summaryContainer.classList.remove('hidden');
             return;
         }
 
-        // ترتيب حسب التاريخ والوقت
         allExpenses.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
         let totalAmount = 0;
-        
-        // تجميع حسب اليوم للعرض الجميل
-        // (مجموعة بسيطة لعرض الجدول)
         allExpenses.forEach(exp => {
             totalAmount += exp.amount;
             const row = tableBody.insertRow();
-            row.className = 'expense-row border-b hover:bg-gray-50';
+            row.className = 'expense-row border-b hover:bg-gray-50 transition-colors';
+            
+            let timeStr = "";
+            try {
+                timeStr = new Date(exp.timestamp).toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'});
+            } catch(e){}
+
             row.innerHTML = `
-                <td class="p-3 text-sm">${formatDateForDisplay(exp.date)}</td>
-                <td class="p-3 text-sm font-bold text-gray-700">${exp.type}</td>
+                <td class="p-3 text-sm">
+                    <div class="font-bold text-gray-700">${formatDateForDisplay(exp.date)}</div>
+                    <div class="text-xs text-gray-400">${timeStr}</div>
+                </td>
+                <td class="p-3 text-sm font-semibold text-blue-800">${exp.type}</td>
                 <td class="p-3 text-sm text-gray-600">${exp.details}</td>
                 <td class="p-3 text-sm text-center font-mono font-bold text-red-600">-${formatCurrency(exp.amount)}</td>
             `;
@@ -6622,103 +6847,113 @@ async function generateExpensesReport() {
         summaryTotalEl.textContent = formatCurrency(totalAmount);
         summaryContainer.classList.remove('hidden');
         
-        let successMsg = `تم عرض ${allExpenses.length} عملية مصروف.`;
-        if (isOffline) successMsg += " (وضع هجين: بيانات محلية + أرشيف الجهاز).";
-        showMessage(messageEl, successMsg, false);
+        showMessage(messageEl, `تم عرض ${allExpenses.length} عملية مصروف لشهر ${yearMonth}.`, false);
 
     } catch (error) {
         console.error("Expenses Report Error:", error);
         showMessage(messageEl, "حدث خطأ غير متوقع أثناء بناء التقرير.", true);
     }
 }
+
 async function generateMonthlySalesReport() {
-    // 1. التحقق والتهيئة
     const monthInput = document.getElementById('report-month-year');
     const msgEl = document.getElementById('report-message');
-    if (!monthInput || !msgEl || !window.currentUser) return;
     
-    // تنظيف النتائج السابقة
-    currentMonthlySalesData = [];
-    if (reportSearchInput) reportSearchInput.value = '';
+    // التحقق من العناصر والمستخدم
+    if (!monthInput || !msgEl) return;
+    if (!window.currentUser) {
+        showMessage(msgEl, "يجب تسجيل الدخول أولاً.", true);
+        return;
+    }
     
     const yearMonth = monthInput.value;
     if (!yearMonth) {
         showMessage(msgEl, "يرجى اختيار الشهر والسنة.", true); return;
     }
 
-    showMessage(msgEl, `جاري جلب وتحليل البيانات...`, false, true);
+    showMessage(msgEl, `جاري جلب البيانات (مع تصفية التراجعات)...`, false, true);
+    
     if(typeof displaySalesReport === 'function') displaySalesReport([]); 
 
+    const userId = window.currentUser.uid;
+    const [year, month] = yearMonth.split('-');
+    const startDate = `${yearMonth}-01`;
+    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+
+    // خريطة لتجميع الفواتير
+    const salesMap = new Map();
+
+    // =========================================================
+    // الخطوة 1: جلب بيانات السحابة
+    // =========================================================
     try {
-        const userId = window.currentUser.uid;
-        const [year, month] = yearMonth.split('-');
-        const startDate = `${yearMonth}-01`;
-        const endDate = new Date(year, month, 0).toISOString().split('T')[0];
-
-        // مصفوفة لتجميع كل الفواتير (سحابة + محلي)
-        let allInvoicesMap = new Map();
-
-        // 2. جلب البيانات من السحابة (Firestore)
-        try {
-            const invoicesColRef = window.collection(window.db, "users", userId, "invoices");
-            // نستخدم استعلام بسيط بدون ترتيب لتجنب مشاكل الفهرسة (Index)
-            const q = window.query(invoicesColRef, 
-                window.where("saleDate", ">=", startDate), 
-                window.where("saleDate", "<=", endDate)
-            );
-            
-            const querySnapshot = await window.getDocs(q);
-            querySnapshot.forEach((doc) => {
-                allInvoicesMap.set(doc.id, doc.data());
-            });
-        } catch (cloudError) {
-            console.warn("فشل الاتصال بالسحابة أو مشكلة في الفهرس:", cloudError);
-            showMessage(msgEl, "تنبيه: تعذر جلب البيانات من السحابة. يتم عرض البيانات المحلية فقط.", true, true);
-        }
-
-        // 3. دمج البيانات المحلية (salesToday)
-        // هذا يضمن ظهور الفواتير التي قمت بها للتو حتى لو لم ترفع للسحابة، أو لو فشل الاستعلام
-        if (typeof salesToday !== 'undefined' && Array.isArray(salesToday)) {
-            salesToday.forEach(localSale => {
-                // استخراج التاريخ بدقة (دعم للنظامين القديم والجديد)
-                let sDate = localSale.saleDate;
-                if (!sDate && localSale.timestamp) {
-                    sDate = localSale.timestamp.split('T')[0]; // استنتاج من الوقت
-                }
-
-                // هل التاريخ يقع في الشهر المختار؟
-                if (sDate && sDate.startsWith(yearMonth)) {
-                    // نضعها في الـ Map (ستقوم بتحديث النسخة السحابية لو كانت أحدث، أو إضافتها لو جديدة)
-                    allInvoicesMap.set(localSale.id, localSale);
-                }
-            });
-        }
-
-        // 4. تحويل الـ Map إلى مصفوفة للترتيب والعرض
-        let finalSalesList = Array.from(allInvoicesMap.values());
-
-        // الترتيب حسب الوقت (الأحدث أولاً)
-        finalSalesList.sort((a, b) => {
-            const dateA = new Date(a.timestamp || a.saleDate);
-            const dateB = new Date(b.timestamp || b.saleDate);
-            return dateB - dateA;
+        const invoicesColRef = window.collection(window.db, "users", userId, "invoices");
+        const q = window.query(invoicesColRef, 
+            window.where("saleDate", ">=", startDate), 
+            window.where("saleDate", "<=", endDate)
+        );
+        
+        const querySnapshot = await window.getDocs(q);
+        querySnapshot.forEach((doc) => {
+            salesMap.set(doc.id, doc.data());
         });
+        console.log(`تم جلب ${querySnapshot.size} فاتورة من السحابة.`);
         
-        currentMonthlySalesData = finalSalesList;
-        
-        // عرض البيانات
-        if(typeof displaySalesReport === 'function') displaySalesReport(finalSalesList);
+    } catch (cloudError) {
+        console.warn("فشل الاتصال بالسحابة:", cloudError);
+        showMessage(msgEl, "تنبيه: فشل جلب بيانات السحابة. جاري عرض البيانات المحلية.", true, true);
+    }
 
-        // رسائل الحالة
-        if (finalSalesList.length === 0) {
-            showMessage(msgEl, `لا توجد مبيعات مسجلة لشهر ${yearMonth}.`, false, true);
-        } else {
-            showMessage(msgEl, `تم عرض ${finalSalesList.length} فاتورة.`, false);
+    // =========================================================
+    // 🔥 الخطوة 2 (الجديدة): تنقية البيانات بناءً على الواقع المحلي (Smart Filter)
+    // هذا يمنع ظهور الفواتير التي قمت بعمل (Undo) لها
+    // =========================================================
+    if (typeof currentLoadedDate !== 'undefined' && currentLoadedDate && typeof salesToday !== 'undefined') {
+        for (const [id, cloudSale] of salesMap.entries()) {
+            const sDate = cloudSale.saleDate || (cloudSale.timestamp ? cloudSale.timestamp.split('T')[0] : '');
+            
+            // إذا كانت الفاتورة بتاريخ "اليوم المفتوح حالياً"
+            if (sDate === currentLoadedDate) {
+                // يجب أن تكون موجودة في الذاكرة المحلية أيضاً
+                const existsLocally = salesToday.some(local => local.id === id);
+                
+                // إذا كانت في السحابة لكن اختفت محلياً (بسبب Undo)، نحذفها من التقرير
+                if (!existsLocally) {
+                    salesMap.delete(id);
+                }
+            }
         }
+    }
 
-    } catch (error) {
-        console.error("Critical Report Error:", error);
-        showMessage(msgEl, "حدث خطأ غير متوقع أثناء بناء التقرير.", true);
+    // =========================================================
+    // الخطوة 3: دمج البيانات المحلية الجديدة (لتظهر الفواتير الجديدة فوراً)
+    // =========================================================
+    let localCount = 0;
+    if (typeof salesToday !== 'undefined' && Array.isArray(salesToday)) {
+        salesToday.forEach(localSale => {
+            const sDate = localSale.saleDate || (localSale.timestamp ? localSale.timestamp.split('T')[0] : '');
+            if (sDate >= startDate && sDate <= endDate) {
+                salesMap.set(localSale.id, localSale);
+                localCount++;
+            }
+        });
+    }
+
+    // =========================================================
+    // الخطوة 4: الترتيب والعرض
+    // =========================================================
+    let finalSalesList = Array.from(salesMap.values());
+
+    finalSalesList.sort((a, b) => new Date(b.timestamp || b.saleDate) - new Date(a.timestamp || a.saleDate));
+    
+    currentMonthlySalesData = finalSalesList;
+    
+    if(typeof displaySalesReport === 'function') displaySalesReport(finalSalesList);
+
+    if (finalSalesList.length === 0) {
+        showMessage(msgEl, `لا توجد مبيعات مسجلة لشهر ${yearMonth}.`, false, true);
+    } else {
+        showMessage(msgEl, `تم عرض ${finalSalesList.length} فاتورة.`, false);
     }
 }
 
@@ -11916,13 +12151,168 @@ async function saveSystemToCloud() {
         // لا نزعج المستخدم برسالة خطأ في كل مرة، لكن نسجلها في الكونسول
     }
 }
+// ==========================================
+// أداة تنظيف ملف اليوم من بيانات الأيام السابقة (Fix Carry Over Error)
+// ==========================================
+window.cleanCurrentDayData = async function() {
+    if (!window.currentUser) {
+        alert("يجب تسجيل الدخول أولاً.");
+        return;
+    }
+
+    // 1. تحديد تاريخ اليوم الحالي المفتوح في البرنامج
+    const targetDate = currentLoadedDate || new Date().toISOString().split('T')[0];
+    
+    // رسالة تأكيد حاسمة
+    if (!confirm(`أنت الآن بصدد تنظيف ملف يوم (${targetDate}).\n\nسيقوم البرنامج بحذف أي مبيعات أو مصروفات مسجلة بتواريخ "سابقة" لهذا التاريخ (مثل 31-12) والتي انتقلت بالخطأ.\n\nهل أنت متأكد؟`)) return;
+
+    const msgBox = document.getElementById('global-message');
+    if(msgBox) showMessage(msgBox, "جاري تنظيف البيانات...", false, true);
+
+    let removedSales = 0;
+    let removedPurchases = 0;
+    let removedLogs = 0;
+
+    // 2. تنظيف المبيعات (salesToday)
+    // نحتفظ فقط بالفواتير التي تحمل نفس تاريخ اليوم، أو التي لا تحمل تاريخاً (نعتبرها جديدة)
+    if (salesToday && Array.isArray(salesToday)) {
+        const initialCount = salesToday.length;
+        salesToday = salesToday.filter(sale => {
+            // استخراج التاريخ الصافي (YYYY-MM-DD)
+            const sDate = sale.saleDate || (sale.timestamp ? sale.timestamp.split('T')[0] : '');
+            return sDate === targetDate;
+        });
+        removedSales = initialCount - salesToday.length;
+    }
+
+    // 3. تنظيف المشتريات (purchaseInvoices)
+    if (purchaseInvoices && Array.isArray(purchaseInvoices)) {
+        const initialCount = purchaseInvoices.length;
+        purchaseInvoices = purchaseInvoices.filter(inv => {
+            const pDate = inv.date || (inv.timestamp ? inv.timestamp.split('T')[0] : '');
+            return pDate === targetDate;
+        });
+        removedPurchases = initialCount - purchaseInvoices.length;
+    }
+
+    // 4. تنظيف سجل العمليات والمصروفات (operationLog)
+    // نحذف السجلات القديمة، لكن نترك سجل "بداية يوم جديد" أو "الترحيل"
+    if (operationLog && Array.isArray(operationLog)) {
+        const initialCount = operationLog.length;
+        operationLog = operationLog.filter(log => {
+            const logDate = log.timestamp ? log.timestamp.split('T')[0] : '';
+            const isSystemLog = log.type && (log.type.includes("ترحيل") || log.type.includes("بداية يوم"));
+            return logDate === targetDate || isSystemLog;
+        });
+        removedLogs = initialCount - operationLog.length;
+    }
+    
+    // ملاحظة: لا نلمس الأرصدة (المخزون، الديون، الخزنة) لأنها تراكمية ويجب أن تبقى.
+
+    // 5. حفظ التغييرات فوراً في السحابة (Update Cloud)
+    await saveSystemToCloud();
+
+    // 6. تحديث الواجهة
+    updateUI();
+
+    // تقرير النتيجة
+    let report = `✅ تمت عملية التنظيف لملف ${targetDate} بنجاح.\n\n`;
+    report += `🗑️ تم حذف ${removedSales} فاتورة بيع قديمة.\n`;
+    report += `🗑️ تم حذف ${removedPurchases} فاتورة شراء قديمة.\n`;
+    report += `🗑️ تم حذف ${removedLogs} سجل قديم.\n\n`;
+    report += `الآن تقارير هذا اليوم ستكون نظيفة ودقيقة.`;
+
+    alert(report);
+    if(msgBox) showMessage(msgBox, "تم تنظيف اليوم بنجاح.", false);
+};
+window.deleteAllReportData = async function() {
+    // 1. التحقق من وجود بيانات للحذف
+    if (typeof currentMonthlySalesData === 'undefined' || currentMonthlySalesData.length === 0) {
+        alert("لا توجد بيانات معروضة في التقرير لحذفها.");
+        return;
+    }
+
+    // 2. رسالة تحذير شديدة اللهجة
+    const count = currentMonthlySalesData.length;
+    const confirmMsg = `⚠️ تحذير خطير ⚠️\n\nأنت على وشك حذف (${count}) فاتورة ظاهرة في التقرير نهائياً.\n\nسيتم حذفها من السحابة ومن جهازك، ولن يمكنك استرجاعها.\n\nهل أنت متأكد تماماً؟`;
+    
+    if (!confirm(confirmMsg)) return;
+
+    // تأكيد ثاني للأمان
+    if (!confirm("تأكيد أخير: هل أنت متأكد من الحذف النهائي؟")) return;
+
+    const msgEl = document.getElementById('report-message');
+    if (msgEl) showMessage(msgEl, "جاري حذف البيانات من السحابة...", false, true);
+
+    const userId = window.currentUser ? window.currentUser.uid : null;
+    let deletedCount = 0;
+
+    try {
+        // 3. بدء عملية الحذف
+        const deletePromises = currentMonthlySalesData.map(async (sale) => {
+            // أ. الحذف من السحابة
+            if (userId) {
+                try {
+                    await window.deleteDoc(window.doc(window.db, "users", userId, "invoices", sale.id));
+                } catch (e) {
+                    console.error(`فشل حذف الفاتورة ${sale.id} من السحابة:`, e);
+                }
+            }
+
+            // ب. الحذف من الذاكرة المحلية (salesToday)
+            if (typeof salesToday !== 'undefined') {
+                const localIndex = salesToday.findIndex(s => s.id === sale.id);
+                if (localIndex !== -1) {
+                    salesToday.splice(localIndex, 1);
+                }
+            }
+            
+            deletedCount++;
+        });
+
+        // انتظار اكتمال الحذف
+        await Promise.all(deletePromises);
+
+        // 4. حفظ التغييرات المحلية (لإزالة الفواتير من ملف اليوم)
+        if (typeof saveSystemToCloud === 'function') {
+            await saveSystemToCloud();
+        }
+
+        // 5. تنظيف الواجهة
+        currentMonthlySalesData = [];
+        const tableBody = document.getElementById('sales-report-table-body');
+        if (tableBody) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-red-500 py-8" style="padding: 3rem;">
+                        <i class="fas fa-trash-alt fa-2x mb-2" style="display:block; opacity:0.5;"></i>
+                        تم حذف ${deletedCount} فاتورة نهائياً.
+                    </td>
+                </tr>`;
+        }
+
+        // تصفير الأرقام
+        const zeroFmt = (typeof formatCurrency === 'function') ? formatCurrency(0) : "0.00";
+        if (typeof reportTotalSales !== 'undefined' && reportTotalSales) reportTotalSales.textContent = zeroFmt;
+        if (typeof reportTotalCost !== 'undefined' && reportTotalCost) reportTotalCost.textContent = zeroFmt;
+        if (typeof reportTotalProfit !== 'undefined' && reportTotalProfit) reportTotalProfit.textContent = zeroFmt;
+
+        if (msgEl) showMessage(msgEl, "تمت عملية الحذف بنجاح.", false);
+
+    } catch (error) {
+        console.error("Error deleting report data:", error);
+        alert("حدث خطأ أثناء الحذف.");
+    }
+};
 }); // End DOMContentLoaded
 </script>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-    // تم إضافة limit في السطر التالي
-    import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+    
+    // ✅ لاحظ: تمت إضافة deleteDoc في هذا السطر لتفعيل الحذف
+    import { getFirestore, doc, setDoc, getDoc, deleteDoc, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
+    
     import { 
         getAuth, 
         createUserWithEmailAndPassword, 
@@ -11943,18 +12333,24 @@ async function saveSystemToCloud() {
 
     const app = initializeApp(firebaseConfig);
     
-    // --- تهيئة الخدمات وجعلها متاحة عالميًا ---
+    // --- تهيئة الخدمات وجعلها متاحة عالميًا (Global Window Object) ---
     window.db = getFirestore(app);
+    
+    // دوال التعامل مع المستندات
     window.doc = doc;
-    window.setDoc = setDoc;
-    window.getDoc = getDoc;
+    window.setDoc = setDoc;     // تستخدم في الحفظ و Redo
+    window.getDoc = getDoc;     // تستخدم في القراءة
+    window.deleteDoc = deleteDoc; // ✅ تستخدم في Undo (الحذف)
+
+    // دوال الاستعلامات
     window.collection = collection;
     window.query = query;
     window.where = where;
     window.getDocs = getDocs;
     window.orderBy = orderBy;
-    window.limit = limit; // تم تعيين limit هنا لتكون متاحة عالمياً
+    window.limit = limit; 
 
+    // المصادقة
     const auth = getAuth(app);
     window.auth = auth;
     window.createUserWithEmailAndPassword = createUserWithEmailAndPassword;
@@ -11962,7 +12358,7 @@ async function saveSystemToCloud() {
     window.onAuthStateChanged = onAuthStateChanged;
     window.signOut = signOut;
 
-    console.log("Firebase connected successfully! قاعدة البيانات جاهزة.");
+    console.log("Firebase connected successfully! (deleteDoc & setDoc Ready)");
 </script><!-- ======================================================= -->
 <!-- END: Firebase Connection (Revised) -->
 <!-- ======================================================= -->
