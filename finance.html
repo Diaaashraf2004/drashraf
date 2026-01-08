@@ -3460,44 +3460,48 @@ function resetState() {
         function calculateTotalLiabilities(){ return liabilities.reduce((sum, liability) => sum + (Number(liability.amount) || 0), 0) }
       
 
-
-
 function calculateTotals() {
-    // 1. قيمة المخزون (بسعر التكلفة)
-    const totalInventoryValue = products.reduce((sum, p) => sum + ((Number(p.quantity) || 0) * (Number(p.costPrice) || 0)), 0);
+    // 1. قيمة المخزون الحالية
+    const totalInventoryValue = products.reduce((sum, p) => 
+        sum + ((Number(p.quantity) || 0) * (Number(p.costPrice) || 0)), 0);
     
-    // 2. قيمة البضاعة المؤقتة (أصل)
-    let goodsOnConsignmentValue = 0;
-    if (typeof calculateConsignmentValue === 'function') {
-        goodsOnConsignmentValue = calculateConsignmentValue();
-    }
+    // 2. التكلفة الحقيقية للبضاعة المعلقة (الموجودة حالياً في القائمة)
+    // هذا هو الربط المفقود: الحساب يتم مباشرة من المصفوفة الحية
+    const totalPendingCost = pendingSales.reduce((sum, sale) => {
+        let saleCost = 0;
+        if (sale.totalCost !== undefined) {
+            saleCost = Number(sale.totalCost) || 0;
+        } else if (sale.mainProduct) {
+            const mCost = (Number(sale.mainProduct.costPrice) || 0) * (Number(sale.mainProduct.quantity) || 0);
+            const aCost = (sale.additionalItems || []).reduce((s, i) => s + ((Number(i.costPrice) || 0) * (Number(i.quantity) || 0)), 0);
+            saleCost = mCost + aCost;
+        }
+        return sum + saleCost;
+    }, 0);
 
-    // 3. الديون والالتزامات
-    const totalDebtsValue = calculateTotalDebts(); 
-    const totalLiabilitiesValue = calculateTotalLiabilities(); 
-
-    // 4. السيولة النقدية
+    // 3. السيولة والديون والالتزامات
     const totalLiquidity = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-
-    // 5. الأصول المعلقة الأخرى (المشتريات التي لم تصل)
-    const pendingPurchasesAssetValue = pendingPurchases.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
-    
-    // 🔥 التصحيح: حساب قيمة المرتجعات مباشرة من المصفوفة لضمان الدقة حتى لو تفرغ المتغير
-    const pendingReturnsAssetValue = pendingReturns.reduce((sum, r) => sum + (Number(r.returnedAmount) || 0), 0);
-
-    // 6. العربونات المستلمة (التزام مؤقت)
+    const totalDebtsValue = calculateTotalDebts();
+    const totalLiabilitiesValue = calculateTotalLiabilities();
     const totalPendingDeposits = pendingSales.reduce((sum, sale) => sum + (Number(sale.depositPaid) || 0), 0);
+    const pendingPurchasesAsset = pendingPurchases.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
+    const pendingReturnsAsset = pendingReturns.reduce((sum, r) => sum + (Number(r.returnedAmount) || 0), 0);
 
-    // المعادلة المحاسبية الشاملة لرأس المال
-    const totalCapital = (totalInventoryValue + goodsOnConsignmentValue + totalLiquidity + totalDebtsValue + pendingPurchasesAssetValue + pendingReturnsAssetValue) - (totalLiabilitiesValue + totalPendingDeposits);
+    // 4. رأس المال الفعلي
+    const totalCapital = (totalInventoryValue + totalPendingCost + totalLiquidity + totalDebtsValue + pendingPurchasesAsset + pendingReturnsAsset) 
+                         - (totalLiabilitiesValue + totalPendingDeposits);
+
+    // 5. الأرباح المحبوسة في المعلق
+    const totalPotentialProfit = pendingSales.reduce((sum, sale) => sum + (Number(sale.potentialProfit) || 0), 0);
 
     return {
         totalInventoryValue,
+        totalPendingCost, // نمررها للواجهة
         totalCapital,
+        expectedCapital: totalCapital + totalPotentialProfit,
         totalDebtsValue,
         totalLiabilitiesValue,
-        totalPendingDeposits,
-        calculatedPendingReturnsValue: pendingReturnsAssetValue // نمرر القيمة المحسوبة للواجهة
+        totalPotentialProfit
     };
 }
 function calculateTotalPurchasesToday() {
@@ -3579,42 +3583,33 @@ function calculateTotalPurchasesToday() {
         // --- دوال تحديث الواجهة (UI Updates) ---
     // === 3. استبدل الدالة القديمة بالكامل بهذه الدالة ===
 function updateProductListDisplay() {
-    // التأكد من تحميل كل العناصر قبل المتابعة
     if (!productList || !productNamesDatalist || !inventorySearchInput || !inventoryCategoryFilter || !categoryDatalist) {
-        // console.warn("Product list UI elements not fully loaded yet.");
         return;
     }
 
-    // --- 1. تحديث قائمة الأقسام (للفلترة وللإكمال التلقائي) ---
-    // استخراج كل الأقسام الفريدة من قائمة المنتجات الكاملة
     const allCategories = [...new Set(products.map(p => p.category || '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
     
-    // تحديث قائمة الفلترة <select>
-    const currentCategoryFilter = inventoryCategoryFilter.value; // حفظ الاختيار الحالي
-    inventoryCategoryFilter.innerHTML = '<option value="all">كل الأقسام</option>'; // إعادة تعيين القائمة
+    const currentCategoryFilter = inventoryCategoryFilter.value;
+    inventoryCategoryFilter.innerHTML = '<option value="all">كل الأقسام</option>';
     allCategories.forEach(cat => {
         const option = document.createElement('option');
         option.value = cat;
         option.textContent = cat;
         inventoryCategoryFilter.appendChild(option);
     });
-    inventoryCategoryFilter.value = currentCategoryFilter; // إعادة الاختيار الحالي إن كان لا يزال موجوداً
+    inventoryCategoryFilter.value = currentCategoryFilter;
 
-    // تحديث قائمة الإكمال التلقائي <datalist> في نموذج الإضافة
     categoryDatalist.innerHTML = allCategories.map(cat => `<option value="${cat}"></option>`).join('');
 
-    // --- 2. الحصول على قيم التصفية الحالية ---
     const searchTerm = inventorySearchInput.value.trim().toLowerCase();
     const selectedCategory = inventoryCategoryFilter.value;
 
-    // --- 3. تصفية المنتجات بناءً على البحث والقسم ---
     const filteredProducts = products.filter(product => {
         const nameMatch = !searchTerm || product.name.toLowerCase().includes(searchTerm);
         const categoryMatch = (selectedCategory === 'all') || (product.category === selectedCategory);
         return nameMatch && categoryMatch;
     });
 
-    // --- 4. عرض المنتجات المفلترة ---
     if (filteredProducts.length === 0) {
         if (products.length === 0) {
             productList.innerHTML = '<p class="text-center text-gray-500 col-span-full">لا توجد بضائع حتى الآن.</p>';
@@ -3622,29 +3617,27 @@ function updateProductListDisplay() {
             productList.innerHTML = '<p class="text-center text-gray-500 col-span-full">لا توجد منتجات تطابق البحث أو التصفية.</p>';
         }
     } else {
-        // فرز المنتجات المفلترة أبجديًا
         const sortedProducts = [...filteredProducts].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
         
-        // بناء HTML
         const productsHTML = sortedProducts.map(product => {
             const supplier = suppliers.find(s => s.id === product.supplierId);
             const registeredSerialsCount = serialNumbersLog.filter(s => s.productName === product.name).length;
             const quantity = Number(product.quantity) || 0;
             const unregisteredCount = quantity - registeredSerialsCount;
+            const unitCost = Number(product.costPrice) || 0;
+            const totalRealCost = quantity * unitCost; // حساب التكلفة الحقيقية للمخزون المتاح
             
-            // إضافة كود HTML لعرض القسم (إذا كان موجودًا)
             const categoryHTML = product.category ? `<p class="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full inline-block mt-2">${product.category}</p>` : '';
 
-            // كود بطاقة المنتج مع إضافة القسم
             return `<div class="bg-gray-50 rounded-lg shadow p-4 border border-gray-200 flex flex-col justify-between">
                         <div>
                             <h3 class="text-lg font-semibold text-gray-800 mb-2">${product.name || 'غير مسمى'}</h3>
                             <p class="text-gray-600 text-sm">الكمية الإجمالية: <span class="font-semibold text-blue-500">${quantity}</span></p>
-                            <p class="text-gray-600 text-sm">السيريالات المسجلة: <span class="font-semibold text-green-600">${registeredSerialsCount}</span></p>
-                            ${unregisteredCount > 0 ? `<p class="text-xs text-red-500">قطع غير مسجلة: ${unregisteredCount}</p>` : ''}
                             <p class="text-gray-600 text-sm">المورد: <span class="font-semibold text-cyan-600">${supplier ? supplier.name : '-'}</span></p>
-                            <p class="text-gray-600 text-sm">متوسط التكلفة: <span class="font-semibold text-purple-500">${formatCurrency(product.costPrice)}</span></p>
-                            <p class="text-gray-600 text-sm">إجمالي التكلفة: <span class="font-semibold text-gray-700">${formatCurrency(quantity * (Number(product.costPrice) || 0))}</span></p>
+                            <p class="text-gray-600 text-sm">متوسط تكلفة القطعة: <span class="font-semibold text-purple-500">${formatCurrency(unitCost)}</span></p>
+                            <p class="text-sm font-bold mt-2" style="color: #c026d3;">التكلفة الحقيقية للمخزون: <span>${formatCurrency(totalRealCost)}</span></p>
+                            <p class="text-gray-600 text-xs mt-1">السيريالات المسجلة: <span class="font-semibold text-green-600">${registeredSerialsCount}</span></p>
+                            ${unregisteredCount > 0 ? `<p class="text-xs text-red-500">قطع غير مسجلة: ${unregisteredCount}</p>` : ''}
                             ${categoryHTML}
                         </div>
                         <div class="mt-3 pt-3 border-t border-gray-200 flex justify-end gap-2 product-actions">
@@ -3658,7 +3651,6 @@ function updateProductListDisplay() {
         productList.innerHTML = productsHTML;
     }
     
-    // --- 5. تحديث قائمة الإكمال التلقائي لاسم المنتج (يجب أن تستخدم القائمة الكاملة دائمًا) ---
     productNamesDatalist.innerHTML = products.map(p => `<option value="${p.name}"></option>`).join('');
 }
  function updateLogDisplay(){if(!operationLogList){return;} if(operationLog.length === 0){operationLogList.innerHTML = '<li class="text-center text-gray-500 list-none">لا توجد عمليات مسجلة بعد.</li>';} else {operationLogList.innerHTML = [...operationLog].reverse().map(log => `<li class=""><span class="font-semibold text-gray-700">${log.type}:</span> <span class="text-gray-600">${log.details}</span><span class="block text-xs text-gray-400">${formatDateTime(log.timestamp)}</span></li>`).join('');} }
@@ -3976,16 +3968,22 @@ function updatePendingSalesDisplay() {
     }
 
     pendingSalesListContainer.innerHTML = filteredSales.map(sale => {
-        // تجهيز النصوص للعرض
+        // حساب تكلفة العملية الواحدة لعرضها في السطر
+        let currentSaleCost = 0;
+        if (sale.totalCost !== undefined) {
+            currentSaleCost = Number(sale.totalCost);
+        } else if (sale.mainProduct) {
+            const mCost = (Number(sale.mainProduct.costPrice) || 0) * (Number(sale.mainProduct.quantity) || 0);
+            const aCost = (sale.additionalItems || []).reduce((sum, i) => sum + ((Number(i.costPrice) || 0) * (Number(i.quantity) || 0)), 0);
+            currentSaleCost = mCost + aCost;
+        }
+
         let itemsText = "", attachmentsHTML = "";
-        
-        // 1. عرض الملحقات
         const attachments = sale.additionalItems || (sale.invoiceData ? sale.invoiceData.deductedItems : []);
         if (attachments && attachments.length > 0) {
             attachmentsHTML = `<div class="text-xs text-gray-500 mt-1 pl-4" style="margin-right: 10px;"><strong>+ ملحقات:</strong> ${attachments.map(item => `${item.quantity}x ${item.name}`).join(', ')}</div>`;
         }
         
-        // 2. عرض المنتجات
         if (sale.items) {
             itemsText = sale.items.map(item => `${item.quantity}x "${item.name}"`).join(', ');
             if (itemsText.length > 50) itemsText = itemsText.substring(0, 50) + "...";
@@ -3996,40 +3994,32 @@ function updatePendingSalesDisplay() {
         
         let customerInfo = sale.customerName ? `<span class="block text-sm text-blue-600">العميل: ${sale.customerName}</span>` : '';
 
-        // 3. حالة الدفع (عربون)
         const totalPaid = Number(sale.depositPaid) || 0;
         let paymentBadge = "";
-        
         if (totalPaid > 0) {
-            paymentBadge = `<span class="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded font-bold mt-1 border border-yellow-200">
-                💰 مدفوع عربون: ${formatCurrency(totalPaid)}
-            </span>`;
+            paymentBadge = `<span class="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded font-bold mt-1 border border-yellow-200">💰 مدفوع عربون: ${formatCurrency(totalPaid)}</span>`;
         }
 
-        // --- هيكل HTML المتوافق مع التصميم القديم ---
         return `
         <li style="border-bottom: 1px solid #eee; padding: 10px; list-style: none;">
             <div class="flex justify-between items-start gap-2 flex-wrap">
                 <div>
                     <span class="block font-semibold text-blue-700 cursor-pointer hover:underline" onclick="window.showPendingSaleDetails('${sale.id}')" title="اضغط لعرض تفاصيل الربحية">
-    ${itemsText} <i class="fas fa-info-circle text-xs ml-1"></i>
-</span>
+                        ${itemsText} <i class="fas fa-info-circle text-xs ml-1"></i>
+                    </span>
                     ${customerInfo}
                     ${attachmentsHTML}
                     <div class="mt-1 text-sm text-gray-600">
-                        <span>السعر: <b>${formatCurrency(sale.totalSellPrice)}</b></span> | 
-                        <span>الربح: <b>${formatCurrency(sale.potentialProfit)}</b></span>
+                        <span>البيع: <b>${formatCurrency(sale.totalSellPrice)}</b></span> | 
+                        <span class="text-red-600">التكلفة: <b>${formatCurrency(currentSaleCost)}</b></span> | 
+                        <span class="text-green-600">الربح: <b>${formatCurrency(sale.potentialProfit)}</b></span>
                     </div>
                     ${paymentBadge}
                     <span class="block text-xs text-gray-400 mt-1">${formatDateTime(sale.timestamp)}</span>
                 </div>
                 
                 <div class="actions flex-shrink-0 flex flex-col sm:flex-row gap-1 mt-2 sm:mt-0">
-                    <!-- زر العربون الجديد بتنسيق متوافق -->
-                    <button onclick="window.openDepositModal('${sale.id}')" class="bg-purple-500 hover:bg-purple-600 text-white rounded px-2 py-1 text-xs border border-purple-700" title="استلام دفعة">
-                        استلام عربون
-                    </button>
-                    
+                    <button onclick="window.openDepositModal('${sale.id}')" class="bg-purple-500 hover:bg-purple-600 text-white rounded px-2 py-1 text-xs border border-purple-700">استلام عربون</button>
                     <button data-pending-id="${sale.id}" class="edit-pending bg-blue-500 hover:bg-blue-600 text-white rounded px-2 py-1 text-xs border border-blue-700">تعديل</button>
                     <button data-pending-id="${sale.id}" class="confirm-pending bg-green-500 hover:bg-green-600 text-white rounded px-2 py-1 text-xs border border-green-700">تأكيد</button>
                     <button data-pending-id="${sale.id}" class="cancel-pending bg-red-500 hover:bg-red-600 text-white rounded px-2 py-1 text-xs border border-red-700">إلغاء</button>
@@ -4069,35 +4059,44 @@ function updatePendingSalesDisplay() {
 // =======================================================
 function updateUI() {
     console.log("updateUI called. Current loaded date:", currentLoadedDate);
-    const { totalInventoryValue, totalCapital, totalDebtsValue, totalLiabilitiesValue } = calculateTotals();
-    const totalPurchases = calculateTotalPurchasesToday();
-    renderAccounts(); // <-- السطر الأول الجديد
-    const totalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0); // <-- السطر الثاني الجديد
     
-    // ✅ 1. حساب الربح المتوقع من المبيعات المعلقة فقط
-    const totalPotentialProfit = pendingSales.reduce((sum, sale) => {
-        return sum + (Number(sale.potentialProfit) || 0);
-    }, 0);
+    // 1. جلب النتائج المحدثة من دالة calculateTotals (التي تربط المعلق بالملخص)
+    const totals = calculateTotals(); 
+    const totalPurchases = calculateTotalPurchasesToday();
+    
+    // 2. تحديث الحسابات والسيولة
+    renderAccounts(); 
+    const totalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0); 
 
-    // ✅ 2. المعادلة النهائية والصحيحة لرأس المال المتوقع
-    const expectedCapital = totalCapital + totalPotentialProfit;
+    // --- تحديث عناصر الواجهة (تم الربط المباشر هنا) ---
 
-    // -- تحديث عناصر الواجهة (باقي الكود لم يتغير) --
+    // السيولة والمخزون
     if (d('summary-current-liquidity')) d('summary-current-liquidity').textContent = formatCurrency(totalLiquidity);
-    if (d('summary-total-inventory-value')) d('summary-total-inventory-value').textContent = formatCurrency(totalInventoryValue);
-    if (d('summary-consignment-value-display')) d('summary-consignment-value-display').textContent = formatCurrency(goodsOnConsignmentValue);
-    if (d('summary-total-debts-display')) d('summary-total-debts-display').textContent = formatCurrency(totalDebtsValue);
-    if (d('summary-total-liabilities-display')) d('summary-total-liabilities-display').textContent = formatCurrency(totalLiabilitiesValue);
+    if (d('summary-total-inventory-value')) d('summary-total-inventory-value').textContent = formatCurrency(totals.totalInventoryValue);
+
+    // ✅ الربط الصحيح: قيمة بضاعة مؤقتة أصبحت تقرأ التكلفة الحقيقية من الدالة
+    if (d('summary-consignment-value-display')) {
+        d('summary-consignment-value-display').textContent = formatCurrency(totals.totalPendingCost);
+    }
+
+    // الديون والالتزامات والمصروفات
+    if (d('summary-total-debts-display')) d('summary-total-debts-display').textContent = formatCurrency(totals.totalDebtsValue);
+    if (d('summary-total-liabilities-display')) d('summary-total-liabilities-display').textContent = formatCurrency(totals.totalLiabilitiesValue);
     if (d('summary-total-expenses')) d('summary-total-expenses').textContent = formatCurrency(expenses);
     if (d('summary-total-profit')) d('summary-total-profit').textContent = formatCurrency(totalProfit);
-    if (d('summary-total-capital')) d('summary-total-capital').textContent = formatCurrency(totalCapital);
-    if (d('summary-expected-capital')) d('summary-expected-capital').textContent = formatCurrency(expectedCapital);
+
+    // ✅ الربط الصحيح: رأس المال الحالي والمتوقع من نتائج calculateTotals
+    if (d('summary-total-capital')) d('summary-total-capital').textContent = formatCurrency(totals.totalCapital);
+    if (d('summary-expected-capital')) d('summary-expected-capital').textContent = formatCurrency(totals.expectedCapital);
+    
     if (d('summary-total-purchases')) d('summary-total-purchases').textContent = formatCurrency(totalPurchases);
 
-    if (inventoryTotalInventoryValue) inventoryTotalInventoryValue.textContent = `إجمالي قيمة المخزون: ${formatCurrency(totalInventoryValue)}`;
-    if (inventoryConsignmentValue) inventoryConsignmentValue.textContent = `قيمة مؤقتة: ${formatCurrency(goodsOnConsignmentValue)}`;
+    // تحديث أرقام شاشة المخزون الداخلية
+    if (inventoryTotalInventoryValue) inventoryTotalInventoryValue.textContent = `إجمالي قيمة المخزون: ${formatCurrency(totals.totalInventoryValue)}`;
+    if (inventoryConsignmentValue) inventoryConsignmentValue.textContent = `قيمة مؤقتة: ${formatCurrency(totals.totalPendingCost)}`;
     if (inventoryTotalProfit) inventoryTotalProfit.textContent = `إجمالي الربح: ${formatCurrency(totalProfit)}`;
     
+    // --- تحديث كافة القوائم والجداول (باقي الكود كما هو) ---
     updateProductListDisplay();
     updateSuppliersListDisplay();
     updateSupplierDropdown('product-supplier');
@@ -4109,7 +4108,7 @@ function updateUI() {
     updateLiquidityLogDisplay();
     updateLiabilitiesListDisplay();
     renderDebtorPaymentList();
-renderLiabilityPaymentList();
+    renderLiabilityPaymentList();
     updateOffsetDatalists();
     pi_updateRecentPurchasesDisplay();
     pi_updatePendingPurchasesDisplay();
@@ -4117,12 +4116,21 @@ renderLiabilityPaymentList();
     populateReturnProductSelect();
     updateMonthlyLiabilitiesDisplay();
     
-    if (totalDebtsDisplay) totalDebtsDisplay.textContent = `إجمالي الديون: ${formatCurrency(totalDebtsValue)}`;
-    if (currentLiquidityDisplay) currentLiquidityDisplay.textContent = formatCurrency(liquidity);
+    // تحديث النصوص السفلية
+    if (totalDebtsDisplay) totalDebtsDisplay.textContent = `إجمالي الديون: ${formatCurrency(totals.totalDebtsValue)}`;
+    if (currentLiquidityDisplay) currentLiquidityDisplay.textContent = formatCurrency(totalLiquidity);
     if (totalExpensesDisplay) totalExpensesDisplay.textContent = formatCurrency(expenses);
-    if (totalLiabilitiesDisplay) totalLiabilitiesDisplay.textContent = `إجمالي الالتزامات: ${formatCurrency(totalLiabilitiesValue)}`;
-    if (currentDataDateDisplay) { currentDataDateDisplay.textContent = currentLoadedDate ? formatDateForDisplay(currentLoadedDate) : "بيانات جديدة (لم تحفظ بعد)"; }
-    if (inv_modal && inv_modal.style.display === 'block') { inv_updateDeductibleCostsCheckboxes(); }
+    if (totalLiabilitiesDisplay) totalLiabilitiesDisplay.textContent = `إجمالي الالتزامات: ${formatCurrency(totals.totalLiabilitiesValue)}`;
+    
+    if (currentDataDateDisplay) { 
+        currentDataDateDisplay.textContent = currentLoadedDate ? formatDateForDisplay(currentLoadedDate) : "بيانات جديدة (لم تحفظ بعد)"; 
+    }
+    
+    if (inv_modal && inv_modal.style.display === 'block') { 
+        inv_updateDeductibleCostsCheckboxes(); 
+    }
+
+    // تحديث تبويبات المركز المالي
     if (d('financial-center-section') && !d('financial-center-section').classList.contains('hidden')) { 
         const activeTab = d('fc-main-tabs').querySelector('.fc-tab-button.active'); 
         if (activeTab) { 
@@ -4137,56 +4145,33 @@ renderLiabilityPaymentList();
 }
 function initiateReturnFromPendingSale(pendingId) {
     const saleIndex = pendingSales.findIndex(s => s.id === pendingId);
-    if (saleIndex === -1) {
-        showGlobalMessage("خطأ: لم يتم العثور على البيع المؤقت.", true);
-        return;
-    }
+    if (saleIndex === -1) return;
 
-    if (!confirm(`هل أنت متأكد من تحويل هذا البيع المؤقت إلى عملية مرتجع؟\nسيتم حذف البيع المؤقت فوراً وتحضير بياناته في قسم المرتجعات.`)) {
-        return;
-    }
+    if (!confirm(`سيتم حذف العملية من المعلق وتحويلها لقسم المرتجعات. هل أنت متأكد؟`)) return;
     
-    saveStateToHistory();
+    saveStateToHistory(); // حفظ نقطة تراجع
 
-    // حذف البيع المؤقت الآن ونسخ بياناته
+    // حذف فعلي من المصفوفة (هذا ما يجعل الرقم يتغير في updateUI)
     returnSourceData = pendingSales.splice(saleIndex, 1)[0]; 
 
     logOperation("تحويل لمُرتجع", `حذف بيع مؤقت وبدء إرجاع للعميل ${returnSourceData.customerName || '-'}.`);
     
-    // الانتقال إلى قسم المرتجعات
-    const returnsSection = d('returns-section');
+    // توجيه الواجهة لقسم المرتجعات
     const navButton = document.querySelector('button[data-target="returns-section"]');
-    if (returnsSection && navButton) {
-        document.querySelectorAll('.content-section').forEach(s => s.classList.add('hidden'));
-        document.querySelectorAll('.nav-button').forEach(b => b.classList.remove('active'));
-        returnsSection.classList.remove('hidden');
-        navButton.classList.add('active');
-        returnsSection.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (navButton) navButton.click();
 
-    // ملء نموذج المرتجعات
+    // ملء بيانات المرتجع تلقائياً
     const mainItem = returnSourceData.items ? returnSourceData.items[0] : returnSourceData.mainProduct;
     if (mainItem) {
-        d('return-manual-product-name').value = mainItem.name;
-        d('return-product-select').value = ""; // تصفير الاختيار ليعتمد على الاسم اليدوي
+        d('return-manual-product-name').value = mainItem.name.split(' (S/N:')[0];
         d('return-quantity').value = mainItem.quantity;
     }
     d('return-customer-name').value = returnSourceData.customerName || '';
-    
-    d('return-sale-price-input').value = returnSourceData.totalSellPrice || 0; 
-    
-    // تفعيل خيار الإرجاع بسعر البيع
-    const atSalePriceCheckbox = d('return-at-sale-price');
-    if (atSalePriceCheckbox) {
-        atSalePriceCheckbox.checked = true;
-        // مهم: تفعيل حدث التغيير في حال كان هناك كود يعتمد عليه لإظهار/إخفاء حقول
-        atSalePriceCheckbox.dispatchEvent(new Event('change'));
-    }
+    d('return-sale-price-input').value = returnSourceData.totalSellPrice || 0;
 
-    d('return-receive-now').checked = false; // افتراضياً قيد الاستلام
-    
-    updateUI();
-    showGlobalMessage("تم حذف البيع المؤقت. بيانات المرتجع جاهزة للتأكيد.", false, true);
+    // تحديث الشاشة فوراً لرؤية التغيير في الحسابات والمعلق
+    updateUI(); 
+    showGlobalMessage("تم حذف العملية من المعلق وتجهيز بيانات المرتجع.", false, true);
 }
 
 function populateReturnProductSelect() {
