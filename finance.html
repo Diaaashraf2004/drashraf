@@ -8351,31 +8351,75 @@ function handlePendingPurchaseActions(event) {
     const purchase = pendingPurchases[purchaseIndex];
     const supplier = suppliers.find(s => s.id === purchase.supplierId);
 
+    // --- التعديل هنا: دالة تحديث المخزون المطورة ---
     const updateInventoryFromPurchase = (p) => {
+        // 1. حساب إجمالي التكاليف الإضافية (مثل الشحن والعتالة) المسجلة في الفاتورة
+        const totalExtraCosts = (p.extraCosts || []).reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+        
+        // 2. حساب إجمالي قيمة البضاعة الأساسية لعمل توزيع نسبي عادل
+        const totalBaseGoodsValue = p.items.reduce((sum, item) => sum + (item.quantity * item.cost), 0);
+
         p.items.forEach(item => {
+            // 3. توزيع التكاليف الإضافية نسبياً على كل قطعة
+            let extraCostPerUnit = 0;
+            if (totalBaseGoodsValue > 0 && totalExtraCosts > 0) {
+                const itemTotalBaseCost = item.quantity * item.cost;
+                const itemShareOfExtra = (itemTotalBaseCost / totalBaseGoodsValue) * totalExtraCosts;
+                extraCostPerUnit = itemShareOfExtra / item.quantity;
+            }
+            
+            // التكلفة النهائية للوحدة = السعر الأساسي + نصيبها من المصاريف الإضافية
+            const finalUnitCost = item.cost + extraCostPerUnit;
+
             const productIndex = products.findIndex(prod => prod.name.toLowerCase() === item.name.toLowerCase());
+            
             if (productIndex !== -1) {
+                // تحديث منتج موجود
                 const existing = products[productIndex];
                 const oldQty = Number(existing.quantity) || 0;
                 const oldCost = Number(existing.costPrice) || 0;
                 const totalQty = oldQty + item.quantity;
+                
                 existing.quantity = totalQty;
-                existing.costPrice = totalQty > 0 ? ((oldQty * oldCost) + (item.quantity * item.cost)) / totalQty : item.cost;
+                // تحديث متوسط التكلفة بناءً على السعر الشامل الجديد
+                existing.costPrice = totalQty > 0 ? ((oldQty * oldCost) + (item.quantity * finalUnitCost)) / totalQty : finalUnitCost;
+                
+                // ✅ تحديث التصنيف لضمان انتقاله للمخزون
+                if (item.category) existing.category = item.category;
             } else {
-                products.push({ name: item.name, quantity: item.quantity, costPrice: item.cost, supplierId: p.supplierId });
+                // إضافة منتج جديد تماماً
+                products.push({ 
+                    name: item.name, 
+                    quantity: item.quantity, 
+                    costPrice: finalUnitCost, 
+                    supplierId: p.supplierId,
+                    category: item.category || "" // ✅ نقل التصنيف هنا
+                });
             }
+
+            // معالجة السيريالات
             if (item.serials && item.serials.length > 0) {
-                item.serials.forEach(serial => serialNumbersLog.push({ serial, productName: item.name, supplierId: p.supplierId, addedTimestamp: p.timestamp, status: "in_stock" }));
+                item.serials.forEach(serial => {
+                    if (!serialNumbersLog.some(s => s.serial === serial)) {
+                        serialNumbersLog.push({ 
+                            serial, 
+                            productName: item.name, 
+                            supplierId: p.supplierId, 
+                            addedTimestamp: p.timestamp, 
+                            status: "in_stock" 
+                        });
+                    }
+                });
             }
         });
     };
 
+    // --- باقي العمليات تبقى كما هي تماماً لضمان عدم تعطل النظام ---
     if (target.classList.contains('receive-goods-btn')) {
-        if (!confirm(`هل أنت متأكد من استلام بضاعة الفاتورة من المورد "${supplier?.name || '-'}"؟ سيبقى المبلغ المتبقي كالتزام عليك.`)) return;
+        if (!confirm(`هل أنت متأكد من استلام بضاعة الفاتورة من المورد "${supplier?.name || '-'}"؟ سيتم توزيع التكاليف الإضافية على البضاعة.`)) return;
         saveStateToHistory();
         updateInventoryFromPurchase(purchase);
         
-        // --- ✅ هنا يتم تسجيل الالتزام الآن ---
         if (purchase.remainingBalance > 0.001) {
             liabilities.push({ id: generateId('liab'), name: `متبقي فاتورة لـ: ${supplier.name} (${purchase.invoiceNumber || 'بدون رقم'})`, amount: purchase.remainingBalance, purchaseInvoiceId: purchase.id });
         }
@@ -8383,8 +8427,8 @@ function handlePendingPurchaseActions(event) {
         purchase.status = 'Confirmed';
         purchaseInvoices.push(purchase);
         pendingPurchases.splice(purchaseIndex, 1);
-        logOperation("استلام بضاعة", `تم استلام بضاعة من "${supplier?.name}" وتسجيل المتبقي كالتزام.`);
-        showGlobalMessage("تم استلام البضاعة وتحديث المخزون. تم تسجيل المتبقي كالتزام.", false);
+        logOperation("استلام بضاعة", `تم استلام بضاعة من "${supplier?.name}" وتوزيع التكاليف وتحديث التصنيفات.`);
+        showGlobalMessage("تم استلام البضاعة وتحديث المخزون بالتصنيفات والتكاليف الصحيحة.", false);
 
     } else if (target.classList.contains('receive-and-pay-btn')) {
         const paymentForm = d('pending-purchase-payment-form');
@@ -8398,7 +8442,6 @@ function handlePendingPurchaseActions(event) {
         if (!confirm(`هل أنت متأكد من إلغاء فاتورة الشراء المعلقة من المورد "${supplier?.name || '-'}"؟`)) return;
         saveStateToHistory();
         
-        // --- ✅ هنا يتم إرجاع العربون للحساب الصحيح ---
         if (purchase.deductedFromLiquidity && purchase.paidAmount > 0 && purchase.paidFromAccountId) {
             const accountToRefund = accounts.find(acc => acc.id === purchase.paidFromAccountId);
             if (accountToRefund) {
@@ -10847,17 +10890,17 @@ if (fc_execute_dist_btn) {
 // === ✅ استبدل هذا الجزء بالكامل داخل دالة initializeApp ===
 const ppConfirmBtn = d('pp-confirm-payment-btn');
 const ppCancelBtn = d('pp-cancel-payment-btn');
-
 if (ppConfirmBtn) {
-    ppConfirmBtn.addEventListener('click', () => {
+    ppConfirmBtn.addEventListener('click', async () => {
         const pendingId = ppConfirmBtn.dataset.pendingId;
         const purchaseIndex = pendingPurchases.findIndex(p => p.id === pendingId);
+        
         if (purchaseIndex === -1) {
             showMessage(d('pp-payment-message'), "خطأ: لم يتم العثور على الفاتورة.", true);
             return;
         }
+
         const purchase = pendingPurchases[purchaseIndex];
-        
         const selectedAccountId = d('pending-purchase-payment-account').value;
         const account = accounts.find(acc => acc.id === selectedAccountId);
         
@@ -10865,54 +10908,111 @@ if (ppConfirmBtn) {
             showMessage(d('pp-payment-message'), "يرجى اختيار حساب للدفع.", true);
             return;
         }
+
+        // التحقق من الرصيد لتغطية المبلغ المتبقي فقط
         if (purchase.remainingBalance > account.balance) {
             showMessage(d('pp-payment-message'), `رصيد حساب "${account.name}" غير كافٍ.`, true);
             return;
         }
 
         saveStateToHistory();
-        
-        // 1. تحديث المخزون (إضافة البضاعة)
+
+        // --- 1. حساب توزيع التكاليف الإضافية نسبياً ---
+        // جمع كل التكاليف الإضافية المسجلة في الفاتورة (شحن، عتالة، إلخ)
+        const totalExtraCosts = (purchase.extraCosts || []).reduce((sum, c) => sum + (Number(c.amount) || 0), 0);
+        // حساب إجمالي قيمة البضاعة الأساسية لعمل توزيع عادل
+        const totalBaseGoodsValue = purchase.items.reduce((sum, item) => sum + (item.quantity * item.cost), 0);
+
+        // --- 2. تحديث المخزون (بالتصنيفات والتكاليف الشاملة) ---
         purchase.items.forEach(item => {
+            // حساب نصيب القطعة الواحدة من المصاريف الإضافية
+            let extraCostPerUnit = 0;
+            if (totalBaseGoodsValue > 0 && totalExtraCosts > 0) {
+                const itemTotalBaseCost = item.quantity * item.cost;
+                const itemShareOfExtra = (itemTotalBaseCost / totalBaseGoodsValue) * totalExtraCosts;
+                extraCostPerUnit = itemShareOfExtra / item.quantity;
+            }
+            
+            // التكلفة النهائية = التكلفة الأساسية + نصيب المصاريف
+            const finalCostWithOverhead = item.cost + extraCostPerUnit;
+
             const productIndex = products.findIndex(p => p.name.toLowerCase() === item.name.toLowerCase());
+            
             if (productIndex !== -1) {
+                // تحديث منتج موجود مسبقاً
                 const existing = products[productIndex];
                 const oldQty = Number(existing.quantity) || 0;
                 const oldCost = Number(existing.costPrice) || 0;
                 const totalQty = oldQty + item.quantity;
+                
                 existing.quantity = totalQty;
-                existing.costPrice = totalQty > 0 ? ((oldQty * oldCost) + (item.quantity * item.cost)) / totalQty : item.cost;
+                // تحديث متوسط التكلفة بناءً على السعر الشامل الجديد
+                existing.costPrice = totalQty > 0 ? ((oldQty * oldCost) + (item.quantity * finalCostWithOverhead)) / totalQty : finalCostWithOverhead;
+                
+                // ✅ تحديث التصنيف (Category) لضمان انتقاله للمخزون
+                if (item.category) existing.category = item.category;
             } else {
-                products.push({ name: item.name, quantity: item.quantity, costPrice: item.cost, supplierId: purchase.supplierId });
+                // ✅ إضافة منتج جديد بالتصنيف والتكلفة الشاملة
+                products.push({ 
+                    name: item.name, 
+                    quantity: item.quantity, 
+                    costPrice: finalCostWithOverhead, 
+                    supplierId: purchase.supplierId,
+                    category: item.category || "" 
+                });
             }
+
+            // تسجيل السيريالات إن وجدت
             if (item.serials && item.serials.length > 0) {
-                item.serials.forEach(serial => serialNumbersLog.push({ serial, productName: item.name, supplierId: purchase.supplierId, addedTimestamp: purchase.timestamp, status: "in_stock" }));
+                item.serials.forEach(serial => {
+                    if (!serialNumbersLog.some(s => s.serial === serial)) {
+                        serialNumbersLog.push({ 
+                            serial, 
+                            productName: item.name, 
+                            supplierId: purchase.supplierId, 
+                            addedTimestamp: purchase.timestamp, 
+                            status: "in_stock" 
+                        });
+                    }
+                });
             }
         });
 
-        // 2. الخصم من الحساب المحدد
+        // --- 3. المعالجة المالية (الخصم من الخزنة) ---
         account.balance -= purchase.remainingBalance;
         const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-        const supplier = suppliers.find(s => s.id === purchase.supplierId);
-        liquidityLog.push({ id: `liq-${Date.now()}`, type: "remove", amount: purchase.remainingBalance, description: `تسديد متبقي فاتورة شراء من حساب "${account.name}"`, currentBalance: newTotalLiquidity });
+        
+        liquidityLog.push({ 
+            id: `liq-${Date.now()}`, 
+            timestamp: new Date().toISOString(),
+            type: "remove", 
+            amount: purchase.remainingBalance, 
+            description: `تسديد متبقي مشتريات شاملة المصاريف من حساب "${account.name}"`, 
+            currentBalance: newTotalLiquidity,
+            accountId: account.id
+        });
 
-        // 3. تحديث بيانات الفاتورة ونقلها من "معلقة" إلى "مؤكدة"
+        // --- 4. تحديث بيانات الفاتورة وتصفية الالتزامات ---
         purchase.paidAmount = purchase.grandTotal;
         purchase.remainingBalance = 0;
         purchase.status = 'Confirmed';
         
-        // --- ✅ هذا هو الإصلاح المحاسبي ---
-        // بما أن الفاتورة لم تعد معلقة، يجب حذف الالتزام المؤقت المرتبط بها
-        liabilities = liabilities.filter(l => l.pendingPurchaseId !== purchase.id);
+        // إزالة الالتزام المؤقت المرتبط بهذه الفاتورة لتجنب تكرار المبالغ
+        liabilities = liabilities.filter(l => l.purchaseInvoiceId !== purchase.id);
         
         purchaseInvoices.push(purchase);
         pendingPurchases.splice(purchaseIndex, 1);
         
-        logOperation("استلام وتسديد", `تم استلام بضاعة وتسديد المتبقي من حساب "${account.name}".`);
-        showGlobalMessage("تم استلام البضاعة وتسديد الفاتورة بالكامل.", false);
+        logOperation("استلام وتسديد شامل", `تم استلام بضاعة وتسديد المتبقي شامل المصاريف من حساب "${account.name}".`);
+        showGlobalMessage("تم الاستلام النهائي وتحديث المخزون بالتصنيفات والتكاليف الشاملة بنجاح.", false);
         
         d('pending-purchase-payment-form').classList.add('hidden');
         updateUI();
+
+        // مزامنة سحابية (اختياري)
+        if (typeof saveSystemToCloud === 'function') {
+            await saveSystemToCloud();
+        }
     });
 }
 
