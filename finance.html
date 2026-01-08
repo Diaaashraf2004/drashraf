@@ -10,6 +10,22 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
+
+ .bg-orange-50 { background-color: #fff7ed; }
+.border-orange-200 { border-color: #fed7aa; }
+.text-orange-700 { color: #c2410c; }
+.text-orange-800 { color: #9a3412; }
+
+.bg-cyan-50 { background-color: #ecfeff; }
+.border-cyan-200 { border-color: #a5f3fc; }
+.text-cyan-700 { color: #0e7490; }
+.text-cyan-800 { color: #155e75; }
+/* استجابة للهواتف: إذا كانت الشاشة صغيرة جداً يرجعون فوق بعض */
+@media (max-width: 768px) {
+    .horizontal-wrapper {
+        flex-direction: column;
+    }
+}
     /* === تصميم تقرير المبيعات الجديد === */
 .report-grid {
     display: grid;
@@ -1183,200 +1199,58 @@ input:checked:active + .slider:before {
         
 
          <div id="content-area"><section id="summary-section" class="widget-card content-section">
-                <h2>الملخص المالي ورأس المال</h2>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                        <h3 class="text-sm font-medium text-blue-700 mb-1">السيولة المتاحة</h3>
-                        <div id="summary-current-liquidity" class="text-xl font-bold text-blue-800">0.00 جنيه</div>
-                    </div>
-                    <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
-                        <h3 class="text-sm font-medium text-indigo-700 mb-1">قيمة المخزون</h3>
-                        <div id="summary-total-inventory-value" class="text-xl font-bold text-indigo-800">0.00 جنيه</div>
-                    </div>
-                    <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                        <h3 class="text-sm font-medium text-yellow-700 mb-1">قيمة بضاعة مؤقتة</h3>
-                        <div id="summary-consignment-value-display" class="text-xl font-bold text-yellow-800">0.00 جنيه</div>
-                    </div>
-                    <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+    <h2>الملخص المالي ورأس المال</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        
+        <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <h3 class="text-sm font-medium text-blue-700 mb-1">السيولة المتاحة</h3>
+            <div id="summary-current-liquidity" class="text-xl font-bold text-blue-800">0.00 جنيه</div>
+        </div>
+        <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+            <h3 class="text-sm font-medium text-indigo-700 mb-1">قيمة المخزون</h3>
+            <div id="summary-total-inventory-value" class="text-xl font-bold text-indigo-800">0.00 جنيه</div>
+        </div>
+        <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+            <h3 class="text-sm font-medium text-yellow-700 mb-1">قيمة بضاعة مؤقتة</h3>
+            <div id="summary-consignment-value-display" class="text-xl font-bold text-yellow-800">0.00 جنيه</div>
+        </div>
+        <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
             <h3 class="text-sm font-medium text-purple-700 mb-1">إجمالي الديون (لك)</h3>
             <div id="summary-total-debts-display" class="text-xl font-bold text-purple-800">0.00 جنيه</div>
         </div>
 
-     <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
-    <h3 class="text-sm font-medium text-purple-700 mb-1">إجمالي المشتريات (اليوم)</h3>
-    <div id="summary-total-purchases" class="text-xl font-bold text-purple-800">0.00 جنيه</div>
-</div>
-
+        <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+            <h3 class="text-sm font-medium text-purple-700 mb-1">إجمالي المشتريات (اليوم)</h3>
+            <div id="summary-total-purchases" class="text-xl font-bold text-purple-800">0.00 جنيه</div>
+        </div>
         <div class="bg-pink-50 p-4 rounded-lg border border-pink-200">
             <h3 class="text-sm font-medium text-pink-700 mb-1">إجمالي الالتزامات (عليك)</h3>
             <div id="summary-total-liabilities-display" class="text-xl font-bold text-pink-800">0.00 جنيه</div>
         </div>
-
         <div class="bg-red-50 p-4 rounded-lg border border-red-200">
             <h3 class="text-sm font-medium text-red-700 mb-1">إجمالي المصروفات</h3>
             <div id="summary-total-expenses" class="text-xl font-bold text-red-800">0.00 جنيه</div>
         </div>
-                    <div class="bg-green-50 p-4 rounded-lg border border-green-200">
-                        <h3 class="text-sm font-medium text-green-700 mb-1">إجمالي الربح</h3>
-                        <div id="summary-total-profit" class="text-xl font-bold text-green-800">0.00 جنيه</div>
-                    </div>
-                    <div class="bg-teal-50 p-4 rounded-lg border border-teal-200">
-                        <h3 class="text-sm font-medium text-teal-700 mb-1">رأس المال</h3>
-                        <div id="summary-total-capital" class="text-xl font-bold text-teal-800">0.00 جنيه</div>
-                    </div>
-                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
-    <h3 class="text-sm font-medium text-blue-700 mb-1">رأس المال المتوقع</h3>
-    <div id="summary-expected-capital" class="text-xl font-bold text-blue-800">0.00 جنيه</div>
-    
-</div>
-                </div>
-            </section>
-           <section id="financial-center-section" class="content-section hidden">
-    <div class="max-w-7xl mx-auto">
-        <div class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-semibold text-gray-800">
-                <i class="fas fa-landmark text-blue-600"></i>
-                المركز المالي الشامل
-            </h1>
-            <p class="text-gray-500 mt-2">نقطة التحكم المركزية لإدارة وتحليل جميع تكاليف ومصاريف عملك.</p>
+        <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+            <h3 class="text-sm font-medium text-green-700 mb-1">إجمالي الربح</h3>
+            <div id="summary-total-profit" class="text-xl font-bold text-green-800">0.00 جنيه</div>
         </div>
 
-        <div id="fc-main-tabs" class="flex flex-wrap justify-center border-b border-gray-200 mb-6 -mx-6 px-6">
-            <button class="fc-tab-button active flex items-center gap-2 text-base font-semibold py-3 px-4 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-600 focus:outline-none" data-target="fc-tab-distribution"><i class="fas fa-sitemap"></i><span>توزيع التكاليف</span></button>
-            <button class="fc-tab-button flex items-center gap-2 text-base font-semibold py-3 px-4 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-600 focus:outline-none" data-target="fc-tab-debt-treatment"><i class="fas fa-heart-broken"></i><span>معالجة الديون</span></button>
-            <button class="fc-tab-button flex items-center gap-2 text-base font-semibold py-3 px-4 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-600 focus:outline-none" data-target="fc-tab-expenses"><i class="fas fa-receipt"></i><span>المصاريف التشغيلية</span></button>
-            <button class="fc-tab-button flex items-center gap-2 text-base font-semibold py-3 px-4 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-600 focus:outline-none" data-target="fc-tab-fixed-liabilities"><i class="fas fa-calendar-alt"></i><span>الإلتزامات الثابتة</span></button>
+        <div class="bg-orange-50 p-4 rounded-lg border border-orange-200">
+            <h3 class="text-sm font-medium text-orange-700 mb-1"><i class="fas fa-truck-loading ml-1"></i> مشتريات قيد الاستلام</h3>
+            <div id="summary-pending-purchases-value" class="text-xl font-bold text-orange-800">0.00 جنيه</div>
         </div>
-
-        <div>
-            <div id="fc-tab-distribution" class="fc-tab-content">
-                <div class="fc-step-card">
-                    <h3><span class="fc-step-number">1</span>اختر الشهر للتحليل</h3>
-                    <select id="fc-distribution-month" class="fc-form-select max-w-xs"></select>
-                </div>
-                <div class="fc-step-card">
-                    <h3><span class="fc-step-number">2</span>حدد إجمالي التكلفة</h3>
-                    <div class="space-y-4">
-                        <div><label class="flex items-center p-2 rounded-md hover:bg-gray-100 cursor-pointer"><input type="radio" name="fc-cost-mode" value="auto" id="fc-auto-cost-mode-radio" class="ml-2" checked><strong>حساب التكلفة تلقائياً</strong> (من المصاريف المحددة أدناه)</label></div>
-                        <div id="fc-expenses-selection-wrapper"><div id="fc-expenses-to-distribute-list" class="space-y-2 mt-2 ml-6 border-r-2 border-gray-200 pr-4"></div></div>
-                        <hr class="my-4">
-                        <div>
-                            <label class="flex items-center p-2 rounded-md hover:bg-gray-100 cursor-pointer"><input type="radio" name="fc-cost-mode" value="manual" id="fc-manual-cost-mode-radio" class="ml-2"><strong>توزيع مبلغ تكلفة ثابت (يدوي)</strong></label>
-                            <div id="fc-manual-cost-input-wrapper" class="hidden mt-2 ml-6">
-                                <label for="fc-manual-cost-input" class="block text-sm font-medium text-gray-700">المبلغ الإجمالي للتوزيع</label>
-                                <input type="number" id="fc-manual-cost-input" class="fc-form-input mt-1 max-w-xs" placeholder="أدخل مبلغاً ثابتاً">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-center"><span class="text-gray-700 font-medium">إجمالي المبلغ المحدد للتوزيع: </span><strong id="fc-total-selected-expenses" class="text-blue-800 text-lg">0.00 جنيه</strong></div>
-                </div>
-                <div class="fc-step-card">
-                    <h3><span class="fc-step-number">3</span>اختر المنتجات لتحميل التكاليف عليها</h3>
-                    <div id="fc-products-to-load-list" class="space-y-2"></div>
-                </div>
-                <div class="fc-step-card">
-                    <h3><span class="fc-step-number">4</span>اختر طريقة التوزيع</h3>
-                    <div class="mt-4 space-y-3">
-                        <label class="flex items-center p-3 bg-gray-50 rounded-md hover:bg-gray-100 cursor-pointer border"><input type="radio" name="fc-distribution-method" value="quantity" class="ml-3" checked>التوزيع بالتساوي على كل قطعة</label>
-                        <label class="flex items-center p-3 bg-gray-50 rounded-md hover:bg-gray-100 cursor-pointer border"><input type="radio" name="fc-distribution-method" value="value" class="ml-3">التوزيع كنسبة من قيمة البضاعة</label>
-                        <label class="flex items-center p-3 bg-gray-50 rounded-md hover:bg-gray-100 cursor-pointer border"><input type="radio" name="fc-distribution-method" value="manual" id="fc-distribution-manual-radio" class="ml-3">توزيع يدوي (تحديد النسب)</label>
-                    </div>
-                </div>
-                <div id="fc-manual-distribution-container" class="fc-step-card hidden border-orange-500 bg-orange-50">
-                    <h3><span class="fc-step-number bg-orange-500">!</span>تحديد نسب التوزيع اليدوي</h3>
-                    <div id="fc-manual-percentage-list" class="space-y-2"></div>
-                    <div class="mt-4 p-2 text-center rounded-md" id="fc-percentage-total-feedback"><span class="font-semibold">المجموع: </span><strong id="fc-percentage-total">0%</strong></div>
-                </div>
-                <div id="fc-cost-preview-container" class="fc-preview-card fc-step-card border-green-500 bg-green-50">
-                    <h3 class="text-green-800 border-green-300"><span class="fc-step-number bg-green-600">✓</span>محاكاة النتائج</h3>
-                    <div id="fc-cost-preview-results" class="space-y-3 text-gray-700"></div>
-                    <div class="mt-6 border-t border-green-300 pt-4 text-center">
-                        <p class="text-sm text-green-700 mb-3">عند الضغط على "تنفيذ"، سيتم تحديث متوسط تكلفة هذه المنتجات بشكل دائم في بيانات اليوم الحالي.</p>
-                        <button id="fc-execute-distribution-btn" class="w-full md:w-auto bg-green-500 text-white font-bold py-2 px-6 rounded-md hover:bg-green-600 focus:outline-none">تنفيذ وتحديث التكاليف</button>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="fc-tab-debt-treatment" class="fc-tab-content hidden">
-                 <div class="fc-step-card">
-                    <h3><span class="fc-step-number">1</span>اختر الدين المتعثر للمعالجة</h3>
-                    <p class="text-xs text-gray-500 mb-2">هذه الميزة تقوم بتحويل دين متعثر إلى التزام شهري ثابت ليتم توزيعه على المنتجات مستقبلاً.</p>
-                    <select id="fc-debt-to-process" class="fc-form-select"></select>
-                </div>
-                <div class="fc-step-card">
-                    <h3><span class="fc-step-number">2</span>حدد فترة توزيع التكلفة</h3>
-                    <div class="grid md:grid-cols-2 gap-4 items-center">
-                        <input type="number" id="fc-distribution-period-value" class="fc-form-input" value="3" min="1">
-                        <select id="fc-distribution-period-unit" class="fc-form-select">
-                            <option value="months">شهور</option>
-                        </select>
-                    </div>
-                </div>
-                 <div class="mt-6 text-center">
-                    <button id="fc-execute-debt-treatment-btn" class="bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-indigo-700 text-lg">تحويل الدين إلى التزام شهري</button>
-                 </div>
-            </div>
-
-           <div id="fc-tab-expenses" class="fc-tab-content hidden">
-    <div id="total-expenses" class="text-2xl font-bold text-red-700 mb-4">0.00 جنيه</div>
-    
-    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- إضافة مصروف -->
-        <div>
-            <div class="form-group mb-2">
-                <label for="expense-payment-account" class="block text-gray-700 text-sm font-bold mb-1">خصم من حساب:</label>
-                <select id="expense-payment-account" class="shadow-sm"></select>
-            </div>
-            <label for="add-expense" class="block text-gray-700 text-sm font-bold mb-2">إضافة مصروف:<span class="required">*</span></label>
-            <input type="number" id="add-expense" value="0" min="0.01" step="0.01" class="shadow-sm">
-            <button id="add-expense-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded mt-2 w-full">إضافة</button>
+        <div class="bg-cyan-50 p-4 rounded-lg border border-cyan-200">
+            <h3 class="text-sm font-medium text-cyan-700 mb-1"><i class="fas fa-undo-alt ml-1"></i> مرتجعات قيد الاستلام</h3>
+            <div id="summary-pending-returns-value" class="text-xl font-bold text-cyan-800">0.00 جنيه</div>
         </div>
-
-        <!-- تقليل مصروف -->
-        <div>
-            <div class="form-group mb-2">
-                <label for="expense-refund-account" class="block text-gray-700 text-sm font-bold mb-1">إرجاع المبلغ إلى حساب:</label>
-                <select id="expense-refund-account" class="shadow-sm"></select>
-            </div>
-            <label for="remove-expense" class="block text-gray-700 text-sm font-bold mb-2">تقليل مصروف:<span class="required">*</span></label>
-            <input type="number" id="remove-expense" value="0" min="0.01" step="0.01" class="shadow-sm">
-            <button id="remove-expense-button" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded mt-2 w-full">تقليل</button>
+        <div class="bg-teal-50 p-4 rounded-lg border border-teal-200">
+            <h3 class="text-sm font-medium text-teal-700 mb-1">رأس المال</h3>
+            <div id="summary-total-capital" class="text-xl font-bold text-teal-800">0.00 جنيه</div>
         </div>
-    </div>
-
-    <div id="expenses-message" class="section-message mt-3"></div>
-</div>
-
-            <div id="fc-tab-fixed-liabilities" class="fc-tab-content hidden">
-                <fieldset class="mb-6 pb-4 border-b">
-                    <legend>إدارة الالتزامات الشهرية الثابتة</legend>
-                    <p class="text-xs text-gray-500 mb-3">أضف هنا الالتزامات التي تتكرر كل شهر (مثل الإيجار والرواتب). سيقوم البرنامج بإضافتها تلقائياً إلى قائمة "الالتزامات (عليك)" في بداية كل شهر جديد.</p>
-                    <div id="add-update-monthly-liability-form">
-                        <h4 id="monthly-liability-form-title" class="text-md font-semibold mb-2">إضافة التزام شهري جديد</h4>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                            <div class="form-group">
-                                <label for="monthly-liability-name" class="block text-sm font-bold mb-1">اسم الالتزام:<span class="required">*</span></label>
-                                <input type="text" id="monthly-liability-name" placeholder="مثال: إيجار المحل" class="shadow-sm">
-                            </div>
-                            <div class="form-group">
-                                <label for="monthly-liability-amount" class="block text-sm font-bold mb-1">المبلغ الشهري:<span class="required">*</span></label>
-                                <input type="number" id="monthly-liability-amount" placeholder="0.00" min="0.01" step="0.01" class="shadow-sm">
-                            </div>
-                            <div class="form-group">
-                                <button id="add-monthly-liability-button" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded">إضافة / تحديث</button>
-                            </div>
-                        </div>
-                        <button id="cancel-edit-monthly-liability-button" class="text-xs bg-gray-400 hover:bg-gray-500 text-white font-bold py-1 px-2 rounded mt-2 hidden">إلغاء التعديل</button>
-                        <div id="monthly-liability-message" class="section-message mt-3"></div>
-                    </div>
-                    <div class="mt-4 border-t pt-4">
-                        <h4 class="text-md font-semibold mb-2">الالتزامات الشهرية المسجلة حالياً:</h4>
-                        <ul id="monthly-liabilities-list" class="space-y-2">
-                            <li class="text-center text-gray-500">لا توجد التزامات شهرية مسجلة.</li>
-                        </ul>
-                    </div>
-                </fieldset>
-            </div>
+        <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <h3 class="text-sm font-medium text-blue-700 mb-1">رأس المال المتوقع</h3>
+            <div id="summary-expected-capital" class="text-xl font-bold text-blue-800">0.00 جنيه</div>
         </div>
     </div>
 </section>
@@ -3458,15 +3332,12 @@ function resetState() {
         function logOperation(type, details){ const timestamp = new Date().toISOString(); operationLog.push({timestamp, type, details}); updateLogDisplay() } // Log display updated immediately
         function calculateTotalDebts(){ const total = debtors.reduce((sum, debtor) => sum + (Number(debtor.amount) || 0), 0); return total; }
         function calculateTotalLiabilities(){ return liabilities.reduce((sum, liability) => sum + (Number(liability.amount) || 0), 0) }
-      
-
-function calculateTotals() {
+  function calculateTotals() {
     // 1. قيمة المخزون الحالية
     const totalInventoryValue = products.reduce((sum, p) => 
         sum + ((Number(p.quantity) || 0) * (Number(p.costPrice) || 0)), 0);
     
-    // 2. التكلفة الحقيقية للبضاعة المعلقة (الموجودة حالياً في القائمة)
-    // هذا هو الربط المفقود: الحساب يتم مباشرة من المصفوفة الحية
+    // 2. حساب تكلفة المبيعات المؤقتة (المعلقة)
     const totalPendingCost = pendingSales.reduce((sum, sale) => {
         let saleCost = 0;
         if (sale.totalCost !== undefined) {
@@ -3479,29 +3350,31 @@ function calculateTotals() {
         return sum + saleCost;
     }, 0);
 
-    // 3. السيولة والديون والالتزامات
+    // 3. الأصول المعلقة (التي طلبت إظهارها)
+    const pendingPurchasesAsset = pendingPurchases.reduce((sum, p) => sum + (Number(p.paidAmount) || 0), 0);
+    const pendingReturnsAsset = pendingReturns.reduce((sum, r) => sum + (Number(r.returnedAmount) || 0), 0);
+
+    // 4. السيولة والديون والالتزامات
     const totalLiquidity = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
     const totalDebtsValue = calculateTotalDebts();
     const totalLiabilitiesValue = calculateTotalLiabilities();
     const totalPendingDeposits = pendingSales.reduce((sum, sale) => sum + (Number(sale.depositPaid) || 0), 0);
-    const pendingPurchasesAsset = pendingPurchases.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
-    const pendingReturnsAsset = pendingReturns.reduce((sum, r) => sum + (Number(r.returnedAmount) || 0), 0);
 
-    // 4. رأس المال الفعلي
+    // 5. رأس المال الفعلي (بإضافة الأصول المعلقة)
     const totalCapital = (totalInventoryValue + totalPendingCost + totalLiquidity + totalDebtsValue + pendingPurchasesAsset + pendingReturnsAsset) 
                          - (totalLiabilitiesValue + totalPendingDeposits);
 
-    // 5. الأرباح المحبوسة في المعلق
     const totalPotentialProfit = pendingSales.reduce((sum, sale) => sum + (Number(sale.potentialProfit) || 0), 0);
 
     return {
         totalInventoryValue,
-        totalPendingCost, // نمررها للواجهة
+        totalPendingCost,
         totalCapital,
         expectedCapital: totalCapital + totalPotentialProfit,
         totalDebtsValue,
         totalLiabilitiesValue,
-        totalPotentialProfit
+        pendingPurchasesAsset, // القيمة الجديدة للمشتريات
+        pendingReturnsAsset    // القيمة الجديدة للمرتجعات
     };
 }
 function calculateTotalPurchasesToday() {
@@ -4060,43 +3933,54 @@ function updatePendingSalesDisplay() {
 function updateUI() {
     console.log("updateUI called. Current loaded date:", currentLoadedDate);
     
-    // 1. جلب النتائج المحدثة من دالة calculateTotals (التي تربط المعلق بالملخص)
+    // 1. جلب النتائج الحسابية الشاملة (أصول، خصوم، رأس مال)
     const totals = calculateTotals(); 
     const totalPurchases = calculateTotalPurchasesToday();
     
-    // 2. تحديث الحسابات والسيولة
+    // 2. تحديث أرصدة الحسابات والسيولة الكلية بشكل آمن
     renderAccounts(); 
-    const totalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0); 
+    const totalLiquidity = (accounts || []).reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0); 
 
-    // --- تحديث عناصر الواجهة (تم الربط المباشر هنا) ---
+    // --- [تحديث البطاقات في الملخص العلوي] ---
 
     // السيولة والمخزون
     if (d('summary-current-liquidity')) d('summary-current-liquidity').textContent = formatCurrency(totalLiquidity);
     if (d('summary-total-inventory-value')) d('summary-total-inventory-value').textContent = formatCurrency(totals.totalInventoryValue);
 
-    // ✅ الربط الصحيح: قيمة بضاعة مؤقتة أصبحت تقرأ التكلفة الحقيقية من الدالة
+    // قيمة بضاعة مؤقتة (قيد التسليم للعملاء)
     if (d('summary-consignment-value-display')) {
         d('summary-consignment-value-display').textContent = formatCurrency(totals.totalPendingCost);
     }
 
-    // الديون والالتزامات والمصروفات
+    // ✅ تحديث بطاقة "مشتريات قيد الاستلام" (الأصول الجديدة)
+    if (d('summary-pending-purchases-value')) {
+        d('summary-pending-purchases-value').textContent = formatCurrency(totals.pendingPurchasesAsset);
+    }
+    
+    // ✅ تحديث بطاقة "مرتجعات قيد الاستلام" (الأصول الجديدة)
+    if (d('summary-pending-returns-value')) {
+        d('summary-pending-returns-value').textContent = formatCurrency(totals.pendingReturnsAsset);
+    }
+
+    // الديون، الالتزامات، المصروفات، والأرباح
     if (d('summary-total-debts-display')) d('summary-total-debts-display').textContent = formatCurrency(totals.totalDebtsValue);
     if (d('summary-total-liabilities-display')) d('summary-total-liabilities-display').textContent = formatCurrency(totals.totalLiabilitiesValue);
     if (d('summary-total-expenses')) d('summary-total-expenses').textContent = formatCurrency(expenses);
     if (d('summary-total-profit')) d('summary-total-profit').textContent = formatCurrency(totalProfit);
 
-    // ✅ الربط الصحيح: رأس المال الحالي والمتوقع من نتائج calculateTotals
+    // رأس المال (الفعلي والمتوقع)
     if (d('summary-total-capital')) d('summary-total-capital').textContent = formatCurrency(totals.totalCapital);
     if (d('summary-expected-capital')) d('summary-expected-capital').textContent = formatCurrency(totals.expectedCapital);
     
+    // إجمالي مشتريات اليوم
     if (d('summary-total-purchases')) d('summary-total-purchases').textContent = formatCurrency(totalPurchases);
 
-    // تحديث أرقام شاشة المخزون الداخلية
+    // --- [تحديث شاشات الإدخال والبيانات الداخلية] ---
     if (inventoryTotalInventoryValue) inventoryTotalInventoryValue.textContent = `إجمالي قيمة المخزون: ${formatCurrency(totals.totalInventoryValue)}`;
     if (inventoryConsignmentValue) inventoryConsignmentValue.textContent = `قيمة مؤقتة: ${formatCurrency(totals.totalPendingCost)}`;
     if (inventoryTotalProfit) inventoryTotalProfit.textContent = `إجمالي الربح: ${formatCurrency(totalProfit)}`;
     
-    // --- تحديث كافة القوائم والجداول (باقي الكود كما هو) ---
+    // --- [تحديث كافة القوائم، الجداول، والمزامنة] ---
     updateProductListDisplay();
     updateSuppliersListDisplay();
     updateSupplierDropdown('product-supplier');
@@ -4116,21 +4000,23 @@ function updateUI() {
     populateReturnProductSelect();
     updateMonthlyLiabilitiesDisplay();
     
-    // تحديث النصوص السفلية
+    // تحديث نصوص الحالة في تذييل الصفحات
     if (totalDebtsDisplay) totalDebtsDisplay.textContent = `إجمالي الديون: ${formatCurrency(totals.totalDebtsValue)}`;
     if (currentLiquidityDisplay) currentLiquidityDisplay.textContent = formatCurrency(totalLiquidity);
     if (totalExpensesDisplay) totalExpensesDisplay.textContent = formatCurrency(expenses);
     if (totalLiabilitiesDisplay) totalLiabilitiesDisplay.textContent = `إجمالي الالتزامات: ${formatCurrency(totals.totalLiabilitiesValue)}`;
     
+    // تحديث عرض التاريخ الحالي
     if (currentDataDateDisplay) { 
         currentDataDateDisplay.textContent = currentLoadedDate ? formatDateForDisplay(currentLoadedDate) : "بيانات جديدة (لم تحفظ بعد)"; 
     }
     
+    // تحديث قائمة الملحقات في نافذة الفاتورة إن كانت مفتوحة
     if (inv_modal && inv_modal.style.display === 'block') { 
         inv_updateDeductibleCostsCheckboxes(); 
     }
 
-    // تحديث تبويبات المركز المالي
+    // تحديث بيانات المركز المالي (Financial Center) إذا كان القسم مرئياً
     if (d('financial-center-section') && !d('financial-center-section').classList.contains('hidden')) { 
         const activeTab = d('fc-main-tabs').querySelector('.fc-tab-button.active'); 
         if (activeTab) { 
@@ -4139,8 +4025,8 @@ function updateUI() {
                 fc_populate_month_select(); 
             } else if (targetId === 'fc-tab-debt-treatment') { 
                 fc_populate_debt_treatment(); 
-            } 
-        } 
+            }
+        }
     }
 }
 function initiateReturnFromPendingSale(pendingId) {
@@ -6006,6 +5892,19 @@ function printPendingSaleAsInvoice(pendingId) {
 
                       <title>فاتورة بيع - ${invoiceNumber}</title>
                       <style>
+                      /* تنسيقات إضافية للبطاقات الجديدة */
+.stat-purchases { border-bottom: 4px solid #6366f1; } /* لون أرجواني هادئ */
+.stat-purchases .stat-value { color: #4338ca; }
+
+.stat-returns { border-bottom: 4px solid #ec4899; } /* لون وردي للمرتجعات */
+.stat-returns .stat-value { color: #be185d; }
+
+/* تحسين شكل النصوص التوضيحية */
+.stat-card p {
+    line-height: 1.4;
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
                           body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 15px; font-size: 10pt; line-height: 1.4; color: #333; }
                           .invoice-box { max-width: 800px; margin: auto; padding: 15px; border: 1px solid #eee; box-shadow: 0 0 8px rgba(0, 0, 0, 0.1); }
                           .invoice-header { text-align: center; margin-bottom: 20px; }
