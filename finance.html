@@ -10,22 +10,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
-
- .bg-orange-50 { background-color: #fff7ed; }
-.border-orange-200 { border-color: #fed7aa; }
-.text-orange-700 { color: #c2410c; }
-.text-orange-800 { color: #9a3412; }
-
-.bg-cyan-50 { background-color: #ecfeff; }
-.border-cyan-200 { border-color: #a5f3fc; }
-.text-cyan-700 { color: #0e7490; }
-.text-cyan-800 { color: #155e75; }
-/* استجابة للهواتف: إذا كانت الشاشة صغيرة جداً يرجعون فوق بعض */
-@media (max-width: 768px) {
-    .horizontal-wrapper {
-        flex-direction: column;
-    }
-}
     /* === تصميم تقرير المبيعات الجديد === */
 .report-grid {
     display: grid;
@@ -1199,58 +1183,213 @@ input:checked:active + .slider:before {
         
 
          <div id="content-area"><section id="summary-section" class="widget-card content-section">
-    <h2>الملخص المالي ورأس المال</h2>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <h3 class="text-sm font-medium text-blue-700 mb-1">السيولة المتاحة</h3>
-            <div id="summary-current-liquidity" class="text-xl font-bold text-blue-800">0.00 جنيه</div>
-        </div>
-        <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
-            <h3 class="text-sm font-medium text-indigo-700 mb-1">قيمة المخزون</h3>
-            <div id="summary-total-inventory-value" class="text-xl font-bold text-indigo-800">0.00 جنيه</div>
-        </div>
-        <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-            <h3 class="text-sm font-medium text-yellow-700 mb-1">قيمة بضاعة مؤقتة</h3>
-            <div id="summary-consignment-value-display" class="text-xl font-bold text-yellow-800">0.00 جنيه</div>
-        </div>
-        <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                <h2>الملخص المالي ورأس المال</h2>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <h3 class="text-sm font-medium text-blue-700 mb-1">السيولة المتاحة</h3>
+                        <div id="summary-current-liquidity" class="text-xl font-bold text-blue-800">0.00 جنيه</div>
+                    </div>
+                    <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+                        <h3 class="text-sm font-medium text-indigo-700 mb-1">قيمة المخزون</h3>
+                        <div id="summary-total-inventory-value" class="text-xl font-bold text-indigo-800">0.00 جنيه</div>
+                    </div>
+                    <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                        <h3 class="text-sm font-medium text-yellow-700 mb-1">قيمة بضاعة مؤقتة</h3>
+                        <div id="summary-consignment-value-display" class="text-xl font-bold text-yellow-800">0.00 جنيه</div>
+                    </div>
+                    <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
             <h3 class="text-sm font-medium text-purple-700 mb-1">إجمالي الديون (لك)</h3>
             <div id="summary-total-debts-display" class="text-xl font-bold text-purple-800">0.00 جنيه</div>
         </div>
 
-        <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
-            <h3 class="text-sm font-medium text-purple-700 mb-1">إجمالي المشتريات (اليوم)</h3>
-            <div id="summary-total-purchases" class="text-xl font-bold text-purple-800">0.00 جنيه</div>
-        </div>
+     <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+    <h3 class="text-sm font-medium text-purple-700 mb-1">إجمالي المشتريات (اليوم)</h3>
+    <div id="summary-total-purchases" class="text-xl font-bold text-purple-800">0.00 جنيه</div>
+</div>
+
         <div class="bg-pink-50 p-4 rounded-lg border border-pink-200">
             <h3 class="text-sm font-medium text-pink-700 mb-1">إجمالي الالتزامات (عليك)</h3>
             <div id="summary-total-liabilities-display" class="text-xl font-bold text-pink-800">0.00 جنيه</div>
         </div>
+
         <div class="bg-red-50 p-4 rounded-lg border border-red-200">
             <h3 class="text-sm font-medium text-red-700 mb-1">إجمالي المصروفات</h3>
             <div id="summary-total-expenses" class="text-xl font-bold text-red-800">0.00 جنيه</div>
         </div>
-        <div class="bg-green-50 p-4 rounded-lg border border-green-200">
-            <h3 class="text-sm font-medium text-green-700 mb-1">إجمالي الربح</h3>
-            <div id="summary-total-profit" class="text-xl font-bold text-green-800">0.00 جنيه</div>
+                    <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                        <h3 class="text-sm font-medium text-green-700 mb-1">إجمالي الربح</h3>
+                        <div id="summary-total-profit" class="text-xl font-bold text-green-800">0.00 جنيه</div>
+                    </div>
+                    <div class="bg-teal-50 p-4 rounded-lg border border-teal-200">
+                        <h3 class="text-sm font-medium text-teal-700 mb-1">رأس المال</h3>
+                        <div id="summary-total-capital" class="text-xl font-bold text-teal-800">0.00 جنيه</div>
+                    </div>
+                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+    <h3 class="text-sm font-medium text-blue-700 mb-1">رأس المال المتوقع</h3>
+    <div id="summary-expected-capital" class="text-xl font-bold text-blue-800">0.00 جنيه</div>
+    
+</div>
+<div class="p-4 rounded-lg border shadow-sm" style="background-color: #e6fafd; border-color: #a5f3fc;">
+    <h3 class="text-sm font-medium mb-1" style="color: #0891b2;">
+        <i class="fas fa-undo-alt ml-1"></i> مرتجعات قيد الاستلام
+    </h3>
+    <div id="summary-pending-returns" class="text-xl font-bold" style="color: #164e63;">0.00 جنيه</div>
+</div>
+
+<div class="p-4 rounded-lg border shadow-sm" style="background-color: #fff7ed; border-color: #fed7aa;">
+    <h3 class="text-sm font-medium mb-1" style="color: #c2410c;">
+        <i class="fas fa-truck-loading ml-1"></i> مشتريات قيد الاستلام
+    </h3>
+    <div id="summary-pending-purchases" class="text-xl font-bold" style="color: #7c2d12;">0.00 جنيه</div>
+</div>
+  </div>
+            </section>
+           <section id="financial-center-section" class="content-section hidden">
+    <div class="max-w-7xl mx-auto">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-semibold text-gray-800">
+                <i class="fas fa-landmark text-blue-600"></i>
+                المركز المالي الشامل
+            </h1>
+            <p class="text-gray-500 mt-2">نقطة التحكم المركزية لإدارة وتحليل جميع تكاليف ومصاريف عملك.</p>
         </div>
 
-        <div class="bg-orange-50 p-4 rounded-lg border border-orange-200">
-            <h3 class="text-sm font-medium text-orange-700 mb-1"><i class="fas fa-truck-loading ml-1"></i> مشتريات قيد الاستلام</h3>
-            <div id="summary-pending-purchases-value" class="text-xl font-bold text-orange-800">0.00 جنيه</div>
+        <div id="fc-main-tabs" class="flex flex-wrap justify-center border-b border-gray-200 mb-6 -mx-6 px-6">
+            <button class="fc-tab-button active flex items-center gap-2 text-base font-semibold py-3 px-4 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-600 focus:outline-none" data-target="fc-tab-distribution"><i class="fas fa-sitemap"></i><span>توزيع التكاليف</span></button>
+            <button class="fc-tab-button flex items-center gap-2 text-base font-semibold py-3 px-4 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-600 focus:outline-none" data-target="fc-tab-debt-treatment"><i class="fas fa-heart-broken"></i><span>معالجة الديون</span></button>
+            <button class="fc-tab-button flex items-center gap-2 text-base font-semibold py-3 px-4 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-600 focus:outline-none" data-target="fc-tab-expenses"><i class="fas fa-receipt"></i><span>المصاريف التشغيلية</span></button>
+            <button class="fc-tab-button flex items-center gap-2 text-base font-semibold py-3 px-4 border-b-2 border-transparent hover:border-gray-300 hover:text-gray-600 focus:outline-none" data-target="fc-tab-fixed-liabilities"><i class="fas fa-calendar-alt"></i><span>الإلتزامات الثابتة</span></button>
         </div>
-        <div class="bg-cyan-50 p-4 rounded-lg border border-cyan-200">
-            <h3 class="text-sm font-medium text-cyan-700 mb-1"><i class="fas fa-undo-alt ml-1"></i> مرتجعات قيد الاستلام</h3>
-            <div id="summary-pending-returns-value" class="text-xl font-bold text-cyan-800">0.00 جنيه</div>
+
+        <div>
+            <div id="fc-tab-distribution" class="fc-tab-content">
+                <div class="fc-step-card">
+                    <h3><span class="fc-step-number">1</span>اختر الشهر للتحليل</h3>
+                    <select id="fc-distribution-month" class="fc-form-select max-w-xs"></select>
+                </div>
+                <div class="fc-step-card">
+                    <h3><span class="fc-step-number">2</span>حدد إجمالي التكلفة</h3>
+                    <div class="space-y-4">
+                        <div><label class="flex items-center p-2 rounded-md hover:bg-gray-100 cursor-pointer"><input type="radio" name="fc-cost-mode" value="auto" id="fc-auto-cost-mode-radio" class="ml-2" checked><strong>حساب التكلفة تلقائياً</strong> (من المصاريف المحددة أدناه)</label></div>
+                        <div id="fc-expenses-selection-wrapper"><div id="fc-expenses-to-distribute-list" class="space-y-2 mt-2 ml-6 border-r-2 border-gray-200 pr-4"></div></div>
+                        <hr class="my-4">
+                        <div>
+                            <label class="flex items-center p-2 rounded-md hover:bg-gray-100 cursor-pointer"><input type="radio" name="fc-cost-mode" value="manual" id="fc-manual-cost-mode-radio" class="ml-2"><strong>توزيع مبلغ تكلفة ثابت (يدوي)</strong></label>
+                            <div id="fc-manual-cost-input-wrapper" class="hidden mt-2 ml-6">
+                                <label for="fc-manual-cost-input" class="block text-sm font-medium text-gray-700">المبلغ الإجمالي للتوزيع</label>
+                                <input type="number" id="fc-manual-cost-input" class="fc-form-input mt-1 max-w-xs" placeholder="أدخل مبلغاً ثابتاً">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-center"><span class="text-gray-700 font-medium">إجمالي المبلغ المحدد للتوزيع: </span><strong id="fc-total-selected-expenses" class="text-blue-800 text-lg">0.00 جنيه</strong></div>
+                </div>
+                <div class="fc-step-card">
+                    <h3><span class="fc-step-number">3</span>اختر المنتجات لتحميل التكاليف عليها</h3>
+                    <div id="fc-products-to-load-list" class="space-y-2"></div>
+                </div>
+                <div class="fc-step-card">
+                    <h3><span class="fc-step-number">4</span>اختر طريقة التوزيع</h3>
+                    <div class="mt-4 space-y-3">
+                        <label class="flex items-center p-3 bg-gray-50 rounded-md hover:bg-gray-100 cursor-pointer border"><input type="radio" name="fc-distribution-method" value="quantity" class="ml-3" checked>التوزيع بالتساوي على كل قطعة</label>
+                        <label class="flex items-center p-3 bg-gray-50 rounded-md hover:bg-gray-100 cursor-pointer border"><input type="radio" name="fc-distribution-method" value="value" class="ml-3">التوزيع كنسبة من قيمة البضاعة</label>
+                        <label class="flex items-center p-3 bg-gray-50 rounded-md hover:bg-gray-100 cursor-pointer border"><input type="radio" name="fc-distribution-method" value="manual" id="fc-distribution-manual-radio" class="ml-3">توزيع يدوي (تحديد النسب)</label>
+                    </div>
+                </div>
+                <div id="fc-manual-distribution-container" class="fc-step-card hidden border-orange-500 bg-orange-50">
+                    <h3><span class="fc-step-number bg-orange-500">!</span>تحديد نسب التوزيع اليدوي</h3>
+                    <div id="fc-manual-percentage-list" class="space-y-2"></div>
+                    <div class="mt-4 p-2 text-center rounded-md" id="fc-percentage-total-feedback"><span class="font-semibold">المجموع: </span><strong id="fc-percentage-total">0%</strong></div>
+                </div>
+                <div id="fc-cost-preview-container" class="fc-preview-card fc-step-card border-green-500 bg-green-50">
+                    <h3 class="text-green-800 border-green-300"><span class="fc-step-number bg-green-600">✓</span>محاكاة النتائج</h3>
+                    <div id="fc-cost-preview-results" class="space-y-3 text-gray-700"></div>
+                    <div class="mt-6 border-t border-green-300 pt-4 text-center">
+                        <p class="text-sm text-green-700 mb-3">عند الضغط على "تنفيذ"، سيتم تحديث متوسط تكلفة هذه المنتجات بشكل دائم في بيانات اليوم الحالي.</p>
+                        <button id="fc-execute-distribution-btn" class="w-full md:w-auto bg-green-500 text-white font-bold py-2 px-6 rounded-md hover:bg-green-600 focus:outline-none">تنفيذ وتحديث التكاليف</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="fc-tab-debt-treatment" class="fc-tab-content hidden">
+                 <div class="fc-step-card">
+                    <h3><span class="fc-step-number">1</span>اختر الدين المتعثر للمعالجة</h3>
+                    <p class="text-xs text-gray-500 mb-2">هذه الميزة تقوم بتحويل دين متعثر إلى التزام شهري ثابت ليتم توزيعه على المنتجات مستقبلاً.</p>
+                    <select id="fc-debt-to-process" class="fc-form-select"></select>
+                </div>
+                <div class="fc-step-card">
+                    <h3><span class="fc-step-number">2</span>حدد فترة توزيع التكلفة</h3>
+                    <div class="grid md:grid-cols-2 gap-4 items-center">
+                        <input type="number" id="fc-distribution-period-value" class="fc-form-input" value="3" min="1">
+                        <select id="fc-distribution-period-unit" class="fc-form-select">
+                            <option value="months">شهور</option>
+                        </select>
+                    </div>
+                </div>
+                 <div class="mt-6 text-center">
+                    <button id="fc-execute-debt-treatment-btn" class="bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-indigo-700 text-lg">تحويل الدين إلى التزام شهري</button>
+                 </div>
+            </div>
+
+           <div id="fc-tab-expenses" class="fc-tab-content hidden">
+    <div id="total-expenses" class="text-2xl font-bold text-red-700 mb-4">0.00 جنيه</div>
+    
+    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- إضافة مصروف -->
+        <div>
+            <div class="form-group mb-2">
+                <label for="expense-payment-account" class="block text-gray-700 text-sm font-bold mb-1">خصم من حساب:</label>
+                <select id="expense-payment-account" class="shadow-sm"></select>
+            </div>
+            <label for="add-expense" class="block text-gray-700 text-sm font-bold mb-2">إضافة مصروف:<span class="required">*</span></label>
+            <input type="number" id="add-expense" value="0" min="0.01" step="0.01" class="shadow-sm">
+            <button id="add-expense-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded mt-2 w-full">إضافة</button>
         </div>
-        <div class="bg-teal-50 p-4 rounded-lg border border-teal-200">
-            <h3 class="text-sm font-medium text-teal-700 mb-1">رأس المال</h3>
-            <div id="summary-total-capital" class="text-xl font-bold text-teal-800">0.00 جنيه</div>
+
+        <!-- تقليل مصروف -->
+        <div>
+            <div class="form-group mb-2">
+                <label for="expense-refund-account" class="block text-gray-700 text-sm font-bold mb-1">إرجاع المبلغ إلى حساب:</label>
+                <select id="expense-refund-account" class="shadow-sm"></select>
+            </div>
+            <label for="remove-expense" class="block text-gray-700 text-sm font-bold mb-2">تقليل مصروف:<span class="required">*</span></label>
+            <input type="number" id="remove-expense" value="0" min="0.01" step="0.01" class="shadow-sm">
+            <button id="remove-expense-button" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded mt-2 w-full">تقليل</button>
         </div>
-        <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <h3 class="text-sm font-medium text-blue-700 mb-1">رأس المال المتوقع</h3>
-            <div id="summary-expected-capital" class="text-xl font-bold text-blue-800">0.00 جنيه</div>
+    </div>
+
+    <div id="expenses-message" class="section-message mt-3"></div>
+</div>
+
+            <div id="fc-tab-fixed-liabilities" class="fc-tab-content hidden">
+                <fieldset class="mb-6 pb-4 border-b">
+                    <legend>إدارة الالتزامات الشهرية الثابتة</legend>
+                    <p class="text-xs text-gray-500 mb-3">أضف هنا الالتزامات التي تتكرر كل شهر (مثل الإيجار والرواتب). سيقوم البرنامج بإضافتها تلقائياً إلى قائمة "الالتزامات (عليك)" في بداية كل شهر جديد.</p>
+                    <div id="add-update-monthly-liability-form">
+                        <h4 id="monthly-liability-form-title" class="text-md font-semibold mb-2">إضافة التزام شهري جديد</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                            <div class="form-group">
+                                <label for="monthly-liability-name" class="block text-sm font-bold mb-1">اسم الالتزام:<span class="required">*</span></label>
+                                <input type="text" id="monthly-liability-name" placeholder="مثال: إيجار المحل" class="shadow-sm">
+                            </div>
+                            <div class="form-group">
+                                <label for="monthly-liability-amount" class="block text-sm font-bold mb-1">المبلغ الشهري:<span class="required">*</span></label>
+                                <input type="number" id="monthly-liability-amount" placeholder="0.00" min="0.01" step="0.01" class="shadow-sm">
+                            </div>
+                            <div class="form-group">
+                                <button id="add-monthly-liability-button" class="w-full bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded">إضافة / تحديث</button>
+                            </div>
+                        </div>
+                        <button id="cancel-edit-monthly-liability-button" class="text-xs bg-gray-400 hover:bg-gray-500 text-white font-bold py-1 px-2 rounded mt-2 hidden">إلغاء التعديل</button>
+                        <div id="monthly-liability-message" class="section-message mt-3"></div>
+                    </div>
+                    <div class="mt-4 border-t pt-4">
+                        <h4 class="text-md font-semibold mb-2">الالتزامات الشهرية المسجلة حالياً:</h4>
+                        <ul id="monthly-liabilities-list" class="space-y-2">
+                            <li class="text-center text-gray-500">لا توجد التزامات شهرية مسجلة.</li>
+                        </ul>
+                    </div>
+                </fieldset>
+            </div>
         </div>
     </div>
 </section>
@@ -3332,49 +3471,47 @@ function resetState() {
         function logOperation(type, details){ const timestamp = new Date().toISOString(); operationLog.push({timestamp, type, details}); updateLogDisplay() } // Log display updated immediately
         function calculateTotalDebts(){ const total = debtors.reduce((sum, debtor) => sum + (Number(debtor.amount) || 0), 0); return total; }
         function calculateTotalLiabilities(){ return liabilities.reduce((sum, liability) => sum + (Number(liability.amount) || 0), 0) }
-  function calculateTotals() {
-    // 1. قيمة المخزون الحالية
-    const totalInventoryValue = products.reduce((sum, p) => 
-        sum + ((Number(p.quantity) || 0) * (Number(p.costPrice) || 0)), 0);
+      
+
+
+
+function calculateTotals() {
+    // 1. قيمة المخزون (بسعر التكلفة)
+    const totalInventoryValue = products.reduce((sum, p) => sum + ((Number(p.quantity) || 0) * (Number(p.costPrice) || 0)), 0);
     
-    // 2. حساب تكلفة المبيعات المؤقتة (المعلقة)
-    const totalPendingCost = pendingSales.reduce((sum, sale) => {
-        let saleCost = 0;
-        if (sale.totalCost !== undefined) {
-            saleCost = Number(sale.totalCost) || 0;
-        } else if (sale.mainProduct) {
-            const mCost = (Number(sale.mainProduct.costPrice) || 0) * (Number(sale.mainProduct.quantity) || 0);
-            const aCost = (sale.additionalItems || []).reduce((s, i) => s + ((Number(i.costPrice) || 0) * (Number(i.quantity) || 0)), 0);
-            saleCost = mCost + aCost;
-        }
-        return sum + saleCost;
-    }, 0);
+    // 2. قيمة البضاعة المؤقتة (أصل)
+    let goodsOnConsignmentValue = 0;
+    if (typeof calculateConsignmentValue === 'function') {
+        goodsOnConsignmentValue = calculateConsignmentValue();
+    }
 
-    // 3. الأصول المعلقة (التي طلبت إظهارها)
-    const pendingPurchasesAsset = pendingPurchases.reduce((sum, p) => sum + (Number(p.paidAmount) || 0), 0);
-    const pendingReturnsAsset = pendingReturns.reduce((sum, r) => sum + (Number(r.returnedAmount) || 0), 0);
+    // 3. الديون والالتزامات
+    const totalDebtsValue = calculateTotalDebts(); 
+    const totalLiabilitiesValue = calculateTotalLiabilities(); 
 
-    // 4. السيولة والديون والالتزامات
+    // 4. السيولة النقدية
     const totalLiquidity = accounts.reduce((sum, acc) => sum + (acc.balance || 0), 0);
-    const totalDebtsValue = calculateTotalDebts();
-    const totalLiabilitiesValue = calculateTotalLiabilities();
+
+    // 5. الأصول المعلقة الأخرى (المشتريات التي لم تصل)
+    const pendingPurchasesAssetValue = pendingPurchases.reduce((sum, p) => sum + (p.paidAmount || 0), 0);
+    
+    // 🔥 التصحيح: حساب قيمة المرتجعات مباشرة من المصفوفة لضمان الدقة حتى لو تفرغ المتغير
+    const pendingReturnsAssetValue = pendingReturns.reduce((sum, r) => sum + (Number(r.returnedAmount) || 0), 0);
+
+    // 6. العربونات المستلمة (التزام مؤقت)
     const totalPendingDeposits = pendingSales.reduce((sum, sale) => sum + (Number(sale.depositPaid) || 0), 0);
 
-    // 5. رأس المال الفعلي (بإضافة الأصول المعلقة)
-    const totalCapital = (totalInventoryValue + totalPendingCost + totalLiquidity + totalDebtsValue + pendingPurchasesAsset + pendingReturnsAsset) 
-                         - (totalLiabilitiesValue + totalPendingDeposits);
-
-    const totalPotentialProfit = pendingSales.reduce((sum, sale) => sum + (Number(sale.potentialProfit) || 0), 0);
+    // المعادلة المحاسبية الشاملة لرأس المال
+    const totalCapital = (totalInventoryValue + goodsOnConsignmentValue + totalLiquidity + totalDebtsValue + pendingPurchasesAssetValue + pendingReturnsAssetValue) - (totalLiabilitiesValue + totalPendingDeposits);
 
     return {
         totalInventoryValue,
-        totalPendingCost,
         totalCapital,
-        expectedCapital: totalCapital + totalPotentialProfit,
         totalDebtsValue,
         totalLiabilitiesValue,
-        pendingPurchasesAsset, // القيمة الجديدة للمشتريات
-        pendingReturnsAsset    // القيمة الجديدة للمرتجعات
+        totalPendingDeposits,
+        calculatedPendingReturnsValue: pendingReturnsAssetValue, // نمرر القيمة للملخص
+        calculatedPendingPurchasesValue: pendingPurchasesAssetValue // نمرر القيمة للملخص
     };
 }
 function calculateTotalPurchasesToday() {
@@ -3456,33 +3593,42 @@ function calculateTotalPurchasesToday() {
         // --- دوال تحديث الواجهة (UI Updates) ---
     // === 3. استبدل الدالة القديمة بالكامل بهذه الدالة ===
 function updateProductListDisplay() {
+    // التأكد من تحميل كل العناصر قبل المتابعة
     if (!productList || !productNamesDatalist || !inventorySearchInput || !inventoryCategoryFilter || !categoryDatalist) {
+        // console.warn("Product list UI elements not fully loaded yet.");
         return;
     }
 
+    // --- 1. تحديث قائمة الأقسام (للفلترة وللإكمال التلقائي) ---
+    // استخراج كل الأقسام الفريدة من قائمة المنتجات الكاملة
     const allCategories = [...new Set(products.map(p => p.category || '').filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ar'));
     
-    const currentCategoryFilter = inventoryCategoryFilter.value;
-    inventoryCategoryFilter.innerHTML = '<option value="all">كل الأقسام</option>';
+    // تحديث قائمة الفلترة <select>
+    const currentCategoryFilter = inventoryCategoryFilter.value; // حفظ الاختيار الحالي
+    inventoryCategoryFilter.innerHTML = '<option value="all">كل الأقسام</option>'; // إعادة تعيين القائمة
     allCategories.forEach(cat => {
         const option = document.createElement('option');
         option.value = cat;
         option.textContent = cat;
         inventoryCategoryFilter.appendChild(option);
     });
-    inventoryCategoryFilter.value = currentCategoryFilter;
+    inventoryCategoryFilter.value = currentCategoryFilter; // إعادة الاختيار الحالي إن كان لا يزال موجوداً
 
+    // تحديث قائمة الإكمال التلقائي <datalist> في نموذج الإضافة
     categoryDatalist.innerHTML = allCategories.map(cat => `<option value="${cat}"></option>`).join('');
 
+    // --- 2. الحصول على قيم التصفية الحالية ---
     const searchTerm = inventorySearchInput.value.trim().toLowerCase();
     const selectedCategory = inventoryCategoryFilter.value;
 
+    // --- 3. تصفية المنتجات بناءً على البحث والقسم ---
     const filteredProducts = products.filter(product => {
         const nameMatch = !searchTerm || product.name.toLowerCase().includes(searchTerm);
         const categoryMatch = (selectedCategory === 'all') || (product.category === selectedCategory);
         return nameMatch && categoryMatch;
     });
 
+    // --- 4. عرض المنتجات المفلترة ---
     if (filteredProducts.length === 0) {
         if (products.length === 0) {
             productList.innerHTML = '<p class="text-center text-gray-500 col-span-full">لا توجد بضائع حتى الآن.</p>';
@@ -3490,27 +3636,29 @@ function updateProductListDisplay() {
             productList.innerHTML = '<p class="text-center text-gray-500 col-span-full">لا توجد منتجات تطابق البحث أو التصفية.</p>';
         }
     } else {
+        // فرز المنتجات المفلترة أبجديًا
         const sortedProducts = [...filteredProducts].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
         
+        // بناء HTML
         const productsHTML = sortedProducts.map(product => {
             const supplier = suppliers.find(s => s.id === product.supplierId);
             const registeredSerialsCount = serialNumbersLog.filter(s => s.productName === product.name).length;
             const quantity = Number(product.quantity) || 0;
             const unregisteredCount = quantity - registeredSerialsCount;
-            const unitCost = Number(product.costPrice) || 0;
-            const totalRealCost = quantity * unitCost; // حساب التكلفة الحقيقية للمخزون المتاح
             
+            // إضافة كود HTML لعرض القسم (إذا كان موجودًا)
             const categoryHTML = product.category ? `<p class="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full inline-block mt-2">${product.category}</p>` : '';
 
+            // كود بطاقة المنتج مع إضافة القسم
             return `<div class="bg-gray-50 rounded-lg shadow p-4 border border-gray-200 flex flex-col justify-between">
                         <div>
                             <h3 class="text-lg font-semibold text-gray-800 mb-2">${product.name || 'غير مسمى'}</h3>
                             <p class="text-gray-600 text-sm">الكمية الإجمالية: <span class="font-semibold text-blue-500">${quantity}</span></p>
-                            <p class="text-gray-600 text-sm">المورد: <span class="font-semibold text-cyan-600">${supplier ? supplier.name : '-'}</span></p>
-                            <p class="text-gray-600 text-sm">متوسط تكلفة القطعة: <span class="font-semibold text-purple-500">${formatCurrency(unitCost)}</span></p>
-                            <p class="text-sm font-bold mt-2" style="color: #c026d3;">التكلفة الحقيقية للمخزون: <span>${formatCurrency(totalRealCost)}</span></p>
-                            <p class="text-gray-600 text-xs mt-1">السيريالات المسجلة: <span class="font-semibold text-green-600">${registeredSerialsCount}</span></p>
+                            <p class="text-gray-600 text-sm">السيريالات المسجلة: <span class="font-semibold text-green-600">${registeredSerialsCount}</span></p>
                             ${unregisteredCount > 0 ? `<p class="text-xs text-red-500">قطع غير مسجلة: ${unregisteredCount}</p>` : ''}
+                            <p class="text-gray-600 text-sm">المورد: <span class="font-semibold text-cyan-600">${supplier ? supplier.name : '-'}</span></p>
+                            <p class="text-gray-600 text-sm">متوسط التكلفة: <span class="font-semibold text-purple-500">${formatCurrency(product.costPrice)}</span></p>
+                            <p class="text-gray-600 text-sm">إجمالي التكلفة: <span class="font-semibold text-gray-700">${formatCurrency(quantity * (Number(product.costPrice) || 0))}</span></p>
                             ${categoryHTML}
                         </div>
                         <div class="mt-3 pt-3 border-t border-gray-200 flex justify-end gap-2 product-actions">
@@ -3524,6 +3672,7 @@ function updateProductListDisplay() {
         productList.innerHTML = productsHTML;
     }
     
+    // --- 5. تحديث قائمة الإكمال التلقائي لاسم المنتج (يجب أن تستخدم القائمة الكاملة دائمًا) ---
     productNamesDatalist.innerHTML = products.map(p => `<option value="${p.name}"></option>`).join('');
 }
  function updateLogDisplay(){if(!operationLogList){return;} if(operationLog.length === 0){operationLogList.innerHTML = '<li class="text-center text-gray-500 list-none">لا توجد عمليات مسجلة بعد.</li>';} else {operationLogList.innerHTML = [...operationLog].reverse().map(log => `<li class=""><span class="font-semibold text-gray-700">${log.type}:</span> <span class="text-gray-600">${log.details}</span><span class="block text-xs text-gray-400">${formatDateTime(log.timestamp)}</span></li>`).join('');} }
@@ -3841,22 +3990,16 @@ function updatePendingSalesDisplay() {
     }
 
     pendingSalesListContainer.innerHTML = filteredSales.map(sale => {
-        // حساب تكلفة العملية الواحدة لعرضها في السطر
-        let currentSaleCost = 0;
-        if (sale.totalCost !== undefined) {
-            currentSaleCost = Number(sale.totalCost);
-        } else if (sale.mainProduct) {
-            const mCost = (Number(sale.mainProduct.costPrice) || 0) * (Number(sale.mainProduct.quantity) || 0);
-            const aCost = (sale.additionalItems || []).reduce((sum, i) => sum + ((Number(i.costPrice) || 0) * (Number(i.quantity) || 0)), 0);
-            currentSaleCost = mCost + aCost;
-        }
-
+        // تجهيز النصوص للعرض
         let itemsText = "", attachmentsHTML = "";
+        
+        // 1. عرض الملحقات
         const attachments = sale.additionalItems || (sale.invoiceData ? sale.invoiceData.deductedItems : []);
         if (attachments && attachments.length > 0) {
             attachmentsHTML = `<div class="text-xs text-gray-500 mt-1 pl-4" style="margin-right: 10px;"><strong>+ ملحقات:</strong> ${attachments.map(item => `${item.quantity}x ${item.name}`).join(', ')}</div>`;
         }
         
+        // 2. عرض المنتجات
         if (sale.items) {
             itemsText = sale.items.map(item => `${item.quantity}x "${item.name}"`).join(', ');
             if (itemsText.length > 50) itemsText = itemsText.substring(0, 50) + "...";
@@ -3867,32 +4010,40 @@ function updatePendingSalesDisplay() {
         
         let customerInfo = sale.customerName ? `<span class="block text-sm text-blue-600">العميل: ${sale.customerName}</span>` : '';
 
+        // 3. حالة الدفع (عربون)
         const totalPaid = Number(sale.depositPaid) || 0;
         let paymentBadge = "";
+        
         if (totalPaid > 0) {
-            paymentBadge = `<span class="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded font-bold mt-1 border border-yellow-200">💰 مدفوع عربون: ${formatCurrency(totalPaid)}</span>`;
+            paymentBadge = `<span class="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded font-bold mt-1 border border-yellow-200">
+                💰 مدفوع عربون: ${formatCurrency(totalPaid)}
+            </span>`;
         }
 
+        // --- هيكل HTML المتوافق مع التصميم القديم ---
         return `
         <li style="border-bottom: 1px solid #eee; padding: 10px; list-style: none;">
             <div class="flex justify-between items-start gap-2 flex-wrap">
                 <div>
                     <span class="block font-semibold text-blue-700 cursor-pointer hover:underline" onclick="window.showPendingSaleDetails('${sale.id}')" title="اضغط لعرض تفاصيل الربحية">
-                        ${itemsText} <i class="fas fa-info-circle text-xs ml-1"></i>
-                    </span>
+    ${itemsText} <i class="fas fa-info-circle text-xs ml-1"></i>
+</span>
                     ${customerInfo}
                     ${attachmentsHTML}
                     <div class="mt-1 text-sm text-gray-600">
-                        <span>البيع: <b>${formatCurrency(sale.totalSellPrice)}</b></span> | 
-                        <span class="text-red-600">التكلفة: <b>${formatCurrency(currentSaleCost)}</b></span> | 
-                        <span class="text-green-600">الربح: <b>${formatCurrency(sale.potentialProfit)}</b></span>
+                        <span>السعر: <b>${formatCurrency(sale.totalSellPrice)}</b></span> | 
+                        <span>الربح: <b>${formatCurrency(sale.potentialProfit)}</b></span>
                     </div>
                     ${paymentBadge}
                     <span class="block text-xs text-gray-400 mt-1">${formatDateTime(sale.timestamp)}</span>
                 </div>
                 
                 <div class="actions flex-shrink-0 flex flex-col sm:flex-row gap-1 mt-2 sm:mt-0">
-                    <button onclick="window.openDepositModal('${sale.id}')" class="bg-purple-500 hover:bg-purple-600 text-white rounded px-2 py-1 text-xs border border-purple-700">استلام عربون</button>
+                    <!-- زر العربون الجديد بتنسيق متوافق -->
+                    <button onclick="window.openDepositModal('${sale.id}')" class="bg-purple-500 hover:bg-purple-600 text-white rounded px-2 py-1 text-xs border border-purple-700" title="استلام دفعة">
+                        استلام عربون
+                    </button>
+                    
                     <button data-pending-id="${sale.id}" class="edit-pending bg-blue-500 hover:bg-blue-600 text-white rounded px-2 py-1 text-xs border border-blue-700">تعديل</button>
                     <button data-pending-id="${sale.id}" class="confirm-pending bg-green-500 hover:bg-green-600 text-white rounded px-2 py-1 text-xs border border-green-700">تأكيد</button>
                     <button data-pending-id="${sale.id}" class="cancel-pending bg-red-500 hover:bg-red-600 text-white rounded px-2 py-1 text-xs border border-red-700">إلغاء</button>
@@ -3932,55 +4083,42 @@ function updatePendingSalesDisplay() {
 // =======================================================
 function updateUI() {
     console.log("updateUI called. Current loaded date:", currentLoadedDate);
-    
-    // 1. جلب النتائج الحسابية الشاملة (أصول، خصوم، رأس مال)
-    const totals = calculateTotals(); 
+   const { 
+        totalInventoryValue, 
+        totalCapital, 
+        totalDebtsValue, 
+        totalLiabilitiesValue, 
+        calculatedPendingReturnsValue, 
+        calculatedPendingPurchasesValue 
+    } = calculateTotals();
     const totalPurchases = calculateTotalPurchasesToday();
+    renderAccounts(); // <-- السطر الأول الجديد
+    const totalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0); // <-- السطر الثاني الجديد
     
-    // 2. تحديث أرصدة الحسابات والسيولة الكلية بشكل آمن
-    renderAccounts(); 
-    const totalLiquidity = (accounts || []).reduce((sum, acc) => sum + (Number(acc.balance) || 0), 0); 
+    // ✅ 1. حساب الربح المتوقع من المبيعات المعلقة فقط
+    const totalPotentialProfit = pendingSales.reduce((sum, sale) => {
+        return sum + (Number(sale.potentialProfit) || 0);
+    }, 0);
 
-    // --- [تحديث البطاقات في الملخص العلوي] ---
+    // ✅ 2. المعادلة النهائية والصحيحة لرأس المال المتوقع
+    const expectedCapital = totalCapital + totalPotentialProfit;
 
-    // السيولة والمخزون
+    // -- تحديث عناصر الواجهة (باقي الكود لم يتغير) --
     if (d('summary-current-liquidity')) d('summary-current-liquidity').textContent = formatCurrency(totalLiquidity);
-    if (d('summary-total-inventory-value')) d('summary-total-inventory-value').textContent = formatCurrency(totals.totalInventoryValue);
-
-    // قيمة بضاعة مؤقتة (قيد التسليم للعملاء)
-    if (d('summary-consignment-value-display')) {
-        d('summary-consignment-value-display').textContent = formatCurrency(totals.totalPendingCost);
-    }
-
-    // ✅ تحديث بطاقة "مشتريات قيد الاستلام" (الأصول الجديدة)
-    if (d('summary-pending-purchases-value')) {
-        d('summary-pending-purchases-value').textContent = formatCurrency(totals.pendingPurchasesAsset);
-    }
-    
-    // ✅ تحديث بطاقة "مرتجعات قيد الاستلام" (الأصول الجديدة)
-    if (d('summary-pending-returns-value')) {
-        d('summary-pending-returns-value').textContent = formatCurrency(totals.pendingReturnsAsset);
-    }
-
-    // الديون، الالتزامات، المصروفات، والأرباح
-    if (d('summary-total-debts-display')) d('summary-total-debts-display').textContent = formatCurrency(totals.totalDebtsValue);
-    if (d('summary-total-liabilities-display')) d('summary-total-liabilities-display').textContent = formatCurrency(totals.totalLiabilitiesValue);
+    if (d('summary-total-inventory-value')) d('summary-total-inventory-value').textContent = formatCurrency(totalInventoryValue);
+    if (d('summary-consignment-value-display')) d('summary-consignment-value-display').textContent = formatCurrency(goodsOnConsignmentValue);
+    if (d('summary-total-debts-display')) d('summary-total-debts-display').textContent = formatCurrency(totalDebtsValue);
+    if (d('summary-total-liabilities-display')) d('summary-total-liabilities-display').textContent = formatCurrency(totalLiabilitiesValue);
     if (d('summary-total-expenses')) d('summary-total-expenses').textContent = formatCurrency(expenses);
     if (d('summary-total-profit')) d('summary-total-profit').textContent = formatCurrency(totalProfit);
-
-    // رأس المال (الفعلي والمتوقع)
-    if (d('summary-total-capital')) d('summary-total-capital').textContent = formatCurrency(totals.totalCapital);
-    if (d('summary-expected-capital')) d('summary-expected-capital').textContent = formatCurrency(totals.expectedCapital);
-    
-    // إجمالي مشتريات اليوم
+    if (d('summary-total-capital')) d('summary-total-capital').textContent = formatCurrency(totalCapital);
+    if (d('summary-expected-capital')) d('summary-expected-capital').textContent = formatCurrency(expectedCapital);
     if (d('summary-total-purchases')) d('summary-total-purchases').textContent = formatCurrency(totalPurchases);
 
-    // --- [تحديث شاشات الإدخال والبيانات الداخلية] ---
-    if (inventoryTotalInventoryValue) inventoryTotalInventoryValue.textContent = `إجمالي قيمة المخزون: ${formatCurrency(totals.totalInventoryValue)}`;
-    if (inventoryConsignmentValue) inventoryConsignmentValue.textContent = `قيمة مؤقتة: ${formatCurrency(totals.totalPendingCost)}`;
+    if (inventoryTotalInventoryValue) inventoryTotalInventoryValue.textContent = `إجمالي قيمة المخزون: ${formatCurrency(totalInventoryValue)}`;
+    if (inventoryConsignmentValue) inventoryConsignmentValue.textContent = `قيمة مؤقتة: ${formatCurrency(goodsOnConsignmentValue)}`;
     if (inventoryTotalProfit) inventoryTotalProfit.textContent = `إجمالي الربح: ${formatCurrency(totalProfit)}`;
     
-    // --- [تحديث كافة القوائم، الجداول، والمزامنة] ---
     updateProductListDisplay();
     updateSuppliersListDisplay();
     updateSupplierDropdown('product-supplier');
@@ -3992,7 +4130,7 @@ function updateUI() {
     updateLiquidityLogDisplay();
     updateLiabilitiesListDisplay();
     renderDebtorPaymentList();
-    renderLiabilityPaymentList();
+renderLiabilityPaymentList();
     updateOffsetDatalists();
     pi_updateRecentPurchasesDisplay();
     pi_updatePendingPurchasesDisplay();
@@ -4000,23 +4138,12 @@ function updateUI() {
     populateReturnProductSelect();
     updateMonthlyLiabilitiesDisplay();
     
-    // تحديث نصوص الحالة في تذييل الصفحات
-    if (totalDebtsDisplay) totalDebtsDisplay.textContent = `إجمالي الديون: ${formatCurrency(totals.totalDebtsValue)}`;
-    if (currentLiquidityDisplay) currentLiquidityDisplay.textContent = formatCurrency(totalLiquidity);
+    if (totalDebtsDisplay) totalDebtsDisplay.textContent = `إجمالي الديون: ${formatCurrency(totalDebtsValue)}`;
+    if (currentLiquidityDisplay) currentLiquidityDisplay.textContent = formatCurrency(liquidity);
     if (totalExpensesDisplay) totalExpensesDisplay.textContent = formatCurrency(expenses);
-    if (totalLiabilitiesDisplay) totalLiabilitiesDisplay.textContent = `إجمالي الالتزامات: ${formatCurrency(totals.totalLiabilitiesValue)}`;
-    
-    // تحديث عرض التاريخ الحالي
-    if (currentDataDateDisplay) { 
-        currentDataDateDisplay.textContent = currentLoadedDate ? formatDateForDisplay(currentLoadedDate) : "بيانات جديدة (لم تحفظ بعد)"; 
-    }
-    
-    // تحديث قائمة الملحقات في نافذة الفاتورة إن كانت مفتوحة
-    if (inv_modal && inv_modal.style.display === 'block') { 
-        inv_updateDeductibleCostsCheckboxes(); 
-    }
-
-    // تحديث بيانات المركز المالي (Financial Center) إذا كان القسم مرئياً
+    if (totalLiabilitiesDisplay) totalLiabilitiesDisplay.textContent = `إجمالي الالتزامات: ${formatCurrency(totalLiabilitiesValue)}`;
+    if (currentDataDateDisplay) { currentDataDateDisplay.textContent = currentLoadedDate ? formatDateForDisplay(currentLoadedDate) : "بيانات جديدة (لم تحفظ بعد)"; }
+    if (inv_modal && inv_modal.style.display === 'block') { inv_updateDeductibleCostsCheckboxes(); }
     if (d('financial-center-section') && !d('financial-center-section').classList.contains('hidden')) { 
         const activeTab = d('fc-main-tabs').querySelector('.fc-tab-button.active'); 
         if (activeTab) { 
@@ -4025,39 +4152,71 @@ function updateUI() {
                 fc_populate_month_select(); 
             } else if (targetId === 'fc-tab-debt-treatment') { 
                 fc_populate_debt_treatment(); 
-            }
-        }
+            } 
+        } 
+    }
+    // 🆕 تحديث بطاقة المرتجعات المعلقة
+    if (document.getElementById('summary-pending-returns')) {
+        document.getElementById('summary-pending-returns').textContent = formatCurrency(calculatedPendingReturnsValue);
+    }
+
+    // 🆕 تحديث بطاقة المشتريات المعلقة
+    if (document.getElementById('summary-pending-purchases')) {
+        document.getElementById('summary-pending-purchases').textContent = formatCurrency(calculatedPendingPurchasesValue);
     }
 }
 function initiateReturnFromPendingSale(pendingId) {
     const saleIndex = pendingSales.findIndex(s => s.id === pendingId);
-    if (saleIndex === -1) return;
+    if (saleIndex === -1) {
+        showGlobalMessage("خطأ: لم يتم العثور على البيع المؤقت.", true);
+        return;
+    }
 
-    if (!confirm(`سيتم حذف العملية من المعلق وتحويلها لقسم المرتجعات. هل أنت متأكد؟`)) return;
+    if (!confirm(`هل أنت متأكد من تحويل هذا البيع المؤقت إلى عملية مرتجع؟\nسيتم حذف البيع المؤقت فوراً وتحضير بياناته في قسم المرتجعات.`)) {
+        return;
+    }
     
-    saveStateToHistory(); // حفظ نقطة تراجع
+    saveStateToHistory();
 
-    // حذف فعلي من المصفوفة (هذا ما يجعل الرقم يتغير في updateUI)
+    // حذف البيع المؤقت الآن ونسخ بياناته
     returnSourceData = pendingSales.splice(saleIndex, 1)[0]; 
 
     logOperation("تحويل لمُرتجع", `حذف بيع مؤقت وبدء إرجاع للعميل ${returnSourceData.customerName || '-'}.`);
     
-    // توجيه الواجهة لقسم المرتجعات
+    // الانتقال إلى قسم المرتجعات
+    const returnsSection = d('returns-section');
     const navButton = document.querySelector('button[data-target="returns-section"]');
-    if (navButton) navButton.click();
+    if (returnsSection && navButton) {
+        document.querySelectorAll('.content-section').forEach(s => s.classList.add('hidden'));
+        document.querySelectorAll('.nav-button').forEach(b => b.classList.remove('active'));
+        returnsSection.classList.remove('hidden');
+        navButton.classList.add('active');
+        returnsSection.scrollIntoView({ behavior: 'smooth' });
+    }
 
-    // ملء بيانات المرتجع تلقائياً
+    // ملء نموذج المرتجعات
     const mainItem = returnSourceData.items ? returnSourceData.items[0] : returnSourceData.mainProduct;
     if (mainItem) {
-        d('return-manual-product-name').value = mainItem.name.split(' (S/N:')[0];
+        d('return-manual-product-name').value = mainItem.name;
+        d('return-product-select').value = ""; // تصفير الاختيار ليعتمد على الاسم اليدوي
         d('return-quantity').value = mainItem.quantity;
     }
     d('return-customer-name').value = returnSourceData.customerName || '';
-    d('return-sale-price-input').value = returnSourceData.totalSellPrice || 0;
+    
+    d('return-sale-price-input').value = returnSourceData.totalSellPrice || 0; 
+    
+    // تفعيل خيار الإرجاع بسعر البيع
+    const atSalePriceCheckbox = d('return-at-sale-price');
+    if (atSalePriceCheckbox) {
+        atSalePriceCheckbox.checked = true;
+        // مهم: تفعيل حدث التغيير في حال كان هناك كود يعتمد عليه لإظهار/إخفاء حقول
+        atSalePriceCheckbox.dispatchEvent(new Event('change'));
+    }
 
-    // تحديث الشاشة فوراً لرؤية التغيير في الحسابات والمعلق
-    updateUI(); 
-    showGlobalMessage("تم حذف العملية من المعلق وتجهيز بيانات المرتجع.", false, true);
+    d('return-receive-now').checked = false; // افتراضياً قيد الاستلام
+    
+    updateUI();
+    showGlobalMessage("تم حذف البيع المؤقت. بيانات المرتجع جاهزة للتأكيد.", false, true);
 }
 
 function populateReturnProductSelect() {
@@ -5892,19 +6051,6 @@ function printPendingSaleAsInvoice(pendingId) {
 
                       <title>فاتورة بيع - ${invoiceNumber}</title>
                       <style>
-                      /* تنسيقات إضافية للبطاقات الجديدة */
-.stat-purchases { border-bottom: 4px solid #6366f1; } /* لون أرجواني هادئ */
-.stat-purchases .stat-value { color: #4338ca; }
-
-.stat-returns { border-bottom: 4px solid #ec4899; } /* لون وردي للمرتجعات */
-.stat-returns .stat-value { color: #be185d; }
-
-/* تحسين شكل النصوص التوضيحية */
-.stat-card p {
-    line-height: 1.4;
-    font-size: 0.75rem;
-    opacity: 0.8;
-}
                           body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 15px; font-size: 10pt; line-height: 1.4; color: #333; }
                           .invoice-box { max-width: 800px; margin: auto; padding: 15px; border: 1px solid #eee; box-shadow: 0 0 8px rgba(0, 0, 0, 0.1); }
                           .invoice-header { text-align: center; margin-bottom: 20px; }
