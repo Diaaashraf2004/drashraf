@@ -1795,9 +1795,20 @@ input:checked:active + .slider:before {
                             <span class="text-sm text-gray-700 font-medium">بيع مؤقت (تحت التسوية)</span>
                         </label>
                     </div>
-                    <div class="form-group mt-3">
-    <label for="sell-account-select" class="block text-gray-700 text-sm font-bold mb-1">إيداع في حساب:</label>
-    <select id="sell-account-select" class="shadow-sm"></select>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+    <div class="form-group">
+        <label for="sell-account-select" class="block text-gray-700 text-sm font-bold mb-1">إيداع في حساب:</label>
+        <select id="sell-account-select" class="shadow-sm"></select>
+    </div>
+    <div class="form-group">
+        <label for="sell-paid-amount" class="block text-blue-700 text-sm font-bold mb-1">المبلغ المدفوع كاش:</label>
+        <input type="number" id="sell-paid-amount" placeholder="اتركه فارغاً للدفع الكامل" 
+               class="shadow-sm border-blue-200 w-full" oninput="window.updateQuickSaleDebt()">
+        
+        <div id="quick-sale-debt-container" class="mt-2 text-xs font-bold text-red-600 hidden">
+            المتبقي كدين: <span id="quick-sale-remaining-debt">0.00</span> جنيه
+        </div>
+    </div>
 </div>
                     <div class="flex flex-wrap gap-4 mt-6">
                         <button id="sell-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">بيع البضاعة (سريع/مؤقت)</button>
@@ -2423,11 +2434,24 @@ input:checked:active + .slider:before {
                                     </div>
                                 </div>
                             </fieldset>
-                            <fieldset>
-    <legend>الدفع</legend>
-    <div class="form-group">
-        <label for="inv_payment_account" class="block text-sm font-bold mb-1">إيداع المبلغ في حساب:</label>
-        <select id="inv_payment_account" class="shadow-sm"></select>
+                           <fieldset id="inv_payment_details_field">
+    <legend>تفاصيل الدفع والمديونية</legend>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="form-group">
+            <label for="inv_payment_account" class="block text-sm font-bold mb-1">إيداع المبلغ في حساب:</label>
+            <select id="inv_payment_account" class="shadow-sm"></select>
+        </div>
+        <div class="form-group">
+            <label for="inv_paidAmount" class="text-blue-700 font-bold">المبلغ المدفوع الآن (كاش):</label>
+            <input type="number" id="inv_paidAmount" value="0" min="0" step="0.01" class="shadow-sm border-blue-300" oninput="window.inv_calculateTotals()">
+            <p class="text-xs text-gray-500 mt-1">اتركه 0 إذا دفع العميل الإجمالي بالكامل.</p>
+        </div>
+        <div class="form-group bg-red-50 p-2 rounded border border-red-100 md:col-span-2">
+            <div class="flex justify-between items-center">
+                <span class="text-red-700 font-semibold">المتبقي كدين تلقائي:</span>
+                <strong id="inv_remainingDebt" class="text-lg text-red-600">0.00 جنيه</strong>
+            </div>
+        </div>
     </div>
 </fieldset>
                             <fieldset class="no-print">
@@ -3718,6 +3742,8 @@ function updateProductListDisplay() {
         `;
         additionalCostsContainer.appendChild(label);
     });
+    // التحديث الجديد لحساب الدين
+    if (typeof window.updateQuickSaleDebt === 'function') window.updateQuickSaleDebt();
 }
         // =====================================================================
 function updateDebtorsListDisplay() {
@@ -5856,28 +5882,48 @@ async function handleSaveInvoice() {
         showMessage(globalMessage, "تم حفظ الفاتورة في قائمة المبيعات المؤقتة بنجاح.", false);
 
     } else {
-        // --- حفظ نهائي (Confirmed) ---
-        
-        // أ. تحديث السيولة
-        if (amountToCollectNow > 0) {
-            account.balance += amountToCollectNow;
-            const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-            
-            let logDesc = `فاتورة مبيعات ${customerName}`;
-            if (depositAlreadyPaid > 0) {
-                logDesc = `استلام باقي فاتورة ${customerName} (إجمالي: ${grandTotal} - عربون: ${depositAlreadyPaid})`;
-            }
+      // --- 1. إنشاء رقم الفاتورة أولاً لضمان عدم حدوث خطأ ---
+const generatedInvoiceNumber = "INV-" + Date.now(); 
 
-            liquidityLog.push({ 
-                id: `liq-${Date.now()}`, 
-                timestamp: new Date().toISOString(), 
-                type: "add", 
-                amount: amountToCollectNow, 
-                description: logDesc, 
-                currentBalance: newTotalLiquidity,
-                accountId: selectedAccountId
-            });
-        }
+// --- 2. منطق الدفع الجزئي والمديونية الجديد (المصحح) ---
+const paidNow = parseFloat(document.getElementById('inv_paidAmount').value) || 0;
+const depositAlreadyPaid = Number(pendingSaleOriginData?.depositPaid) || 0;
+const totalInvoicePrice = grandTotal;
+
+// تحديد كم سيتم إيداعه فعلياً في الخزينة الآن
+let actualCashReceived = paidNow;
+// استخدام document.getElementById لضمان الوصول للعنصر
+const isPendingCheckbox = document.getElementById('inv_markAsPending');
+if (paidNow === 0 && (!isPendingCheckbox || !isPendingCheckbox.checked)) {
+    actualCashReceived = totalInvoicePrice - depositAlreadyPaid;
+}
+
+const remainingAsDebt = totalInvoicePrice - (actualCashReceived + depositAlreadyPaid);
+
+// 3. تحديث الخزينة بالمبلغ المدفوع فعلياً فقط
+if (actualCashReceived > 0) {
+    account.balance += actualCashReceived;
+    liquidityLog.push({
+        id: `liq-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        type: "add",
+        amount: actualCashReceived,
+        description: `دفعة من فاتورة العميل: ${customerName}`,
+        accountId: selectedAccountId
+    });
+}
+
+// 4. تسجيل المتبقي كدين تلقائي
+if (remainingAsDebt > 0.01) {
+    debtors.push({
+        id: `debt-auto-${Date.now()}`,
+        name: customerName,
+        reason: `متبقي فاتورة مبيعات رقم ${generatedInvoiceNumber}`,
+        amount: remainingAsDebt,
+        timestamp: new Date().toISOString()
+    });
+    logOperation("دين تلقائي", `تم تسجيل متبقي فاتورة على ${customerName} بقيمة ${formatCurrency(remainingAsDebt)}`);
+}
 
         // ب. تحديث السيريالات
         invoiceItems.forEach(item => {
@@ -5905,7 +5951,7 @@ async function handleSaveInvoice() {
                 if (seq > maxSeq) maxSeq = seq;
             }
         });
-        const generatedInvoiceNumber = `${todayStr}-${(maxSeq + 1).toString().padStart(3, '0')}`;
+        
 
         const invoiceRecord = {
             id: isInvoiceFromPending && pendingSaleOriginData ? pendingSaleOriginData.id.replace('pending','inv') : `inv-${Date.now()}`,
@@ -6278,20 +6324,56 @@ function printPendingSaleAsInvoice(pendingId) {
                   }
              }
 
-            function inv_calculateTotals() {
-                let goodsTotal = 0;
-                if(inv_invoiceItemsBody) {
-                    inv_invoiceItemsBody.querySelectorAll('.invoice-item-row').forEach(row => {
-                        goodsTotal += parseFloat(row.dataset.itemSubtotal || 0);
-                    });
-                }
-                const shippingCost = inv_shippingCostInput ? (parseInputNumber(inv_shippingCostInput) || 0) : 0;
-                const grandTotal = goodsTotal + shippingCost;
+         // نقوم بتعريف الدالة وربطها بـ window مباشرة لضمان وصول الـ HTML إليها
+window.inv_calculateTotals = function() {
+    let goodsTotal = 0;
+    
+    // حساب إجمالي البضائع من الجدول
+    const tbody = document.getElementById('inv_invoiceItemsBody');
+    if (tbody) {
+        tbody.querySelectorAll('.invoice-item-row').forEach(row => {
+            goodsTotal += parseFloat(row.dataset.itemSubtotal || 0);
+        });
+    }
 
-                if(inv_totalGoodsPriceSpan) inv_totalGoodsPriceSpan.textContent = formatCurrency(goodsTotal);
-                if(inv_totalShippingCostSpan) inv_totalShippingCostSpan.textContent = formatCurrency(shippingCost);
-                if(inv_grandTotalPriceSpan) inv_grandTotalPriceSpan.textContent = formatCurrency(grandTotal);
-            }
+    // جلب تكلفة الشحن
+    const shippingInput = document.getElementById('inv_shippingCost');
+    const shippingCost = shippingInput ? (parseFloat(shippingInput.value) || 0) : 0;
+    
+    // الإجمالي الكلي للفاتورة
+    const grandTotal = goodsTotal + shippingCost;
+
+    // --- منطق الدين الجزئي الجديد ---
+    const paidInput = document.getElementById('inv_paidAmount');
+    const remainingDebtDisplay = document.getElementById('inv_remainingDebt');
+    
+    if (paidInput && remainingDebtDisplay) {
+        let paidAmount = parseFloat(paidInput.value) || 0;
+        
+        // حساب الدين (الإجمالي - المدفوع)
+        let debt = grandTotal - paidAmount;
+        if (debt < 0) debt = 0;
+
+        // تحديث عرض الدين المتبقي
+        remainingDebtDisplay.textContent = formatCurrency(debt);
+        
+        // إظهار أو إخفاء حقل التنبيه بالدين
+        if (debt > 0) {
+            remainingDebtDisplay.parentElement.parentElement.classList.remove('hidden');
+        } else {
+            remainingDebtDisplay.parentElement.parentElement.classList.add('hidden');
+        }
+    }
+
+    // تحديث الأرقام في أسفل الفاتورة (الأسبان)
+    const totalGoodsSpan = document.getElementById('inv_totalGoodsPrice');
+    const totalShippingSpan = document.getElementById('inv_totalShippingCost');
+    const grandTotalSpan = document.getElementById('inv_grandTotalPrice');
+
+    if (totalGoodsSpan) totalGoodsSpan.textContent = formatCurrency(goodsTotal);
+    if (totalShippingSpan) totalShippingSpan.textContent = formatCurrency(shippingCost);
+    if (grandTotalSpan) grandTotalSpan.textContent = formatCurrency(grandTotal);
+};
 
          function inv_updateDeductibleCostsCheckboxes() {
     if (!inv_deductibleCostsContainer) return;
@@ -7312,6 +7394,14 @@ async function handlePendingSaleActions(event) {
     sellButton.classList.add('bg-orange-500', 'hover:bg-orange-600');
     
     d('cancel-edit-pending-button').classList.remove('hidden');
+
+// إضافة هذا السطر لضمان تحديث عرض الدين فور تحميل بيانات البيعة للتعديل
+    setTimeout(() => { 
+        if (typeof window.updateQuickSaleDebt === 'function') {
+            window.updateQuickSaleDebt(); 
+        }
+    }, 150);
+
 }
             // --- Invoice Search Functions ---
             function searchInvoiceByNumber() {
@@ -9185,6 +9275,12 @@ async function performSmartGlobalSearch() {
 // START: دالة بدء التشغيل النهائية (متصلة بالإنترنت)
 // =======================================================
 async function initializeApp() {
+
+
+
+
+
+
     console.log("Initializing App with Online-First Logic...");
         // (هنا تضع كل تعريفات المتغيرات التي كانت داخل الدالة القديمة)
     // مثال: mainNav = d("main-nav"); contentSections = document.querySelectorAll(...);
@@ -9273,7 +9369,18 @@ completedReturnsList = d('completed-returns-list');
 categoryDatalist = d('category-names-list');
 inventorySearchInput = d('inventory-search');
 inventoryCategoryFilter = d('inventory-category-filter');
+
                  sellProductNameInput = d("sell-product-name");
+                 // --- تفعيل التحديث اللحظي للديون في البيع السريع ---
+        ['sell-price', 'sell-quantity', 'sell-paid-amount'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('input', () => {
+                    // استدعاء دالة الحساب فور أي تغيير في السعر أو الكمية أو المدفوع
+                    if (typeof window.updateQuickSaleDebt === 'function') window.updateQuickSaleDebt();
+                });
+            }
+        });
      // ============================================================
     // >>> انسخ هذا البلوك وضعه تحت السطر السابق مباشرة <<<
     // ============================================================
@@ -9495,6 +9602,27 @@ if (piItemTotalCostInput) {
                  sellCustomerNameInput = d("sell-customer-name");
                  sellQuantityInput = d("sell-quantity");
                  sellPriceInput = d("sell-price");
+                 // --- الجزء المطور لتحديث الدين تلقائياً في البيع السريع ---
+if (sellPriceInput) {
+    sellPriceInput.addEventListener('input', () => {
+        if (typeof window.updateQuickSaleDebt === 'function') window.updateQuickSaleDebt();
+    });
+}
+
+if (sellQuantityInput) {
+    sellQuantityInput.addEventListener('input', () => {
+        if (typeof window.updateQuickSaleDebt === 'function') window.updateQuickSaleDebt();
+    });
+}
+
+
+// التأكد من ربط حقل المبلغ المدفوع أيضاً
+const sellPaidInput = document.getElementById('sell-paid-amount');
+if (sellPaidInput) {
+    sellPaidInput.addEventListener('input', () => {
+        if (typeof window.updateQuickSaleDebt === 'function') window.updateQuickSaleDebt();
+    });
+}
                  sellButton = d("sell-button");
                  sellMessage = d("sell-message");
                  additionalCostsContainer = d("additional-costs-container");
@@ -10317,12 +10445,47 @@ function sellProduct() {
         logOperation("بيع مؤقت", `بيع مؤقت: ${productNameWithSerial}`);
         showMessage(sellMessage, "تم تسجيل البيع المؤقت.");
     } else {
-        account.balance += totalSellPrice;
-        totalProfit += profit;
-        
-        const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
-        liquidityLog.push({ id: `liq-${Date.now()}`, timestamp: new Date().toISOString(), type: "add", amount: totalSellPrice, description: `بيع سريع: ${productNameWithSerial}`, currentBalance: newTotalLiquidity });
+            // --- الجزء المالي المطور للتعامل مع الدفع الجزئي ---
+            const quickPaidInput = document.getElementById('sell-paid-amount');
+            const quickPaidAmount = parseFloat(quickPaidInput.value) || 0;
 
+            // إذا دفع 0 أو ترك الحقل فارغاً، نعتبره دفع كامل
+            let cashForLiquidity = quickPaidAmount;
+            if (quickPaidAmount === 0) {
+                cashForLiquidity = totalSellPrice;
+            }
+
+            const quickDebtAmount = totalSellPrice - cashForLiquidity;
+
+            // 1. تحديث الأرباح (الأرباح تُحسب على كامل الفاتورة دائماً)
+            totalProfit += profit;
+
+            // 2. إيداع الكاش في الخزينة
+            if (cashForLiquidity > 0) {
+                account.balance += cashForLiquidity;
+                const newTotalLiquidity = accounts.reduce((sum, acc) => sum + acc.balance, 0);
+                liquidityLog.push({
+                    id: `liq-q-${Date.now()}`,
+                    timestamp: new Date().toISOString(),
+                    type: "add",
+                    amount: cashForLiquidity,
+                    description: `بيع سريع: ${productNameWithSerial} (دفعة نقدية)`,
+                    currentBalance: newTotalLiquidity,
+                    accountId: account.id
+                });
+            }
+
+            // 3. تسجيل المتبقي كدين تلقائي
+            if (quickDebtAmount > 0.01) {
+                debtors.push({
+                    id: `debt-q-${Date.now()}`,
+                    name: customerName || "عميل غير مسمى",
+                    reason: `متبقي بيع سريع: ${productNameWithSerial}`,
+                    amount: quickDebtAmount,
+                    timestamp: new Date().toISOString()
+                });
+                logOperation("دين تلقائي", `تم تسجيل دين على ${customerName || 'العميل'} بقيمة ${formatCurrency(quickDebtAmount)} متبقي بيع سريع.`);
+            }
         const allItems = [
             { name: mainProduct.name, quantity: quantitySold, costPrice: mainProduct.costPrice, serial: selectedSerial },
             ...additionalItemsDataForPending
@@ -12515,6 +12678,33 @@ window.deleteAllReportData = async function() {
     } catch (error) {
         console.error("Error deleting report data:", error);
         alert("حدث خطأ أثناء الحذف.");
+    }
+};
+window.updateQuickSaleDebt = function() {
+    // جلب الحقول الصحيحة من ملفك
+    const priceInput = document.getElementById('sell-price');    // حقل السعر
+    const qtyInput = document.getElementById('sell-quantity');   // حقل الكمية
+    const paidInput = document.getElementById('sell-paid-amount'); // حقل المدفوع كاش
+    
+    const debtContainer = document.getElementById('quick-sale-debt-container');
+    const debtDisplay = document.getElementById('quick-sale-remaining-debt');
+
+    if (!priceInput || !paidInput || !debtContainer) return;
+
+    // حساب الإجمالي (السعر × الكمية)
+    const price = parseFloat(priceInput.value) || 0;
+    const qty = parseFloat(qtyInput.value) || 1; // الافتراضي 1
+    const totalPrice = price * qty;
+
+    const paidAmount = parseFloat(paidInput.value) || 0;
+
+    // المنطق: إذا كان المدفوع أقل من الإجمالي وأكبر من 0
+    if (paidAmount > 0 && paidAmount < totalPrice) {
+        const debt = totalPrice - paidAmount;
+        debtDisplay.textContent = debt.toLocaleString('ar-EG', {minimumFractionDigits: 2}); // تنسيق العملة
+        debtContainer.classList.remove('hidden');
+    } else {
+        debtContainer.classList.add('hidden');
     }
 };
 }); // End DOMContentLoaded
