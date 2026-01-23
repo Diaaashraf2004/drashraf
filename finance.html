@@ -3656,13 +3656,16 @@ function updateProductListDisplay() {
     const searchTerm = inventorySearchInput.value.trim().toLowerCase();
     const selectedCategory = inventoryCategoryFilter.value;
 
-    // --- 3. تصفية المنتجات بناءً على البحث والقسم ---
-    const filteredProducts = products.filter(product => {
+   const filteredProducts = products.filter(product => {
         const nameMatch = !searchTerm || product.name.toLowerCase().includes(searchTerm);
         const categoryMatch = (selectedCategory === 'all') || (product.category === selectedCategory);
-        return nameMatch && categoryMatch;
+        
+        // ✅ إضافة هذا الشرط لضمان عدم عرض أي منتج كميته صفر
+        const hasQuantity = (Number(product.quantity) || 0) > 0; 
+        
+        return nameMatch && categoryMatch && hasQuantity;
     });
-
+    
     // --- 4. عرض المنتجات المفلترة ---
     if (filteredProducts.length === 0) {
         if (products.length === 0) {
@@ -10019,7 +10022,7 @@ if (addProductButton) {
             let newQuantity = Number(quantity);
             const newCostPriceInput = Number(costPrice);
 
-            if (existingIndex !== -1) {
+         if (existingIndex !== -1) {
                  // منتج موجود مسبقاً
                  if (newQuantity <= 0) { showMessage(productMessage, "الكمية المضافة يجب أن تكون أكبر من صفر.", true); return; }
                  const existing = products[existingIndex];
@@ -10030,10 +10033,30 @@ if (addProductButton) {
                         showMessage(productMessage, `لا توجد سيولة كافية في حساب "${account.name}".`, true);
                         return;
                     }
+                    // 1. خصم من حساب السيولة
                     account.balance -= costToDeduct;
+                    // 2. إضافة إلى إجمالي المصروفات العامة
+                    expenses += costToDeduct; 
+                    
+                    // 3. التسجيل في سجل السيولة (الخزينة)
+                    liquidityLog.push({
+                        id: `liq-${Date.now()}`,
+                        timestamp: new Date().toISOString(),
+                        type: "remove",
+                        amount: costToDeduct,
+                        description: `شراء كمية إضافية: ${newQuantity}x ${name}`,
+                        currentBalance: accounts.reduce((s, a) => s + a.balance, 0),
+                        accountId: selectedAccountId
+                    });
+
+                    // 4. التسجيل في السجل العام
                     logOperation("شراء بضاعة", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء ${newQuantity}x ${name}.`);
+                } else {
+                    // ✅ تم الإضافة: تسجيل في السجل العام حتى لو لم يتم الخصم من السيولة
+                    logOperation("تسجيل بضاعة", `تم إضافة كمية ${newQuantity} من "${name}" للمخزون (بدون خصم من السيولة).`);
                 }
 
+                // تحديث بيانات المنتج
                 const oldQuantity = Number(existing.quantity) || 0;
                 const oldCostPrice = Number(existing.costPrice) || 0;
                 const totalQuantity = oldQuantity + newQuantity;
@@ -10042,8 +10065,7 @@ if (addProductButton) {
                 existing.supplierId = supplierId || existing.supplierId;
                 existing.category = category || existing.category;
                 showMessage(productMessage, `تم تحديث المنتج "${name}".`);
-
-            } else {
+                 } else {
                 // منتج جديد كلياً
                 if (newQuantity <= 0) { showMessage(productMessage, "كمية المنتج الجديد يجب أن تكون أكبر من صفر.", true); return; }
 
@@ -10053,8 +10075,26 @@ if (addProductButton) {
                         showMessage(productMessage, `لا توجد سيولة كافية في حساب "${account.name}".`, true);
                         return;
                     }
+                    // 1. خصم السيولة وتحديث المصروفات
                     account.balance -= costToDeduct;
-                    logOperation("شراء بضاعة جديدة", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء ${newQuantity}x ${name}.`);
+                    expenses += costToDeduct;
+
+                    // 2. التسجيل في سجل السيولة (الخزينة)
+                    liquidityLog.push({
+                        id: `liq-${Date.now()}`,
+                        timestamp: new Date().toISOString(),
+                        type: "remove",
+                        amount: costToDeduct,
+                        description: `شراء منتج جديد: ${newQuantity}x ${name}`,
+                        currentBalance: accounts.reduce((s, a) => s + a.balance, 0),
+                        accountId: selectedAccountId
+                    });
+
+                    // 3. التسجيل في السجل العام
+                    logOperation("شراء بضاعة جديدة", `خصم ${formatCurrency(costToDeduct)} من حساب "${account.name}" لشراء منتج جديد: ${name}.`);
+                } else {
+                    // ✅ تم الإضافة: تسجيل في السجل العام بدون خصم سيولة
+                    logOperation("تسجيل منتج جديد", `إضافة منتج جديد "${name}" بكمية ${newQuantity} (بدون خصم من السيولة).`);
                 }
 
                 products.push({ name, quantity: newQuantity, costPrice, supplierId: supplierId || "", category: category });
@@ -10416,12 +10456,24 @@ function sellProduct() {
     if (stockCheckFailed) return;
 
     // 5. تنفيذ الخصم من المخزون
+    // خصم المنتج الأساسي
     products[mainProductIndex].quantity -= quantitySold;
+
+    // خصم المنتجات الإضافية (إن وجدت)
     additionalItemsToUpdate.forEach(item => {
         products[item.index].quantity -= item.quantity;
     });
-    products = products.filter(p => p.quantity > 0.001);
 
+    // مراجعة المخزون: إذا وصل أي منتج لصفر أو أقل يتم حذفه فوراً
+    // نستخدم filter لإنشاء مصفوفة جديدة خالية من المنتجات الصفرية
+    const initialCount = products.length;
+    products = products.filter(p => p.quantity > 0.01); 
+    const finalCount = products.length;
+
+    // سجل في السجل العام إذا تم حذف منتج لنفاذ كميته
+    if (finalCount < initialCount) {
+        logOperation("تنبيه مخزون", "تم حذف منتج أو أكثر من القائمة التلقائية لنفاذ الكمية (وصلت لصفر).");
+    }
     const profit = totalSellPrice - costOfGoodsSold;
 
     // 6. تجهيز الاسم للعرض في الفاتورة (مع السيريال إن وجد)
@@ -10503,6 +10555,7 @@ function sellProduct() {
     }
 
     updateUI();
+    saveData();
     resetSellForm();
     sellSerialContainer.classList.add('hidden');
     sellSerialInput.value = '';
