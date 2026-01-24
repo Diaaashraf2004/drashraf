@@ -2827,6 +2827,7 @@ const MAX_BACKUP_SLOTS = 10; // سنحتفظ بـ 5 نسخ فقط كحد أقص�
 let editingMonthlyLiabilityId = null; // لمعرفة الالتزام الذي يتم تعديله
 const lsLastProcessedMonthKey = "goodsMgmt_lastProcessedMonth"; // مفتاح لتخزين آخر شهر تمت معالجته
         let products = [];
+        let unsubscribeSync = null; // ✅ أضف هذا السطر هنا
              let returnSourceData = null; // سيخزن بيانات البيع المؤقت عند تحويله لمرتجع
              let globalSearchResults = []; // متغير لتخزين نتائج البحث الشامل مؤقتاً
         let stateHistory = []; // لتخزين لقطات الحالات السابقة
@@ -2869,6 +2870,44 @@ let pendingReturnsValue = 0; // ✅ أضف هذا السطر هنا
         let isAutoSaveEnabled = false;
 let autoSaveTimer = null;
 const lsAutoSaveKey = "goodsMgmt_autoSaveEnabled"; // مفتاح لحفظ تفضيل المستخدم
+// دالة عالمية لتوليد معرف فريد لكل عملية أو صنف
+const generateUID = (prefix = "ID") => {
+    const timestamp = Date.now().toString(36);
+    const randomStr = Math.random().toString(36).substring(2, 8);
+    return `${prefix}-${timestamp}-${randomStr}`.toUpperCase();
+};
+function migrateDataToUIDs() {
+    let migrationHappened = false;
+
+    // 1. تحديث المنتجات
+    products.forEach(p => {
+        if (!p.id) { 
+            p.id = generateUID("PRD"); 
+            migrationHappened = true; 
+        }
+    });
+
+    // 2. تحديث الحسابات
+    accounts.forEach(a => {
+        if (!a.id) { 
+            a.id = generateUID("ACC"); 
+            migrationHappened = true; 
+        }
+    });
+
+    // 3. تحديث الديون
+    debtors.forEach(d => {
+        if (!d.id) { 
+            d.id = generateUID("DEB"); 
+            migrationHappened = true; 
+        }
+    });
+
+    if (migrationHappened) {
+        console.log("تم تحديث البيانات القديمة وإضافة معرفات فريدة بنجاح.");
+        saveData(); // حفظ التغييرات محلياً وفي السحاب
+    }
+}
 
 
         // --- تعريف المراجع الأساسية (DOM Element References) ---
@@ -3470,6 +3509,8 @@ function loadState(data, dateString) {
     stateHistory = []; 
     redoHistory = [];
     updateUndoRedoButtons();
+    // ✅ أضف هذا السطر هنا بالتحديد
+    migrateDataToUIDs();
 }
 // ✅✅✅ الكود الجديد والصحيح لدالة resetState ✅✅✅
 function resetState() {
@@ -3503,7 +3544,44 @@ function resetState() {
         el.classList.remove('visible', 'error', 'success', 'info');
     });
 }
+      
         function logOperation(type, details){ const timestamp = new Date().toISOString(); operationLog.push({timestamp, type, details}); updateLogDisplay() } // Log display updated immediately
+      function logOperation(type, details){ const timestamp = new Date().toISOString(); operationLog.push({timestamp, type, details}); updateLogDisplay() }
+
+// ✅ أضف الدالة الجديدة هنا
+function startRealTimeSync() {
+    if (!window.currentUser) return;
+    const userId = window.currentUser.uid;
+
+    // ✅ التعديل هنا: استخدمنا currentLoadedDate بدلاً من currentActiveDate
+    const dateStr = (typeof currentLoadedDate !== 'undefined' && currentLoadedDate) 
+                    ? currentLoadedDate 
+                    : new Date().toISOString().split('T')[0];
+
+    const docRef = window.doc(window.db, "users", userId, "days", dateStr);
+
+    if (unsubscribeSync) unsubscribeSync();
+
+    console.log(`📡 بدأت المراقبة اللحظية لتاريخ: ${dateStr}`);
+
+    unsubscribeSync = window.onSnapshot(docRef, (docSnap) => {
+        if (docSnap.metadata.hasPendingWrites) return;
+
+        if (docSnap.exists()) {
+            const newData = docSnap.data();
+            console.log("🔄 تم اكتشاف تحديث من جهاز آخر.. جاري المزامنة.");
+            
+            // التأكد من وجود الدالة قبل استدعائها
+            if (typeof loadState === 'function') {
+                loadState(newData, dateStr); 
+                updateUI(); 
+            }
+        }
+    }, (error) => {
+        console.error("❌ خطأ في المراقبة اللحظية:", error);
+    });
+}
+      
         function calculateTotalDebts(){ const total = debtors.reduce((sum, debtor) => sum + (Number(debtor.amount) || 0), 0); return total; }
         function calculateTotalLiabilities(){ return liabilities.reduce((sum, liability) => sum + (Number(liability.amount) || 0), 0) }
       
@@ -3665,7 +3743,7 @@ function updateProductListDisplay() {
         
         return nameMatch && categoryMatch && hasQuantity;
     });
-    
+
     // --- 4. عرض المنتجات المفلترة ---
     if (filteredProducts.length === 0) {
         if (products.length === 0) {
@@ -10097,7 +10175,15 @@ if (addProductButton) {
                     logOperation("تسجيل منتج جديد", `إضافة منتج جديد "${name}" بكمية ${newQuantity} (بدون خصم من السيولة).`);
                 }
 
-                products.push({ name, quantity: newQuantity, costPrice, supplierId: supplierId || "", category: category });
+              // ابحث عن السطر الذي يضيف المنتج للمصفوفة واستبدله بهذا:
+products.push({ 
+    id: generateUID("PRD"), // المعرف الجديد
+    name: name, 
+    quantity: newQuantity, 
+    costPrice: costPrice, 
+    supplierId: supplierId || "", 
+    category: category 
+});
                 showMessage(productMessage, "تمت إضافة المنتج الجديد بنجاح.");
             }
             resetProductForm();
@@ -11930,6 +12016,10 @@ if (d('liabilities-list-container')) {
             if (!window.appInitialized) {
                 initializeApp(); 
                 window.appInitialized = true;
+                // ✅ أضف هذا السطر هنا أيضاً للتأكيد
+                migrateDataToUIDs();
+                // ✅ ابدأ المراقبة اللحظية الآن
+                startRealTimeSync();
             }
         } else {
             // المستخدم غير مسجل
@@ -12514,6 +12604,7 @@ window.fixInvoiceDates = async function() {
 async function saveSystemToCloud() {
     // التحقق من وجود مستخدم
     if (!window.currentUser) return;
+    migrateDataToUIDs();
     const userId = window.currentUser.uid;
     
     // تحديد تاريخ اليوم للعمليات
@@ -12767,8 +12858,7 @@ window.updateQuickSaleDebt = function() {
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
     
     // ✅ لاحظ: تمت إضافة deleteDoc في هذا السطر لتفعيل الحذف
-    import { getFirestore, doc, setDoc, getDoc, deleteDoc, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";
-    
+import { getFirestore, doc, setDoc, getDoc, deleteDoc, onSnapshot, collection, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore.js";    
     import { 
         getAuth, 
         createUserWithEmailAndPassword, 
@@ -12797,6 +12887,7 @@ window.updateQuickSaleDebt = function() {
     window.setDoc = setDoc;     // تستخدم في الحفظ و Redo
     window.getDoc = getDoc;     // تستخدم في القراءة
     window.deleteDoc = deleteDoc; // ✅ تستخدم في Undo (الحذف)
+    window.onSnapshot = onSnapshot;
 
     // دوال الاستعلامات
     window.collection = collection;
